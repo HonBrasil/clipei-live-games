@@ -670,14 +670,9 @@ button.pill {
 .l-stage-hud em {
   display: block;
   height: 100%;
-  width: 64%;
+  width: 100%;
   background: linear-gradient(180deg, #ff6a72, #ff1f2d 50%, #b3000f);
-  animation: hp-drop 6s ease-in-out infinite;
-}
-@keyframes hp-drop {
-  0% { width: 100%; }
-  85% { width: 18%; }
-  100% { width: 100%; }
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 .l-stage-boss {
   position: absolute;
@@ -685,15 +680,38 @@ button.pill {
   bottom: 22%;
   translate: -50% 0;
   width: 44%;
-  animation: float 3s ease-in-out infinite;
+  animation: float 4.5s ease-in-out infinite;
 }
 .l-stage-boss canvas {
   width: 100%;
   height: auto;
   display: block;
 }
+.l-stage-boss .ult-glow {
+  filter: drop-shadow(0 0 18px rgba(255, 200, 61, 0.55));
+  transition: filter 0.4s;
+}
 @keyframes float {
-  50% { transform: translateY(-8px); }
+  50% { transform: translateY(-6px); }
+}
+.l-dmg {
+  position: absolute;
+  left: 58%;
+  top: 8%;
+  font: italic 900 clamp(16px, 1.8vw, 22px) var(--font-display);
+  color: #fff;
+  text-shadow: 0 2px 0 #000, 0 0 12px rgba(255, 31, 45, 0.8);
+  pointer-events: none;
+  animation: dmg-up 1.2s ease-out forwards;
+}
+.l-dmg.ult {
+  color: var(--yellow);
+  font-size: clamp(20px, 2.2vw, 28px);
+}
+@keyframes dmg-up {
+  0% { opacity: 0; transform: translateY(6px) scale(0.8); }
+  15% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-34px); }
 }
 .l-floor {
   position: absolute;
@@ -719,16 +737,23 @@ button.pill {
   background: rgba(0, 0, 0, 0.6);
   font-size: clamp(11px, 1.1vw, 14px);
   font-weight: 700;
-  opacity: 0;
-  animation: chat-in 3s ease-out infinite;
+  animation: chat-in 0.4s ease-out;
+}
+.l-chat span:first-child:nth-last-child(4) {
+  opacity: 0.45;
 }
 .l-chat b {
   color: var(--accent-2);
 }
 @keyframes chat-in {
-  0% { opacity: 0; transform: translateX(-10px); }
-  15%, 70% { opacity: 1; transform: none; }
-  100% { opacity: 0; }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .l-stage-boss,
+  .l-chat span {
+    animation: none;
+  }
 }
 
 .l-band {

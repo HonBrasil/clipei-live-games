@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BOSS_SKIN_IDS, FOUNDER_SLOTS, GAMES, TRIAL_DAYS, type MeResponse } from '@clipei/shared';
 import { api } from '../api.ts';
@@ -74,25 +74,7 @@ export function Landing() {
             </Link>
           </div>
         </div>
-        <div className="l-stage" aria-hidden="true">
-          <div className="l-stage-hud">
-            <b>GLITCHADOR</b>
-            <i>
-              <em />
-            </i>
-          </div>
-          <div className="l-stage-boss">
-            <BossThumb skin="glitchador" width={240} height={200} />
-          </div>
-          <div className="l-chat">
-            {['!atk', '!atk', 'kkkk vai', '!ult', '!atk'].map((m, i) => (
-              <span key={i} style={{ animationDelay: `${i * 0.6}s` }}>
-                <b>{['PixelBR', 'LoboGG', 'NeoMito', 'BraboTTV', 'ZikaRush'][i]}</b> {m}
-              </span>
-            ))}
-          </div>
-          <div className="l-floor" />
-        </div>
+        <HeroStage />
       </section>
 
       <section className="l-band" id="como-funciona">
@@ -177,6 +159,91 @@ export function Landing() {
         <span>Clipei Live Games · minigames para lives</span>
         <Link to="/entrar">Entrar</Link>
       </footer>
+    </div>
+  );
+}
+
+const HERO_FEED: { user: string; msg: string; dmg: number }[] = [
+  { user: 'PixelBR', msg: '!atk', dmg: 9 },
+  { user: 'LoboGG', msg: '!atk', dmg: 11 },
+  { user: 'NeoMito', msg: 'kkkk vai', dmg: 0 },
+  { user: 'BraboTTV', msg: '!ult', dmg: 22 },
+  { user: 'ZikaRush', msg: '!atk', dmg: 10 },
+  { user: 'Lua_Plays', msg: '!atk', dmg: 12 },
+  { user: 'MestreYodaBR', msg: '!ult', dmg: 24 },
+];
+
+/** Prévia do topo: uma mini-luta no ritmo de uma live real (uma mensagem a cada ~2 s). */
+function HeroStage() {
+  const [hp, setHp] = useState(100);
+  const [feed, setFeed] = useState<{ id: number; user: string; msg: string; dmg: number }[]>([]);
+  const [hit, setHit] = useState<{ id: number; dmg: number; ult: boolean } | null>(null);
+  const step = useRef(0);
+  const bossRef = useRef<HTMLDivElement>(null);
+
+  // tremida do golpe sem recriar o canvas do boss
+  useEffect(() => {
+    if (!hit || !bossRef.current) return;
+    bossRef.current.animate(
+      [
+        { transform: 'translateX(0)', filter: 'brightness(1.8)' },
+        { transform: 'translateX(-5px)', offset: 0.3 },
+        { transform: 'translateX(4px)', offset: 0.6 },
+        { transform: 'none', filter: 'none' },
+      ],
+      { duration: hit.ult ? 450 : 320, easing: 'ease-out' },
+    );
+  }, [hit]);
+
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let hpNow = 100;
+    const tick = () => {
+      const n = step.current++;
+      const item = HERO_FEED[n % HERO_FEED.length];
+      setFeed((f) => [...f.slice(-3), { id: n, ...item }]);
+      if (item.dmg) {
+        hpNow = Math.max(0, hpNow - item.dmg);
+        setHp(hpNow);
+        if (!reduce) setHit({ id: n, dmg: item.dmg * 137, ult: item.msg === '!ult' });
+      }
+      // boss quase derrotado: pausa e volta com a vida cheia
+      if (hpNow <= 12) {
+        hpNow = 100;
+        setTimeout(() => setHp(100), 1600);
+      }
+    };
+    tick();
+    const t = setInterval(tick, 2100);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="l-stage" aria-hidden="true">
+      <div className="l-stage-hud">
+        <b>GLITCHADOR</b>
+        <i>
+          <em style={{ width: `${hp}%` }} />
+        </i>
+      </div>
+      <div className="l-stage-boss">
+        <div ref={bossRef} className={hit?.ult ? 'ult-glow' : ''}>
+          <BossThumb skin="glitchador" width={240} height={200} />
+        </div>
+        {hit && (
+          <span key={`d${hit.id}`} className={`l-dmg ${hit.ult ? 'ult' : ''}`}>
+            -{hit.dmg.toLocaleString('pt-BR')}
+          </span>
+        )}
+      </div>
+      <div className="l-chat">
+        {feed.map((m) => (
+          <span key={m.id}>
+            <b>{m.user}</b> {m.msg}
+          </span>
+        ))}
+      </div>
+      <div className="l-floor" />
     </div>
   );
 }
