@@ -128,4 +128,30 @@ describe('Room', () => {
     room.handleSupport({ kind: 'points', amount: 1, platform: 'twitch', user: { id: 'ana', name: 'ana' } });
     expect(refunds).toContain(false);
   });
+
+  it('duelo: mod abre, dois entram, FOGO, alguém vence; torcida e item por apoio', () => {
+    const { room, msgs, tickFor } = setup();
+    room.handleChat(chat('mod', '!duelo iniciar', 'mod'));
+    expect(room.activeGame()).toBe('duel');
+    room.handleChat(chat('ana', '!duelo'));
+    room.handleChat(chat('bia', '!duelo'));
+    room.handleChat(chat('zeca', '!1'));
+    room.handleSupport({ kind: 'bits', amount: 100, platform: 'twitch', user: { id: 'zeca', name: 'zeca' } });
+    // espera o FOGO e as duas atiram até alguém acertar
+    for (let i = 0; i < 40 && room.duel?.status !== 'fire'; i++) tickFor(1000);
+    expect(room.duel?.status).toBe('fire');
+    for (let i = 0; i < 30 && room.duel?.status === 'fire'; i++) {
+      room.handleChat(chat('ana', '!bang'));
+      room.handleChat(chat('bia', '!bang'));
+      tickFor(1000);
+    }
+    tickFor(5000);
+    expect(room.duel?.status).toBe('finished');
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('DUELO X1'))).toBe(true);
+    expect(said.some((t) => t.includes('ana x bia'))).toBe(true);
+    expect(said.some((t) => t.includes('COLETE para ana'))).toBe(true);
+    expect(said.some((t) => t.includes('venceu'))).toBe(true);
+    expect(msgs.some((m) => m.type === 'duel' && m.state.events.some((e) => e.kind === 'shot'))).toBe(true);
+  });
 });

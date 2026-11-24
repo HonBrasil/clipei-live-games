@@ -74,7 +74,7 @@ function RaceTab() {
   const { me, race, status, toast, saveSettings } = useApp();
   const cfg = me!.settings.race;
   const active = race?.status === 'lobby' || race?.status === 'running';
-  const bossOn = status?.game === 'boss';
+  const busy = status?.game && status.game !== 'race' ? status.game : null;
   const set = (patch: Partial<RaceConfig>) => saveSettings({ race: patch });
 
   async function open() {
@@ -143,9 +143,9 @@ function RaceTab() {
           <Check checked={cfg.fillBots} onChange={(v) => set({ fillBots: v })}>
             Completar com pilotos da Clipei (CPU) quando tiver menos de 4
           </Check>
-          {bossOn && <p className="chat-error">Tem um boss na arena. Encerre a luta para abrir a corrida (um jogo por vez).</p>}
+          {busy && <p className="chat-error">{busy === 'boss' ? 'Tem um boss na arena.' : 'Tem um duelo rolando.'} Um jogo por vez: espere terminar para abrir a corrida.</p>}
           <div className="actions">
-            <button className="btn primary lg" disabled={active || bossOn} onClick={open}>
+            <button className="btn primary lg" disabled={active || !!busy} onClick={open}>
               🏁 Abrir corrida
             </button>
             <button

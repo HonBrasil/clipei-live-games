@@ -10,6 +10,12 @@ import {
   parseBossChatCommand,
   parseRaceChatCommand,
   RaceGame,
+  DuelGame,
+  parseDuelChatCommand,
+  duelHelpText,
+  duelOpenAnnouncement,
+  duelStartAnnouncement,
+  duelResultAnnouncement,
   raceHelpText,
   raceOpenAnnouncement,
   raceResultAnnouncement,
@@ -40,6 +46,9 @@ import {
   type RaceConfig,
   type RaceSnapshot,
   type RaceStatus,
+  type DuelConfig,
+  type DuelSnapshot,
+  type DuelStatus,
 } from '@clipei/shared';
 import { ChatSimulator } from './simulator.ts';
 
@@ -73,6 +82,7 @@ const RACE_BROADCAST_MS = 200;
 export class Room {
   game: BossGame | null = null;
   race: RaceGame | null = null;
+  duel: DuelGame | null = null;
   lastConfig: BossConfig = { ...DEFAULT_CONFIG };
   hpMode: HpMode = 'auto';
   readonly sockets = new Set<WebSocket>();
@@ -99,6 +109,7 @@ export class Room {
   private lastStatusAt = 0;
   private lastRaceAt = 0;
   private raceStatus: RaceStatus = 'idle';
+  private duelStatus: DuelStatus = 'idle';
 
   constructor(
     public key: string,
@@ -111,6 +122,13 @@ export class Room {
     this.spawner = new AutoSpawner(this.settings.autoSpawn);
     this.simulator = new ChatSimulator(channelId, (e) => this.handleChat(e));
     this.simulator.script = () => {
+      const d = this.duel;
+      if (d?.isActive) {
+        const x = Math.random();
+        if (d.status === 'lobby') return x < 0.15 ? '!duelo' : 'chatter';
+        if (d.status === 'fire') return x < 0.45 ? '!bang' : x < 0.75 ? (x < 0.6 ? '!1' : '!2') : 'chatter';
+        return x < 0.03 ? '!bang' : x < 0.5 ? (x < 0.3 ? '!1' : '!2') : 'chatter';
+      }
       const r = this.race;
       if (!r?.isActive) return undefined;
       if (r.status === 'lobby') return Math.random() < 0.6 ? '!correr' : 'chatter';
@@ -119,10 +137,72 @@ export class Room {
   }
 
   /** Só um minigame por vez na tela. */
-  activeGame(): 'boss' | 'race' | null {
+  activeGame(): 'boss' | 'race' | 'duel' | null {
     if (this.game?.isRunning) return 'boss';
     if (this.race?.isActive) return 'race';
+    if (this.duel?.isActive) return 'duel';
     return null;
+  }
+
+  // ─── Duelo ─────────────────────────────────────────────────
+
+  startDuel(patch?: Partial<DuelConfig>) {
+    const busy = this.activeGame();
+    if (busy) return { ok: false as const, error: busy === 'boss' ? 'Tem um boss na arena. Encerre a luta antes do duelo.' : 'Tem uma corrida rolando. Espere terminar para abrir o duelo.' };
+    if (patch) this.updateSettings({ duel: patch });
+    this.duel = new DuelGame(this.settings.duel);
+    this.duel.open();
+    this.duelStatus = 'lobby';
+    this.spawner.fightStarted();
+    this.hooks.fightStarted?.();
+    this.broadcast({ type: 'incoming', at: null, serverNow: Date.now() });
+    this.say(duelOpenAnnouncement(this.duel.config));
+    this.broadcastDuel();
+    this.broadcastStatus();
+    return { ok: true as const, config: this.duel.config };
+  }
+
+  stopDuel() {
+    if (!this.duel?.isActive) return false;
+    this.duel.stop();
+    this.afterDuelUpdate();
+    return true;
+  }
+
+  duelSnapshot(): DuelSnapshot | null {
+    return this.duel && this.duel.status !== 'idle' ? this.duel.snapshot(Date.now(), true) : null;
+  }
+
+  private broadcastDuel() {
+    if (!this.duel) return;
+    this.broadcast({ type: 'duel', state: this.duel.snapshot() });
+  }
+
+  private afterDuelUpdate() {
+    const d = this.duel;
+    if (!d) return;
+    const prev = this.duelStatus;
+    const next = d.status;
+    if (prev !== next) {
+      this.duelStatus = next;
+      const [a, b] = d.duelists;
+      if (prev === 'lobby' && next === 'intro') this.say(duelStartAnnouncement(a, b, d.config.cheer));
+      if (next === 'finished' || next === 'stopped') {
+        if (next === 'finished') {
+          const w = d.winner;
+          this.say(duelResultAnnouncement(w === null ? null : d.duelists[w], w === null ? null : d.duelists[1 - w], d.score, d.config.bestOf), 'success');
+          if (w !== null) this.clipVictory(`Duelo · ${a} x ${b}`);
+        } else if (prev === 'lobby') {
+          this.say(a ? `🌵 Ninguém aceitou o desafio de ${a}. Fica para a próxima!` : '🌵 Ninguém apareceu para o duelo dessa vez.', 'warning');
+        } else {
+          this.say('🌵 Duelo encerrado pelo streamer.', 'warning');
+        }
+        this.spawner.fightEnded();
+        this.hooks.fightEnded?.();
+      }
+      this.broadcastStatus();
+    }
+    this.broadcastDuel();
   }
 
   // ─── Corrida ───────────────────────────────────────────────
@@ -130,6 +210,7 @@ export class Room {
   /** Abre as inscrições com a configuração salva (ou a enviada). */
   startRace(patch?: Partial<RaceConfig>) {
     if (this.game?.isRunning) return { ok: false as const, error: 'Tem um boss na arena. Encerre a luta antes de abrir a corrida.' };
+    if (this.duel?.isActive) return { ok: false as const, error: 'Tem um duelo rolando. Espere terminar para abrir a corrida.' };
     if (patch) this.updateSettings({ race: patch });
     this.race?.stop();
     this.race = new RaceGame(this.settings.race);
@@ -250,8 +331,27 @@ export class Room {
       }
       return;
     }
+    const duelCmd = parseDuelChatCommand(event);
+    if (duelCmd) {
+      if (duelCmd.type === 'help') {
+        if (Date.now() - this.lastHelpAt > HELP_COOLDOWN_MS) {
+          this.lastHelpAt = Date.now();
+          this.say(duelHelpText(this.duel?.status ?? 'idle'));
+        }
+      } else if (duelCmd.type === 'start') {
+        if (this.entitled() && !this.activeGame()) this.startDuel();
+      } else {
+        this.stopDuel();
+      }
+      return;
+    }
     if (this.race?.isActive) {
       this.race.handle(event);
+      return;
+    }
+    if (this.duel?.isActive) {
+      this.duel.handle(event);
+      if (this.duel.dirty) this.afterDuelUpdate();
       return;
     }
 
@@ -263,7 +363,7 @@ export class Room {
           this.say(bossHelpText(!!this.game?.isRunning));
         }
       } else if (cmd.type === 'start') {
-        if (this.entitled() && !this.race?.isActive) this.startQuick(cmd.skin);
+        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive) this.startQuick(cmd.skin);
       } else if (cmd.type === 'stop') {
         this.stopBoss();
       }
@@ -275,6 +375,20 @@ export class Room {
 
   /** Bits, subs, presentes, pontos de canal e raids viram golpes especiais. */
   handleSupport(e: SupportEvent) {
+    if (this.duel?.isActive) {
+      const res = this.duel.special(e);
+      if (!res.applied) {
+        if (e.kind === 'points') this.hooks.redemption?.(e, false);
+        const thanks = supportThanks(e);
+        if (thanks && e.kind !== 'points') this.say(thanks);
+        return { applied: false, damage: 0 };
+      }
+      const icon = e.kind === 'points' ? '🎯' : e.kind === 'bits' ? '🦺' : '✨';
+      this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
+      if (e.kind === 'points') this.hooks.redemption?.(e, true);
+      this.afterDuelUpdate();
+      return { applied: true, damage: 0 };
+    }
     if (this.race?.isActive) {
       const res = this.race.special(e);
       if (!res.applied) {
@@ -339,6 +453,10 @@ export class Room {
   /** Chamado a cada 100 ms. */
   tick() {
     const now = Date.now();
+    if (this.duel?.isActive) {
+      this.duel.update(now);
+      if (this.duel.dirty || this.duel.status !== this.duelStatus) this.afterDuelUpdate();
+    }
     if (this.race?.isActive) {
       this.race.update(now);
       if (this.race.status !== this.raceStatus) this.afterRaceUpdate();
@@ -420,6 +538,8 @@ export class Room {
     if (state) this.send(ws, { type: 'boss', state: { ...state, recentHits: [] } });
     const race = this.raceSnapshot();
     if (race) this.send(ws, { type: 'race', state: race });
+    const duel = this.duelSnapshot();
+    if (duel) this.send(ws, { type: 'duel', state: duel });
     ws.on('close', () => {
       this.sockets.delete(ws);
       if (!this.panels.has(ws)) this.broadcastStatus();

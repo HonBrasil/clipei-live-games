@@ -1282,3 +1282,79 @@ fieldset.plain {
 fieldset.plain:disabled {
   opacity: 0.45;
 }
+
+/* ─── Duelo (painel) ───────────────────────────────────── */
+.scene-picker {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 560px) {
+  .scene-picker {
+    grid-template-columns: 1fr;
+  }
+}
+.scene-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.scene-thumb em {
+  position: absolute;
+  top: 18%;
+  right: 18%;
+  width: 18%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+.scene-thumb s {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28%;
+}
+.g-duel {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 64px;
+}
+.g-duel i {
+  font: italic 900 30px var(--font-display);
+  color: var(--accent-2);
+}
+.g-duel :first-child {
+  transform: scaleX(-1);
+}
+.duel-live {
+  display: grid;
+  gap: 8px;
+}
+.duelist {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+.duelist i {
+  grid-row: span 2;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--border-strong);
+}
+.duelist small {
+  color: var(--text-3);
+}
+.duelist em {
+  grid-row: 1 / span 2;
+  grid-column: 3;
+  font: italic 900 30px var(--font-display);
+}

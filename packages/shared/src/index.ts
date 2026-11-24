@@ -216,6 +216,7 @@ export interface RoomSettings {
   bot: { speak: boolean };
   /** Última configuração da Corrida (o painel e o !corrida dos mods usam). */
   race: RaceConfig;
+  duel: DuelConfig;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -231,6 +232,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   clip: { enabled: false, postInChat: true },
   bot: { speak: true },
   race: { track: 'neon', joinSec: 45, laps: 2, maxRunners: 60, fillBots: true },
+  duel: { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true },
 };
 
 /** Mescla configurações parciais com validação dos limites. */
@@ -283,6 +285,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     clip: { enabled: Boolean(clip.enabled), postInChat: clip.postInChat !== false },
     bot: { speak: (p.bot?.speak ?? base.bot?.speak ?? true) !== false },
     race: normalizeRaceConfig({ ...(base.race ?? {}), ...((p.race ?? {}) as Partial<RaceConfig>) }),
+    duel: normalizeDuelConfig({ ...(base.duel ?? {}), ...((p.duel ?? {}) as Partial<DuelConfig>) }),
   };
 }
 
@@ -298,7 +301,7 @@ export interface RoomStatus {
   /** Fontes do OBS conectadas agora (o painel não conta). */
   overlays: number;
   /** Minigame rolando agora na tela (só um por vez). */
-  game: 'boss' | 'race' | null;
+  game: 'boss' | 'race' | 'duel' | null;
   serverNow: number;
 }
 
@@ -308,6 +311,7 @@ export type ServerMessage =
   | { type: 'hello'; channel: { name: string; demo: boolean } }
   | { type: 'boss'; state: BossSnapshot }
   | { type: 'race'; state: RaceSnapshot }
+  | { type: 'duel'; state: DuelSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -371,7 +375,7 @@ export interface SimulatorStatus {
 
 // ─── Catálogo da plataforma ─────────────────────────────────
 
-export type GameId = 'boss' | 'quiz' | 'race' | 'teams' | 'wheel' | 'missions';
+export type GameId = 'boss' | 'race' | 'duel' | 'quiz' | 'teams' | 'wheel' | 'missions';
 
 export interface GameInfo {
   id: GameId;
@@ -393,20 +397,28 @@ export const GAMES: GameInfo[] = [
     commands: ['!atk', '!ult'],
   },
   {
-    id: 'quiz',
-    name: 'Quiz gamer',
-    tagline: 'Perguntas de games, o mais rápido leva',
-    description: 'Perguntas por tema (FPS, MOBA, retrô). O chat responde com !a !b !c !d.',
-    status: 'soon',
-    commands: ['!a', '!b', '!c', '!d'],
-  },
-  {
     id: 'race',
     name: 'Corrida',
     tagline: 'O chat inteiro na pista',
     description: 'Cada pessoa vira um piloto num circuito visto de cima. Sorte, janelas de turbo e apoios viram foguetes e cascas de banana.',
     status: 'active',
     commands: ['!correr', '!turbo'],
+  },
+  {
+    id: 'duel',
+    name: 'Duelo',
+    tagline: 'X1 no velho oeste',
+    description: 'Os dois primeiros que digitarem !duelo se encaram na rua do saloon. No FOGO!, quem sacar primeiro atira, mas pode errar. A torcida e os apoios ajudam.',
+    status: 'active',
+    commands: ['!duelo', '!bang', '!1', '!2'],
+  },
+  {
+    id: 'quiz',
+    name: 'Quiz gamer',
+    tagline: 'Perguntas de games, o mais rápido leva',
+    description: 'Perguntas por tema (FPS, MOBA, retrô). O chat responde com !a !b !c !d.',
+    status: 'soon',
+    commands: ['!a', '!b', '!c', '!d'],
   },
   {
     id: 'teams',
@@ -687,4 +699,87 @@ export interface RaceSnapshot {
   podium: RacePodiumEntry[];
   /** Pessoas (sem contar CPU). */
   participants: number;
+}
+
+// ─── Duelo ──────────────────────────────────────────────────
+
+export type DuelSceneId = 'saloon' | 'deserto' | 'fantasma';
+
+export const DUEL_SCENES: Record<DuelSceneId, { name: string; title: string }> = {
+  saloon: { name: 'Rua do Saloon', title: 'Meio-dia, sol a pino' },
+  deserto: { name: 'Pôr do sol', title: 'Mesas e céu laranja' },
+  fantasma: { name: 'Cidade fantasma', title: 'Lua cheia e silêncio' },
+};
+export const DUEL_SCENE_IDS = Object.keys(DUEL_SCENES) as DuelSceneId[];
+
+export interface DuelConfig {
+  /** 1 = X1 (um tiro decide), 3 = melhor de 3. */
+  bestOf: 1 | 3;
+  scene: DuelSceneId;
+  /** Tempo para aparecerem os dois duelistas (!duelo), em segundos. */
+  joinSec: number;
+  /** Torcida do chat (!1 / !2) dá um bônus pequeno de mira. */
+  cheer: boolean;
+}
+
+export const DEFAULT_DUEL_CONFIG: DuelConfig = { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true };
+
+export function normalizeDuelConfig(c: Partial<DuelConfig> | undefined): DuelConfig {
+  const join = Math.round(Number(c?.joinSec));
+  return {
+    bestOf: Number(c?.bestOf) === 3 ? 3 : 1,
+    scene: c?.scene && c.scene in DUEL_SCENES ? c.scene : 'saloon',
+    joinSec: Number.isFinite(join) ? Math.min(180, Math.max(15, join)) : 60,
+    cheer: c?.cheer !== false,
+  };
+}
+
+/**
+ * lobby: esperando os 2 duelistas · intro: encarada · countdown: 3, 2, 1 ·
+ * wait: silêncio antes do FOGO · fire: valendo! · round: fim da rodada ·
+ * finished / stopped: acabou.
+ */
+export type DuelStatus = 'idle' | 'lobby' | 'intro' | 'countdown' | 'wait' | 'fire' | 'round' | 'finished' | 'stopped';
+
+export interface DuelistView {
+  name: string;
+  color: string;
+  /** +15% de mira (pontos do canal) */
+  aim: boolean;
+  /** aguenta 1 tiro (bits) */
+  vest: boolean;
+  /** primeiro tiro não erra (sub) */
+  gold: boolean;
+  /** atirou antes do FOGO: arma travada */
+  jammed: boolean;
+}
+
+export type DuelEventKind = 'join' | 'shot' | 'miss' | 'hit' | 'vest' | 'jam' | 'item' | 'round' | 'draw' | 'win';
+
+export interface DuelEvent {
+  id: number;
+  kind: DuelEventKind;
+  /** 0 ou 1 = duelista; −1 = nenhum */
+  who: number;
+  /** item recebido ('aim' | 'vest' | 'gold') ou nome de quem apoiou */
+  item?: 'aim' | 'vest' | 'gold';
+  label?: string;
+}
+
+export interface DuelSnapshot {
+  status: DuelStatus;
+  scene: DuelSceneId;
+  bestOf: 1 | 3;
+  round: number;
+  score: [number, number];
+  players: DuelistView[];
+  /** torcida: [!1, !2] */
+  cheers: [number, number];
+  cheerOn: boolean;
+  /** fim da fase atual (lobby, intro, contagem); null no FOGO */
+  phaseEndsAt: number | null;
+  /** vencedor da rodada/duelo (0, 1) ou null */
+  winner: number | null;
+  serverNow: number;
+  events: DuelEvent[];
 }

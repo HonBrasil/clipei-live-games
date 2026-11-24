@@ -1,7 +1,8 @@
-import { DEFAULT_SETTINGS, RACE_TRACKS, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
+import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
 import { Arena } from './arena/arena.ts';
 import { Sfx } from './arena/sfx.ts';
 import { RaceArena } from './race/race-arena.ts';
+import { DuelArena } from './duel/duel-arena.ts';
 
 /**
  * Overlay do OBS: tela 1920×1080 transparente com a arena (boss + heróis)
@@ -76,10 +77,33 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
         <div class="result-card" id="race-result-card"></div>
       </div>
     </section>
+    <section class="zone duel-zone is-hidden" id="duel-zone">
+      <canvas class="arena-canvas" id="duel-canvas"></canvas>
+      <div class="race-chip duel-chip" id="duel-chip"><b>Duelo</b><span id="duel-info">X1</span></div>
+      <div class="duel-score" id="duel-score" hidden></div>
+      <div class="race-lobby duel-lobby" id="duel-lobby" hidden>
+        <small>🤠 Duelo</small>
+        <b>Digite <kbd>!duelo</kbd> para entrar</b>
+        <span id="duel-lobby-who">Os dois primeiros se enfrentam</span>
+        <span>Fecha em <em id="duel-lobby-time">1:00</em></span>
+      </div>
+      <div class="duel-big" id="duel-big" hidden></div>
+      <div class="duel-cheer" id="duel-cheer" hidden>
+        <kbd>!1</kbd>
+        <div class="duel-cheer-bar"><i id="duel-cheer-a"></i><i id="duel-cheer-b"></i></div>
+        <kbd>!2</kbd>
+      </div>
+      <div class="cta duel-cta" id="duel-cta" hidden>Duelistas: <kbd>!bang</kbd> no FOGO <span class="dot">·</span> Torcida: <kbd class="alt">!1</kbd> ou <kbd class="alt">!2</kbd></div>
+      <div class="alerts" id="duel-alerts" aria-live="polite"></div>
+      <div class="result" id="duel-result">
+        <div class="confetti" id="duel-confetti"></div>
+        <div class="result-card" id="duel-result-card"></div>
+      </div>
+    </section>
     <div class="idle-screen" id="idle-screen" hidden>
       <img src="${logo}" alt="" />
       <b>Aguardando o próximo jogo</b>
-      <span>Fique de olho no chat: vem boss <kbd>!atk</kbd> ou corrida <kbd>!correr</kbd></span>
+      <span>Fique de olho no chat: vem boss <kbd>!atk</kbd>, corrida <kbd>!correr</kbd> ou duelo <kbd>!duelo</kbd></span>
     </div>
     ${
       opts.preview
@@ -125,6 +149,21 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     raceResultCard: $('race-result-card'),
     raceConfetti: $('race-confetti'),
     idle: $('idle-screen'),
+    duelZone: $('duel-zone'),
+    duelInfo: $('duel-info'),
+    duelScore: $('duel-score'),
+    duelLobby: $('duel-lobby'),
+    duelLobbyWho: $('duel-lobby-who'),
+    duelLobbyTime: $('duel-lobby-time'),
+    duelBig: $('duel-big'),
+    duelCheer: $('duel-cheer'),
+    duelCheerA: $('duel-cheer-a'),
+    duelCheerB: $('duel-cheer-b'),
+    duelCta: $('duel-cta'),
+    duelAlerts: $('duel-alerts'),
+    duelResult: $('duel-result'),
+    duelResultCard: $('duel-result-card'),
+    duelConfetti: $('duel-confetti'),
   };
 
   const sfx = new Sfx();
@@ -132,6 +171,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   const canvas = $('arena') as HTMLCanvasElement;
   const arena = new Arena(canvas, sfx);
   const raceArena = new RaceArena($('race-canvas') as HTMLCanvasElement, sfx);
+  const duelArena = new DuelArena($('duel-canvas') as HTMLCanvasElement, sfx);
 
   // ─── Layout (posição, tamanho, barra de vida) ───────────────
   let layout: LayoutSettings = DEFAULT_SETTINGS.layout;
@@ -143,6 +183,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     stage.dataset.display = full ? 'fullscreen' : 'overlay';
     arena.setBackdrop(full);
     raceArena.setDisplay(full);
+    duelArena.setDisplay(full);
     stage.dataset.pos = next.position;
     stage.dataset.hp = next.hpBar;
     stage.style.setProperty('--z', String(next.size / 100));
@@ -160,6 +201,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     const res = stageScale * zoom * (window.devicePixelRatio || 1);
     arena.setResolution(res);
     raceArena.setResolution(res);
+    duelArena.setResolution(res);
   }
 
   // ─── Escala 1920×1080 → tamanho real (fonte do OBS ou container) ──
@@ -202,6 +244,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
 
     if (running) {
       els.raceZone.classList.add('is-hidden');
+      els.duelZone.classList.add('is-hidden');
       clearTimeout(resultTimer);
       els.result.classList.remove('is-visible');
       els.cta.hidden = false;
@@ -310,6 +353,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       // um jogo por vez: a corrida tira o boss da tela
       els.zone.classList.add('is-hidden');
       els.bossbar.classList.add('is-hidden');
+      els.duelZone.classList.add('is-hidden');
     } else if (prev && (prev.status === 'running' || prev.status === 'lobby') && next.status === 'finished') {
       setTimeout(() => showRaceResult(next), 1200);
     } else if (next.status === 'stopped' || next.status === 'idle') {
@@ -390,6 +434,131 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     }
   }
 
+  // ─── Duelo ──────────────────────────────────────────────────
+  let duel: DuelSnapshot | null = null;
+  let duelOffset = 0;
+  let duelResultTimer: number | undefined;
+  let fireShownUntil = 0;
+  let roundMsgUntil = 0;
+  let lastBeep = -1;
+
+  function renderDuel(next: DuelSnapshot) {
+    const prev = duel;
+    duel = next;
+    duelOffset = next.serverNow - Date.now();
+    duelArena.setState(next);
+    const active = !['idle', 'finished', 'stopped'].includes(next.status);
+    const [a, b] = next.players;
+
+    if (active) {
+      clearTimeout(duelResultTimer);
+      els.duelResult.classList.remove('is-visible');
+      els.duelZone.classList.remove('is-hidden');
+      els.zone.classList.add('is-hidden');
+      els.bossbar.classList.add('is-hidden');
+      els.raceZone.classList.add('is-hidden');
+    } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
+      setTimeout(() => showDuelResult(next), 1600);
+    } else if (next.status === 'stopped' || next.status === 'idle') {
+      els.duelZone.classList.add('is-hidden');
+    }
+    if (els.waiting) els.waiting.hidden = active || next.status === 'finished' || state?.status === 'running';
+
+    els.duelInfo.textContent = `${next.bestOf === 3 ? `MD3 · rodada ${Math.max(1, next.round)}` : 'X1'} · ${DUEL_SCENES[next.scene].name}`;
+    els.duelLobby.hidden = next.status !== 'lobby';
+    els.duelLobbyWho.innerHTML = a ? `<b class="who" style="color:${esc(a.color)}">${esc(a.name)}</b> espera um rival` : 'Os dois primeiros se enfrentam';
+    els.duelScore.hidden = next.bestOf !== 3 || !b;
+    if (b) els.duelScore.innerHTML = `<span style="color:${esc(a.color)}">${next.score[0]}</span><i>x</i><span style="color:${esc(b.color)}">${next.score[1]}</span>`;
+
+    const cheering = next.cheerOn && !!b && active && next.status !== 'lobby';
+    els.duelCheer.hidden = !cheering;
+    if (cheering) {
+      const [ca, cb] = next.cheers;
+      const tot = ca + cb;
+      const pa = tot ? (ca / tot) * 100 : 50;
+      els.duelCheerA.style.width = `${pa}%`;
+      els.duelCheerA.style.background = a.color;
+      els.duelCheerB.style.width = `${100 - pa}%`;
+      els.duelCheerB.style.background = b.color;
+      els.duelCheerA.textContent = tot ? String(ca) : '';
+      els.duelCheerB.textContent = tot ? String(cb) : '';
+    }
+    els.duelCta.hidden = !(active && next.status !== 'lobby');
+
+    if (prev?.status !== 'fire' && next.status === 'fire') fireShownUntil = Date.now() + 1100;
+    if (next.status === 'round' && prev?.status !== 'round') roundMsgUntil = Date.now() + 3000;
+
+    for (const e of next.events) {
+      if (e.kind !== 'item') continue;
+      const p = next.players[e.who];
+      const icon = e.item === 'aim' ? '🎯' : e.item === 'vest' ? '🦺' : '✨';
+      const text = e.item === 'aim' ? 'mira +15%' : e.item === 'vest' ? 'colete' : 'revólver dourado';
+      const el = document.createElement('div');
+      el.className = `alert alert--${e.item === 'aim' ? 'points' : e.item === 'vest' ? 'bits' : 'sub'}`;
+      el.innerHTML = `<span class="a-ico">${icon}</span><b>${esc(e.label ?? 'Apoio')}</b><span>${text} para ${esc(p?.name ?? '')}</span>`;
+      els.duelAlerts.prepend(el);
+      while (els.duelAlerts.children.length > 3) els.duelAlerts.lastElementChild?.remove();
+      setTimeout(() => el.classList.add('is-out'), 4500);
+      setTimeout(() => el.remove(), 5000);
+    }
+    tickDuel();
+  }
+
+  function showDuelResult(s: DuelSnapshot) {
+    const w = s.winner;
+    const win = w === null ? null : s.players[w];
+    const lose = w === null ? null : s.players[1 - w];
+    els.duelResultCard.innerHTML = `
+      <div class="r-title">${win ? `${esc(win.name)} venceu!` : 'Empate!'}</div>
+      <div class="r-sub">${win && lose ? `Sacou mais rápido que <b>${esc(lose.name)}</b>${s.bestOf === 3 ? ` · ${Math.max(...s.score)} x ${Math.min(...s.score)}` : ''}` : 'Ninguém acertou ninguém'}</div>`;
+    els.duelResult.classList.add('is-visible');
+    if (win) confetti(els.duelConfetti);
+    clearTimeout(duelResultTimer);
+    duelResultTimer = window.setTimeout(() => {
+      els.duelResult.classList.remove('is-visible');
+      els.duelZone.classList.add('is-hidden');
+    }, 8000);
+  }
+
+  /** Textos grandes do duelo: nomes, 3-2-1, silêncio, FOGO!, vencedor da rodada. */
+  function tickDuel() {
+    if (!duel) return;
+    const now = Date.now() + duelOffset;
+    const [a, b] = duel.players;
+    if (duel.status === 'lobby' && duel.phaseEndsAt) {
+      const left = Math.max(0, Math.ceil((duel.phaseEndsAt - now) / 1000));
+      els.duelLobbyTime.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    }
+    let big = '';
+    let cls = '';
+    if (duel.status === 'intro' && a && b) {
+      big = `<span style="color:${esc(a.color)}">${esc(a.name)}</span><i>x</i><span style="color:${esc(b.color)}">${esc(b.name)}</span>`;
+      cls = 'vs';
+    } else if (duel.status === 'countdown' && duel.phaseEndsAt) {
+      const n = Math.ceil((duel.phaseEndsAt - now) / 1000);
+      big = String(Math.max(1, n));
+      cls = 'count';
+      if (n !== lastBeep && n >= 1 && n <= 3) {
+        lastBeep = n;
+        sfx.play('hit');
+      }
+    } else if (duel.status === 'wait') {
+      big = '…';
+      cls = 'count';
+      lastBeep = -1;
+    } else if (Date.now() < fireShownUntil) {
+      big = 'FOGO!';
+      cls = 'fire';
+    } else if (duel.status === 'round' && Date.now() < roundMsgUntil) {
+      const w = duel.winner;
+      big = w === null ? 'Ninguém acertou' : `${esc(duel.players[w].name)} venceu a rodada`;
+      cls = 'round';
+    }
+    els.duelBig.hidden = !big;
+    if (els.duelBig.innerHTML !== big) els.duelBig.innerHTML = big;
+    els.duelBig.className = `duel-big ${cls}`;
+  }
+
   // ─── Relógio + aviso de boss chegando ───────────────────────
   setInterval(() => {
     if (state?.status === 'running' && state.endsAt) {
@@ -409,8 +578,9 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       if (els.waiting) els.waiting.hidden = true;
     }
     tickRace();
+    tickDuel();
     // tela cheia sem jogo: tela de espera com a marca (o OBS não fica vazio)
-    const nothing = els.zone.classList.contains('is-hidden') && els.raceZone.classList.contains('is-hidden');
+    const nothing = els.zone.classList.contains('is-hidden') && els.raceZone.classList.contains('is-hidden') && els.duelZone.classList.contains('is-hidden');
     els.idle.hidden = !(layout.display === 'fullscreen' && nothing);
     if (els.waiting && layout.display === 'fullscreen') els.waiting.hidden = true;
   }, 250);
@@ -418,6 +588,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   return {
     render,
     renderRace,
+    renderDuel,
     setOnline(online: boolean) {
       els.conn.hidden = online || !state;
     },

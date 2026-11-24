@@ -19,6 +19,7 @@ connectRoom(
   (msg) => {
     if (msg.type === 'boss') view.render(msg.state);
     if (msg.type === 'race') view.renderRace(msg.state);
+    if (msg.type === 'duel') view.renderDuel(msg.state);
     if (msg.type === 'settings') view.setSettings(msg.settings);
     if (msg.type === 'incoming') view.incoming(msg.at, msg.serverNow);
     if (msg.type === 'sfx-test') view.testSound();

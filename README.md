@@ -238,3 +238,16 @@ Só um minigame por vez: o Boss não começa durante a corrida e vice-versa (o b
 ## Modo tela cheia
 
 Em **Overlay (OBS) → Modo de exibição → Tela cheia**, o minigame ocupa a fonte inteira com cenário completo: o Boss ganha céu, montanhas e chão no tema dele; a Corrida ganha o cenário da pista. Sem jogo rolando, aparece a tela "Aguardando o próximo jogo" com a marca. No modo **Sobreposto** (padrão), tudo continua com fundo transparente, na posição e no tamanho escolhidos.
+
+## Duelo
+
+X1 (ou melhor de 3) no velho oeste. **Minigames → Duelo** no painel ou `!duelo iniciar` (mods).
+
+1. `!duelo`: os dois primeiros entram (se não aparecer o segundo no tempo escolhido, cancela).
+2. Encarada com os nomes, contagem 3-2-1 e um **silêncio sorteado de 1 a 4 s** antes do **FOGO!**, para ninguém contar o tempo.
+3. `!bang`: **reflexo com sorte**. O primeiro tiro sai antes, mas acerta ~60%; errou, recarrega 1,2 s e o outro tem a vez. Isso diminui a vantagem de quem tem menos atraso na live. Atirar antes do FOGO **trava a arma** (o primeiro tiro só sai 1,5 s depois).
+4. **Torcida:** `!1` / `!2`. O lado com mais torcida ganha até +10% de mira.
+5. **Apoios viram equipamento** (para quem duela ou para o lado que a pessoa torce): pontos = mira +15%, bits = colete (aguenta 1 tiro), sub = revólver dourado (o próximo tiro não erra). 1 de cada item por duelista.
+6. 10 s sem ninguém acertar = rodada empatada. Fim: anúncio do bot, confete e clip (se ligado).
+
+Cenários: Rua do Saloon, Pôr do sol e Cidade fantasma (completos no modo tela cheia).

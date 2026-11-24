@@ -39,6 +39,10 @@ export function Games() {
                   </div>
                 ) : g.id === 'race' ? (
                   <TrackArt />
+                ) : g.id === 'duel' ? (
+                  <span className="g-duel" aria-hidden="true">
+                    🤠<i>x</i>🤠
+                  </span>
                 ) : (
                   <span className="g-soon-title">{g.name}</span>
                 )}
