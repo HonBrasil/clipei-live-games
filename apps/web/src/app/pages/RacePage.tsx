@@ -119,9 +119,9 @@ function RaceTab() {
               value={cfg.laps}
               onChange={(v) => set({ laps: v })}
               options={[
-                { value: 1, label: '1 volta', hint: '~35 s' },
-                { value: 2, label: '2 voltas', hint: '~70 s' },
-                { value: 3, label: '3 voltas', hint: '~1:45' },
+                { value: 1, label: '1 volta', hint: '~20 s' },
+                { value: 2, label: '2 voltas', hint: '~40 s' },
+                { value: 3, label: '3 voltas', hint: '~1 min' },
               ]}
             />
           </div>
@@ -252,7 +252,7 @@ function CommandsTab() {
           <div className="cmd">
             <kbd>!turbo</kbd>
             <p>
-              Só quando aparecer <b>TURBO!</b> na tela (a cada 11 a 15 s, por 4 s): um arranque forte, uma vez por janela. Tem 15% de chance de tropeçar.
+              Só quando aparecer <b>TURBO!</b> na tela (a cada 8 a 11 s, por 4 s): um arranque forte, uma vez por janela. Tem 15% de chance de tropeçar.
             </p>
           </div>
           <div className="cmd">

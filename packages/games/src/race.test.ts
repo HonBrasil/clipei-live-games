@@ -70,8 +70,8 @@ describe('Corrida', () => {
     const end = runUntilDone(g, T0 + 15_000);
     expect(g.status).toBe('finished');
     const secs = (end - start) / 1000;
-    expect(secs).toBeGreaterThan(45);
-    expect(secs).toBeLessThan(110);
+    expect(secs).toBeGreaterThan(28);
+    expect(secs).toBeLessThan(70);
     const snap = g.snapshot(end);
     expect(snap.podium).toHaveLength(3);
     expect(snap.podium[0].timeMs).toBeGreaterThan(0);

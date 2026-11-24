@@ -28,12 +28,12 @@ import {
  * Unidades: progresso em voltas (0..laps); posição lateral de −1 a 1.
  */
 
-/** Voltas por segundo de um piloto no ritmo médio (~34 s por volta). */
-export const RACE_BASE_SPEED = 1 / 34;
+/** Voltas por segundo de um piloto no ritmo médio (~20 s por volta). */
+export const RACE_BASE_SPEED = 1 / 20;
 export const RACE_COUNTDOWN_MS = 3000;
 export const TURBO_WINDOW_MS = 4000;
-const TURBO_FIRST_MS = 8000;
-const TURBO_GAP_MS: [number, number] = [11_000, 15_000];
+const TURBO_FIRST_MS = 6000;
+const TURBO_GAP_MS: [number, number] = [8_000, 11_000];
 const TURBO_MS = 2200;
 const TRIP_CHANCE = 0.15;
 const STUMBLE_MS = 1200;
@@ -245,7 +245,7 @@ export class RaceGame {
       this.startedAt = now + RACE_COUNTDOWN_MS;
       this.endsAt = this.startedAt + this.config.laps * (1 / RACE_BASE_SPEED) * 1.8 * 1000;
       this.window = { id: 0, open: false, until: 0, nextAt: this.startedAt + TURBO_FIRST_MS };
-      this.nextObstacleAt = this.startedAt + 5000;
+      this.nextObstacleAt = this.startedAt + 4000;
       this.dirty = true;
     }
 
@@ -264,7 +264,7 @@ export class RaceGame {
 
     const leader = this.leaderP();
     if (now >= this.nextObstacleAt) {
-      this.nextObstacleAt = now + 5000 + this.rng() * 3000;
+      this.nextObstacleAt = now + 3500 + this.rng() * 2500;
       const p = leader + 0.25 + this.rng() * 0.2;
       if (p < this.config.laps - 0.05 && this.obstacles.length < 6) {
         this.obstacles.push({ id: ++this.obstacleSeq, kind: this.rng() < 0.6 ? 'banana' : 'oil', p, lat: -0.8 + this.rng() * 1.6 });

@@ -228,7 +228,7 @@ Circuito visto de cima, com karts em pixel art. Fica em **Minigames → Corrida*
 
 1. **Inscrição** (20 a 90 s): `!correr` (ou `!entrar`) coloca a pessoa no grid. Se tiver menos de 4, entram pilotos CPU (opcional).
 2. **Largada** com contagem 3-2-1. Todos andam sozinhos com ritmo sorteado (sorte) e um leve vácuo para quem ficou atrás.
-3. **Janela de TURBO** a cada 11 a 15 s, por 4 s: `!turbo` dá um arranque, uma vez por janela, com 15% de chance de tropeçar.
+3. **Janela de TURBO** a cada 8 a 11 s, por 4 s: `!turbo` dá um arranque, uma vez por janela, com 15% de chance de tropeçar.
 4. **Pista viva:** cascas de banana (tropeço) e óleo (lentidão) aparecem à frente do líder.
 5. **Apoios:** pontos = escudo, bits = foguete (ou banana no líder para quem não corre), sub/gift = foguete + escudo, raid = vento a favor para todos.
 6. **Chegada:** pódio com tempos, anúncio do bot e clip automático (se ligado).
