@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import dotenv from 'dotenv';
@@ -52,7 +53,12 @@ function readIfExists(path: string) {
   return readFileSync(path);
 }
 
-// Em produção, segredos padrão de desenvolvimento são um erro grave: para cedo.
+// Em produção, nunca assinar cookies com o segredo de exemplo. Sem um SESSION_SECRET
+// forte, usa um aleatório só deste processo (os logins caem a cada reinício) e avisa.
 if (config.isProd && (!env.SESSION_SECRET || env.SESSION_SECRET.length < 32 || /troque/i.test(env.SESSION_SECRET))) {
-  throw new Error('SESSION_SECRET ausente ou fraco: defina um texto aleatório com 32+ caracteres no servidor.');
+  config.sessionSecret = randomBytes(48).toString('base64url');
+  console.warn('[config] SESSION_SECRET ausente ou fraco: usando um segredo temporário. Defina um texto aleatório com 32+ caracteres.');
+}
+if (config.isProd && !(config.supabase.url && config.supabase.secret)) {
+  console.warn('[config] Supabase não configurado: os dados ficam num arquivo que SOME a cada deploy. Defina SUPABASE_URL e SUPABASE_SECRET_KEY.');
 }
