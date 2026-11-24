@@ -1,0 +1,477 @@
+@import './tokens.css';
+
+/*
+  Overlay do OBS: 1920×1080 com fundo transparente.
+  Nada de caixas por cima da gameplay: a arena é só personagens, e o HUD
+  (vida, ranking, chamada para o chat) fica solto, com sombra para ler em qualquer jogo.
+*/
+html,
+body.overlay-body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: var(--font);
+  color: var(--text);
+}
+
+.stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: 0 0;
+  --z: 0.75;
+  --shadow-text: 0 2px 0 #000, 0 0 6px rgba(0, 0, 0, 0.9), 0 0 2px #000;
+}
+[hidden] {
+  display: none !important;
+}
+
+/* ─── Zona da arena (posição e tamanho escolhidos no painel) ─── */
+.zone {
+  position: absolute;
+  bottom: 24px;
+  width: 960px;
+  height: 590px;
+  transform: scale(var(--z));
+  transition: opacity 0.5s ease, translate 0.5s ease;
+}
+.stage[data-pos='right'] .zone,
+.stage:not([data-pos]) .zone {
+  right: 32px;
+  transform-origin: 100% 100%;
+}
+.stage[data-pos='left'] .zone {
+  left: 32px;
+  transform-origin: 0 100%;
+}
+.stage[data-pos='center'] .zone {
+  left: 480px;
+  transform-origin: 50% 100%;
+}
+.zone.is-hidden {
+  opacity: 0;
+  translate: 0 40px;
+  pointer-events: none;
+}
+
+.arena-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 960px;
+  height: 540px;
+  image-rendering: pixelated;
+}
+
+/* ─── Barra de vida ─────────────────────────────────────── */
+.bossbar {
+  position: absolute;
+  top: 92px;
+  left: 50%;
+  width: 400px;
+  translate: -50% 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.bossbar.is-hidden {
+  opacity: 0;
+}
+/* no topo da tela, estilo jogo de chefe */
+.stage[data-hp='top'] > .bossbar {
+  top: 30px;
+  width: 760px;
+  transform: scale(max(0.8, var(--z)));
+  transform-origin: 50% 0;
+}
+.bb-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+.bb-name {
+  font: italic 900 26px/1 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  text-shadow: var(--shadow-text);
+}
+.stage[data-hp='top'] .bb-name {
+  font-size: 28px;
+}
+.bb-tag {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font: italic 800 13px/1.3 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: #ff7a1a;
+  color: #000;
+}
+.phase-3 .bb-tag {
+  background: var(--accent);
+  color: #fff;
+  animation: blink 0.5s steps(2) infinite;
+}
+.bb-time {
+  margin-left: auto;
+  font: italic 900 22px/1 var(--font-display);
+  text-shadow: var(--shadow-text);
+}
+.bb-time.is-urgent {
+  color: var(--accent-2);
+  animation: blink 0.6s steps(2) infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+.bb-track {
+  position: relative;
+  height: 14px;
+  background: rgba(20, 0, 3, 0.75);
+  border: 2px solid #000;
+  outline: 1px solid rgba(255, 255, 255, 0.7);
+  transform: skewX(-14deg);
+  overflow: hidden;
+}
+.stage[data-hp='top'] .bb-track {
+  height: 18px;
+}
+.bb-ghost,
+.bb-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+}
+.bb-ghost {
+  background: #ffd0d3;
+  opacity: 0.7;
+  transition: width 0.9s ease 0.3s;
+}
+.bb-fill {
+  background: linear-gradient(180deg, #ff6a72 0%, #ff1f2d 50%, #b3000f 100%);
+  transition: width 0.12s ease-out;
+}
+.phase-2 .bb-fill {
+  background: linear-gradient(180deg, #ffb35c 0%, #ff7a1a 50%, #b34700 100%);
+}
+.phase-3 .bb-fill {
+  background: linear-gradient(180deg, #ffffff 0%, #ffc83d 50%, #ff1f2d 100%);
+}
+.bb-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #000;
+}
+.bb-hp {
+  margin-top: 3px;
+  text-align: right;
+  font: 700 13px/1 var(--font);
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: var(--shadow-text);
+}
+
+/* ─── Ranking discreto ──────────────────────────────────── */
+.rank {
+  position: absolute;
+  top: 150px;
+  left: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+.rank:empty {
+  display: none;
+}
+.rank::before {
+  content: 'Top dano';
+  display: block;
+  margin-bottom: 4px;
+  font: 800 14px/1 var(--font);
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: var(--shadow-text);
+}
+.rank li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font: 800 18px/1.5 var(--font);
+  text-shadow: var(--shadow-text);
+}
+.rank .pos {
+  width: 14px;
+  font: italic 900 18px var(--font-display);
+  color: rgba(255, 255, 255, 0.7);
+}
+.rank li:first-child .pos {
+  color: var(--yellow);
+}
+.rank .who {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rank .val {
+  font: italic 800 17px var(--font-display);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ─── Chamada para o chat ───────────────────────────────── */
+.cta {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  translate: -50% 0;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  font: 700 18px/1.2 var(--font);
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.9);
+}
+.cta kbd {
+  padding: 1px 8px;
+  border-radius: 6px;
+  font: italic 900 16px var(--font-display);
+  background: var(--grad-brand);
+  color: #fff;
+}
+.cta kbd.alt {
+  background: #fff;
+  color: #000;
+}
+.cta b {
+  font: italic 900 17px var(--font-display);
+}
+.cta .dot {
+  opacity: 0.5;
+  margin: 0 2px;
+}
+
+/* ─── Resultado (compacto, dentro da zona da arena) ─────── */
+.result {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  overflow: hidden;
+}
+.result.is-visible {
+  opacity: 1;
+}
+.result-card {
+  position: absolute;
+  top: 150px;
+  left: 50%;
+  width: 640px;
+  translate: -50% 0;
+  padding: 18px 24px 20px;
+  border-radius: 18px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 31, 45, 0.7);
+  box-shadow: 0 0 40px -10px rgba(255, 31, 45, 0.8);
+  scale: 0.9;
+  transition: scale 0.45s cubic-bezier(0.2, 0.9, 0.2, 1.3);
+}
+.result.is-visible .result-card {
+  scale: 1;
+}
+.r-title {
+  font: italic 900 52px/1 var(--font-display);
+  text-shadow: 0 3px 0 #000, 0 0 26px rgba(255, 31, 45, 0.9);
+}
+.result.is-escaped .r-title {
+  color: #c4c4cc;
+  text-shadow: 0 3px 0 #000;
+}
+.r-sub {
+  margin-top: 6px;
+  font: 600 17px/1.3 var(--font);
+  color: var(--text-2);
+}
+.r-sub b {
+  color: var(--yellow);
+}
+.r-podium {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 12px;
+}
+.r-top {
+  font: 700 16px var(--font);
+  white-space: nowrap;
+}
+.r-top i {
+  font: italic 900 16px var(--font-display);
+  color: var(--yellow);
+}
+.r-top em {
+  font: italic 800 15px var(--font-display);
+  color: var(--accent-2);
+}
+.confetti {
+  position: absolute;
+  inset: 0;
+}
+.confetti i {
+  position: absolute;
+  top: -20px;
+  width: 10px;
+  height: 14px;
+  border-radius: 2px;
+  animation: confetti-fall linear forwards;
+}
+@keyframes confetti-fall {
+  to {
+    transform: translate(var(--drift), 640px) rotate(var(--rot));
+  }
+}
+
+/* ─── Aviso "boss a caminho" ────────────────────────────── */
+.incoming {
+  position: absolute;
+  top: 210px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 22px 12px 14px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 30px -4px rgba(255, 31, 45, 0.8);
+  animation: incoming-pulse 1s ease-in-out infinite;
+}
+.incoming-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent);
+  font: italic 900 32px var(--font-display);
+}
+.incoming small {
+  display: block;
+  font: 800 13px var(--font);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.incoming b {
+  display: block;
+  font: italic 900 38px/1 var(--font-display);
+}
+@keyframes incoming-pulse {
+  50% {
+    box-shadow: 0 0 60px 4px rgba(255, 31, 45, 0.9);
+    border-color: #fff;
+  }
+}
+
+/* espera (só na prévia do painel) */
+.waiting {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: var(--shadow-text);
+  font: italic 800 44px var(--font-display);
+}
+.waiting img {
+  height: 110px;
+  opacity: 0.9;
+}
+.waiting small {
+  font: 600 24px var(--font);
+}
+.conn-lost {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 31, 45, 0.2);
+  border: 1px solid var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .incoming,
+  .bb-time.is-urgent,
+  .phase-3 .bb-tag {
+    animation: none;
+  }
+}
+
+/* ─── Alertas de apoio (bits, subs, pontos, raid) ───────── */
+/* empilha para cima, a partir de logo acima da barra de vida */
+.alerts {
+  position: absolute;
+  bottom: 504px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.alert {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--alert, #fff);
+  box-shadow: 0 0 18px -4px var(--alert, #fff);
+  font: 700 17px/1.2 var(--font);
+  white-space: nowrap;
+  animation: alert-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+  transition: opacity 0.5s ease, translate 0.5s ease;
+}
+.alert.is-out {
+  opacity: 0;
+  translate: 0 -10px;
+}
+.alert b {
+  font-weight: 800;
+}
+.alert span:not(.a-ico) {
+  color: var(--text-2);
+}
+.alert em {
+  font: italic 900 18px var(--font-display);
+  color: var(--alert);
+}
+.alert--bits { --alert: #c77dff; }
+.alert--sub,
+.alert--gift { --alert: #ffc83d; }
+.alert--points { --alert: #ff4b55; }
+.alert--raid { --alert: #2fe38a; }
+@keyframes alert-in {
+  from {
+    opacity: 0;
+    scale: 0.8;
+  }
+}

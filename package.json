@@ -1,0 +1,28 @@
+{
+  "name": "clipei-live-games",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Clipei Live Games — minigames controlados pelo chat (Twitch, Kick, YouTube)",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c magenta,cyan \"npm run dev -w @clipei/server\" \"npm run dev -w @clipei/web\"",
+    "build": "npm run build -w @clipei/web",
+    "start": "npm run start -w @clipei/server",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/shared && tsc -p packages/games && tsc -p apps/server && tsc -p apps/web",
+    "build:demo": "node tools/build-demo.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.4.6",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

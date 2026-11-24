@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050505" />
+    <title>Clipei Live Games — Prévia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,700;0,800;1,800;1,900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <header class="top">
+      <img class="logo" id="logo" alt="Clipei Live Games" />
+      <div class="top-copy">
+        <h1>Boss coletivo: prévia interativa</h1>
+        <p>Os personagens aparecem direto sobre o jogo, com fundo transparente, como no OBS. Ataque pelo chat, troque de boss e ajuste o tamanho e a posição. O chat é simulado e nada aqui se conecta à Twitch.</p>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="screen-col" aria-label="Arena">
+        <div class="screen" id="screen">
+          <div class="gameplay" aria-hidden="true">
+            <div class="gp-sky"></div>
+            <div class="gp-ground"></div>
+            <div class="gp-cross"></div>
+            <div class="gp-ammo"><b>30</b> / 90</div>
+            <div class="gp-map"></div>
+            <div class="gp-label">Sua gameplay aqui</div>
+          </div>
+          <div class="stage-wrap" id="stage-wrap"><div id="stage"></div></div>
+        </div>
+        <div class="under-screen">
+          <div class="you" id="you">Seu herói ainda não atacou. Digite <kbd>!atk</kbd> no chat.</div>
+          <button type="button" class="seg-btn sound-btn" id="sound" aria-pressed="false">🔇 Ligar som</button>
+          <div class="seg" role="group" aria-label="Fundo da prévia">
+            <button type="button" class="seg-btn is-on" data-bg="game">Sobre um jogo</button>
+            <button type="button" class="seg-btn" data-bg="dark">Fundo escuro</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="chat" aria-label="Chat da live">
+        <div class="chat-head">
+          <span class="live-dot" aria-hidden="true"></span>
+          <b>Chat da live</b>
+          <span class="viewers" id="viewers">0 assistindo</span>
+        </div>
+        <ul class="chat-feed" id="feed" aria-live="off"></ul>
+        <div class="quick">
+          <button type="button" class="chip-btn hot" data-say="!atk">!atk</button>
+          <button type="button" class="chip-btn" data-say="!ult">!ult</button>
+          <button type="button" class="chip-btn" data-say="GG">GG</button>
+          <label class="sub-toggle"><input type="checkbox" id="is-sub" /> Sou sub</label>
+        </div>
+        <div class="support-sim" aria-label="Simular apoio">
+          <span>Simular apoio:</span>
+          <button type="button" class="chip-btn s" data-support="bits" data-amount="100">💎 100 bits</button>
+          <button type="button" class="chip-btn s" data-support="sub" data-amount="1">⭐ Sub</button>
+          <button type="button" class="chip-btn s" data-support="gift" data-amount="5">🎁 5 presentes</button>
+          <button type="button" class="chip-btn s" data-support="points" data-amount="1">🎯 Pontos</button>
+          <button type="button" class="chip-btn s" data-support="raid" data-amount="60">🚀 Raid</button>
+        </div>
+        <form class="chat-input" id="chat-form">
+          <input id="chat-text" type="text" placeholder="Digite !atk e aperte Enter" maxlength="200" autocomplete="off" aria-label="Mensagem no chat" />
+          <button type="submit" class="send">Enviar</button>
+        </form>
+      </aside>
+    </main>
+
+    <section class="controls" aria-label="Controles do streamer">
+      <div class="card wide">
+        <h2>Escolha o boss</h2>
+        <div class="boss-picker" id="picker" role="radiogroup" aria-label="Boss"></div>
+      </div>
+      <div class="card">
+        <h2>Partida</h2>
+        <p class="label">Vida do boss</p>
+        <div class="opts" id="hp-opts"></div>
+        <p class="label">Tempo limite</p>
+        <div class="opts" id="time-opts"></div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="start">Invocar boss</button>
+          <button type="button" class="btn" id="stop">Encerrar</button>
+        </div>
+        <button type="button" class="btn ghost" id="auto-demo">⏰ Simular boss automático</button>
+        <label class="check"><input type="checkbox" id="clip-on" checked /> 🎬 Clip automático da vitória</label>
+        <p class="note">Na versão real o streamer escolhe de quanto em quanto tempo o boss aparece (15 min, 30 min, 1 h, 2 h, 3 h ou outro). Aqui o aviso dura 10 segundos.</p>
+      </div>
+      <div class="card">
+        <h2>Visual na live</h2>
+        <p class="label">Posição</p>
+        <div class="opts" id="pos-opts"></div>
+        <div class="range">
+          <label for="size">Tamanho do minigame <output id="out-size"></output></label>
+          <input type="range" id="size" min="40" max="130" step="5" value="75" />
+        </div>
+        <p class="label">Barra de vida</p>
+        <div class="opts two" id="hp-pos-opts"></div>
+        <label class="check"><input type="checkbox" id="show-rank" checked /> Mostrar top 3 de dano</label>
+        <label class="check"><input type="checkbox" id="show-floor" checked /> Círculo no chão</label>
+      </div>
+      <div class="card">
+        <div class="card-row">
+          <h2>Chat simulado</h2>
+          <label class="switch" title="Ligar ou desligar o chat simulado"><input type="checkbox" id="sim-on" checked /><span></span></label>
+        </div>
+        <div class="range">
+          <label for="sim-viewers">Espectadores <output id="out-viewers"></output></label>
+          <input type="range" id="sim-viewers" min="5" max="400" step="5" value="40" />
+        </div>
+        <div class="range">
+          <label for="sim-rate">Mensagens por segundo <output id="out-rate"></output></label>
+          <input type="range" id="sim-rate" min="1" max="200" step="1" value="8" />
+        </div>
+        <p class="note">Com 200 mensagens por segundo você vê como a arena aguenta o chat de um streamer grande.</p>
+      </div>
+    </section>
+
+    <footer class="foot">Prévia de produto da Clipei Live Games. Os nomes no chat são fictícios.</footer>
+
+    <script type="module" src="/src/demo.ts"></script>
+  </body>
+</html>
