@@ -537,15 +537,26 @@ select {
 }
 .boss-opt input:checked + span canvas,
 .boss-opt input:checked + span .dice {
-  animation: boss-bob 1.4s ease-in-out infinite;
+  animation: boss-bob 3.2s ease-in-out infinite;
 }
 .boss-opt input:focus-visible + span {
   outline: 2px solid var(--info);
   outline-offset: 2px;
 }
+/* "respiração" lenta de personagem parado: sobe 3px e volta, sem tranco */
 @keyframes boss-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
   50% {
-    transform: translateY(-4px);
+    transform: translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boss-opt input:checked + span canvas,
+  .boss-opt input:checked + span .dice {
+    animation: none;
   }
 }
 
