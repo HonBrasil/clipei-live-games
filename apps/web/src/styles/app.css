@@ -1205,3 +1205,80 @@ button.pill {
   padding: 6px 10px;
   font-size: 13px;
 }
+
+/* ─── Corrida (painel) ─────────────────────────────────── */
+.track-picker {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.track-thumb,
+.g-track {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  display: block;
+}
+.g-track {
+  width: auto;
+  height: 100px;
+  max-width: 80%;
+  border-radius: 12px;
+}
+.race-live {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.race-live > div {
+  display: grid;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+.race-live b {
+  font: italic 900 30px/1 var(--font-display);
+}
+.race-live span {
+  font-size: 13px;
+  color: var(--text-3);
+}
+.race-leaders {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: pos;
+  display: grid;
+  gap: 6px;
+}
+.race-leaders li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  counter-increment: pos;
+}
+.race-leaders:not(.podium) li::before {
+  content: counter(pos) 'º';
+  width: 26px;
+  font: italic 900 16px var(--font-display);
+  color: var(--text-3);
+}
+.race-leaders li i {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+}
+.race-leaders em {
+  margin-left: auto;
+  font-style: normal;
+  color: var(--text-3);
+}
+fieldset.plain {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+fieldset.plain:disabled {
+  opacity: 0.45;
+}

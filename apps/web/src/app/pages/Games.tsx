@@ -1,11 +1,20 @@
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { BOSS_SKIN_IDS, GAMES } from '@clipei/shared';
 import { BossThumb } from '../components/ui.tsx';
 import { useApp } from '../state.tsx';
+import { drawTrackThumb } from '../../race/race-arena.ts';
+
+function TrackArt() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (ref.current) drawTrackThumb(ref.current, 'neon');
+  }, []);
+  return <canvas ref={ref} width={320} height={180} className="g-track" aria-hidden="true" />;
+}
 
 export function Games() {
-  const { boss } = useApp();
-  const running = boss?.state?.status === 'running';
+  const { status } = useApp();
   return (
     <>
       <section className="hero">
@@ -28,6 +37,8 @@ export function Games() {
                       <BossThumb key={s} skin={s} width={58} height={52} />
                     ))}
                   </div>
+                ) : g.id === 'race' ? (
+                  <TrackArt />
                 ) : (
                   <span className="g-soon-title">{g.name}</span>
                 )}
@@ -35,7 +46,7 @@ export function Games() {
               <div className="g-body">
                 <div className="g-top">
                   <h2>{g.name}</h2>
-                  <span className={`tag ${active ? 'active' : 'soon'}`}>{active ? (running && g.id === 'boss' ? 'Ao vivo' : 'Disponível') : 'Em breve'}</span>
+                  <span className={`tag ${active ? 'active' : 'soon'}`}>{active ? (status?.game === g.id ? 'Ao vivo' : 'Disponível') : 'Em breve'}</span>
                 </div>
                 <p className="g-tag">{g.tagline}</p>
                 <p>{g.description}</p>

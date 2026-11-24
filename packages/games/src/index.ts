@@ -5,3 +5,4 @@ export * from './auto-hp.ts';
 export * from './commands.ts';
 export * from './scheduler.ts';
 export * from './support.ts';
+export * from './race.ts';

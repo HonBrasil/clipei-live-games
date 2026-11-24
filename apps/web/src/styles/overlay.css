@@ -475,3 +475,212 @@ body.overlay-body {
     scale: 0.8;
   }
 }
+
+/* ─── Corrida ─────────────────────────────────────────────── */
+.race-chip {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.race-chip b {
+  font: italic 900 20px/1 var(--font-display);
+}
+.race-chip span {
+  font: 800 15px/1 var(--font);
+  color: var(--yellow);
+}
+.race-rank {
+  top: 150px;
+  left: 175px;
+}
+.race-rank::before {
+  content: 'Posições';
+}
+.race-rank li {
+  font-size: 16px;
+  align-items: center;
+}
+.race-rank .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px #000;
+}
+.race-lobby {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  translate: -50% -50%;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 30px 20px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(255, 31, 45, 0.6);
+  box-shadow: 0 0 40px -10px rgba(255, 31, 45, 0.8);
+  text-align: center;
+  pointer-events: none;
+}
+.race-lobby small {
+  font: italic 900 16px var(--font-display);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--yellow);
+}
+.race-lobby b {
+  font: italic 900 30px/1.1 var(--font-display);
+  white-space: nowrap;
+  text-shadow: 0 3px 0 #000;
+}
+.race-lobby kbd {
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--grad-brand);
+  font: inherit;
+}
+.race-lobby span {
+  font: 700 18px var(--font);
+  color: rgba(255, 255, 255, 0.85);
+}
+.race-lobby em {
+  font: italic 900 22px var(--font-display);
+  color: #fff;
+}
+.race-count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: italic 900 150px/1 var(--font-display);
+  color: #fff;
+  text-shadow: 0 6px 0 #000, 0 0 40px rgba(255, 31, 45, 0.9);
+  pointer-events: none;
+  animation: count-pop 1s ease-out infinite;
+}
+@keyframes count-pop {
+  0% { scale: 1.35; opacity: 0.4; }
+  20% { scale: 1; opacity: 1; }
+  100% { scale: 0.95; opacity: 1; }
+}
+.race-turbo {
+  position: absolute;
+  top: 190px;
+  left: 56%;
+  translate: -50% 0;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 26px 12px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 200, 61, 0.95), rgba(255, 122, 26, 0.95));
+  color: #000;
+  box-shadow: 0 0 34px rgba(255, 200, 61, 0.7);
+  pointer-events: none;
+  animation: turbo-pulse 0.5s ease-in-out infinite alternate;
+}
+.race-turbo b {
+  font: italic 900 34px/1 var(--font-display);
+}
+.race-turbo span {
+  font: 800 17px var(--font);
+}
+.race-turbo kbd {
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #000;
+  color: #fff;
+  font: italic 900 17px var(--font-display);
+}
+.race-turbo i {
+  width: 220px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+.race-turbo em {
+  display: block;
+  height: 100%;
+  background: #000;
+  transition: width 0.25s linear;
+}
+@keyframes turbo-pulse {
+  to { scale: 1.06; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .race-turbo,
+  .race-count {
+    animation: none;
+  }
+}
+.race-zone .alerts {
+  bottom: auto;
+  top: 330px;
+  left: 56%;
+}
+.race-zone {
+  height: 540px;
+}
+
+/* ─── Tela cheia: o minigame vira a tela principal ─────────── */
+.stage[data-display='fullscreen'] .zone {
+  left: 0;
+  right: auto;
+  top: 0;
+  bottom: auto;
+  height: 540px;
+  transform: scale(2);
+  transform-origin: 0 0;
+}
+.stage[data-display='fullscreen'] .zone .cta {
+  bottom: 14px;
+}
+.stage[data-display='fullscreen'] .zone .arena-canvas {
+  border-radius: 0;
+}
+.stage[data-display='fullscreen'] > .bossbar {
+  transform: none;
+}
+.idle-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  background:
+    radial-gradient(60% 60% at 50% 45%, rgba(255, 31, 45, 0.22), transparent 70%),
+    linear-gradient(180deg, #0b0b10, #040406);
+}
+.idle-screen img {
+  height: 190px;
+  filter: drop-shadow(0 0 30px rgba(255, 31, 45, 0.5));
+}
+.idle-screen b {
+  font: italic 900 64px/1 var(--font-display);
+  text-shadow: 0 4px 0 #000;
+}
+.idle-screen span {
+  font: 700 28px var(--font);
+  color: rgba(255, 255, 255, 0.8);
+}
+.idle-screen kbd {
+  padding: 2px 12px;
+  border-radius: 8px;
+  background: var(--grad-brand);
+  font: italic 900 26px var(--font-display);
+  color: #fff;
+}

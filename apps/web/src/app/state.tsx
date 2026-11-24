@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { ClipRecord, MeResponse, RoomSettings, RoomStatus } from '@clipei/shared';
+import type { ClipRecord, MeResponse, RaceSnapshot, RoomSettings, RoomStatus } from '@clipei/shared';
 import { connectRoom } from '../ws.ts';
 import { api, type BossInfo } from './api.ts';
 
@@ -19,6 +19,8 @@ export interface ToastItem {
 interface AppState {
   me: MeResponse | null;
   boss: BossInfo | null;
+  /** Corrida atual (com nomes e cores já mesclados). */
+  race: RaceSnapshot | null;
   status: RoomStatus | null;
   logs: LogItem[];
   online: boolean;
@@ -38,6 +40,7 @@ let seq = 0;
 export function AppProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [boss, setBossState] = useState<BossInfo | null>(null);
+  const [race, setRace] = useState<RaceSnapshot | null>(null);
   const [status, setStatus] = useState<RoomStatus | null>(null);
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [online, setOnline] = useState(false);
@@ -77,6 +80,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       me.overlayKey,
       (msg) => {
         if (msg.type === 'boss') setBossState((b) => (b ? { ...b, state: msg.state } : b));
+        // as posições chegam sem nomes; guarda o último roster recebido
+        if (msg.type === 'race') setRace((r) => ({ ...msg.state, roster: msg.state.roster ?? (r && r.rosterVersion === msg.state.rosterVersion ? r.roster : r?.roster) }));
         if (msg.type === 'room') {
           setStatus(msg.status);
           setClockOffset(msg.status.serverNow - Date.now());
@@ -114,8 +119,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setBoss = useCallback((b: Partial<BossInfo>) => setBossState((cur) => (cur ? { ...cur, ...b } : cur)), []);
 
   const value = useMemo(
-    () => ({ me, boss, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss }),
-    [me, boss, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss],
+    () => ({ me, boss, race, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss }),
+    [me, boss, race, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

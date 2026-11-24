@@ -8,6 +8,12 @@ import {
   bossHelpText,
   incomingAnnouncement,
   parseBossChatCommand,
+  parseRaceChatCommand,
+  RaceGame,
+  raceHelpText,
+  raceOpenAnnouncement,
+  raceResultAnnouncement,
+  raceStartAnnouncement,
   supportAnnouncement,
   supportDamage,
   supportLabel,
@@ -19,6 +25,7 @@ import {
   BOSS_SKINS,
   BOSS_SKIN_IDS,
   DEFAULT_SETTINGS,
+  RACE_TRACKS,
   mergeSettings,
   type BossConfig,
   type BossSkinId,
@@ -30,6 +37,9 @@ import {
   type SupportEvent,
   type RoomStatus,
   type ServerMessage,
+  type RaceConfig,
+  type RaceSnapshot,
+  type RaceStatus,
 } from '@clipei/shared';
 import { ChatSimulator } from './simulator.ts';
 
@@ -52,6 +62,8 @@ const DEFAULT_CONFIG: BossConfig = { skin: 'glitchador', name: 'Glitchador', max
 const BOT_MIN_INTERVAL_MS = 1500;
 const HELP_COOLDOWN_MS = 30_000;
 const STATUS_EVERY_MS = 3000;
+/** Posições da corrida vão ao overlay 5x por segundo (ele interpola no meio). */
+const RACE_BROADCAST_MS = 200;
 
 /**
  * Uma sala = um canal de streamer. Guarda o jogo ativo, os overlays
@@ -60,6 +72,7 @@ const STATUS_EVERY_MS = 3000;
  */
 export class Room {
   game: BossGame | null = null;
+  race: RaceGame | null = null;
   lastConfig: BossConfig = { ...DEFAULT_CONFIG };
   hpMode: HpMode = 'auto';
   readonly sockets = new Set<WebSocket>();
@@ -84,6 +97,8 @@ export class Room {
   private lastHelpAt = 0;
   private lastSpawnCheck = 0;
   private lastStatusAt = 0;
+  private lastRaceAt = 0;
+  private raceStatus: RaceStatus = 'idle';
 
   constructor(
     public key: string,
@@ -95,6 +110,88 @@ export class Room {
     this.settings = mergeSettings(DEFAULT_SETTINGS, settings);
     this.spawner = new AutoSpawner(this.settings.autoSpawn);
     this.simulator = new ChatSimulator(channelId, (e) => this.handleChat(e));
+    this.simulator.script = () => {
+      const r = this.race;
+      if (!r?.isActive) return undefined;
+      if (r.status === 'lobby') return Math.random() < 0.6 ? '!correr' : 'chatter';
+      return r.turboOpen && Math.random() < 0.5 ? '!turbo' : 'chatter';
+    };
+  }
+
+  /** Só um minigame por vez na tela. */
+  activeGame(): 'boss' | 'race' | null {
+    if (this.game?.isRunning) return 'boss';
+    if (this.race?.isActive) return 'race';
+    return null;
+  }
+
+  // ─── Corrida ───────────────────────────────────────────────
+
+  /** Abre as inscrições com a configuração salva (ou a enviada). */
+  startRace(patch?: Partial<RaceConfig>) {
+    if (this.game?.isRunning) return { ok: false as const, error: 'Tem um boss na arena. Encerre a luta antes de abrir a corrida.' };
+    if (patch) this.updateSettings({ race: patch });
+    this.race?.stop();
+    this.race = new RaceGame(this.settings.race);
+    this.race.open();
+    this.raceStatus = 'lobby';
+    this.spawner.fightStarted();
+    this.hooks.fightStarted?.();
+    this.broadcast({ type: 'incoming', at: null, serverNow: Date.now() });
+    this.say(raceOpenAnnouncement(this.race.config, RACE_TRACKS[this.race.config.track].name));
+    this.broadcastRace();
+    this.broadcastStatus();
+    return { ok: true as const, config: this.race.config };
+  }
+
+  /** Fecha as inscrições e larga agora. */
+  raceGo() {
+    if (this.race?.status !== 'lobby') return false;
+    this.race.startNow();
+    this.afterRaceUpdate();
+    return true;
+  }
+
+  stopRace() {
+    if (!this.race?.isActive) return false;
+    this.race.stop();
+    this.afterRaceUpdate();
+    return true;
+  }
+
+  raceSnapshot(): RaceSnapshot | null {
+    return this.race && this.race.status !== 'idle' ? this.race.snapshot(Date.now(), true) : null;
+  }
+
+  private broadcastRace() {
+    if (!this.race) return;
+    this.lastRaceAt = Date.now();
+    this.broadcast({ type: 'race', state: this.race.snapshot() });
+  }
+
+  /** Mudanças de fase: anúncios do bot, clip, fim de jogo. */
+  private afterRaceUpdate() {
+    const r = this.race;
+    if (!r) return;
+    const prev = this.raceStatus;
+    const next = r.status;
+    if (prev === next) return;
+    this.raceStatus = next;
+    if (prev === 'lobby' && next === 'running') this.say(raceStartAnnouncement(r.pilots));
+    if (next === 'finished' || next === 'stopped') {
+      if (next === 'finished') {
+        this.say(raceResultAnnouncement(r.podium(), r.humans), 'success');
+        this.clipVictory(`Corrida · ${RACE_TRACKS[r.config.track].name}`);
+      } else if (prev === 'lobby' && r.humans === 0) {
+        this.say('🏁 Ninguém entrou na corrida dessa vez. Bora de novo daqui a pouco? !correr', 'warning');
+      } else {
+        this.say('🏁 Corrida encerrada pelo streamer.', 'warning');
+      }
+      this.spawner.fightEnded();
+      this.hooks.fightEnded?.();
+    }
+    this.broadcastRace();
+    this.broadcastStatus();
   }
 
   // ─── Partida ───────────────────────────────────────────────
@@ -139,6 +236,25 @@ export class Room {
   handleChat(event: ChatEvent) {
     this.activity.record(`${event.platform}:${event.user.id}`);
 
+    const raceCmd = parseRaceChatCommand(event);
+    if (raceCmd) {
+      if (raceCmd.type === 'help') {
+        if (Date.now() - this.lastHelpAt > HELP_COOLDOWN_MS) {
+          this.lastHelpAt = Date.now();
+          this.say(raceHelpText(this.race?.status ?? 'idle'));
+        }
+      } else if (raceCmd.type === 'start') {
+        if (this.entitled() && !this.activeGame()) this.startRace();
+      } else {
+        this.stopRace();
+      }
+      return;
+    }
+    if (this.race?.isActive) {
+      this.race.handle(event);
+      return;
+    }
+
     const cmd = parseBossChatCommand(event);
     if (cmd) {
       if (cmd.type === 'help') {
@@ -147,7 +263,7 @@ export class Room {
           this.say(bossHelpText(!!this.game?.isRunning));
         }
       } else if (cmd.type === 'start') {
-        if (this.entitled()) this.startQuick(cmd.skin);
+        if (this.entitled() && !this.race?.isActive) this.startQuick(cmd.skin);
       } else if (cmd.type === 'stop') {
         this.stopBoss();
       }
@@ -159,6 +275,18 @@ export class Room {
 
   /** Bits, subs, presentes, pontos de canal e raids viram golpes especiais. */
   handleSupport(e: SupportEvent) {
+    if (this.race?.isActive) {
+      const res = this.race.special(e);
+      if (!res.applied) {
+        if (e.kind === 'points') this.hooks.redemption?.(e, false);
+        return { applied: false, damage: 0 };
+      }
+      const icon = e.kind === 'points' ? '🛡️' : e.kind === 'raid' ? '🌬️' : '🚀';
+      this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
+      if (e.kind === 'points') this.hooks.redemption?.(e, true);
+      this.broadcastRace();
+      return { applied: true, damage: 0 };
+    }
     const damage = supportDamage(e, this.settings.support);
     const running = !!this.game?.isRunning;
     if (damage === null || !running) {
@@ -184,9 +312,9 @@ export class Room {
   }
 
   /** Clip automático da vitória (opcional). */
-  private clipVictory() {
+  private clipVictory(title = this.lastConfig.name) {
     if (!this.settings.clip.enabled) return;
-    const bossName = this.lastConfig.name;
+    const bossName = title;
     if (!this.hooks.createClip) {
       this.broadcast({ type: 'toast', text: '🎬 (simulação) O clip da vitória seria criado agora na Twitch.', tone: 'info' });
       return;
@@ -199,7 +327,7 @@ export class Room {
         this.clips = [clip, ...this.clips].slice(0, 20);
         this.hooks.clipSaved?.(this.clips);
         this.broadcast({ type: 'clip', clip });
-        if (this.settings.clip.postInChat) this.say(`🎬 Clip da vitória contra ${bossName}: ${url}`);
+        if (this.settings.clip.postInChat) this.say(bossName.startsWith('Corrida') ? `🎬 Clip da chegada: ${url}` : `🎬 Clip da vitória contra ${bossName}: ${url}`);
         else this.broadcast({ type: 'toast', text: `🎬 Clip criado: ${url}`, tone: 'success' });
       } catch (err) {
         console.warn(`[clip] ${this.name}:`, (err as Error).message);
@@ -211,6 +339,11 @@ export class Room {
   /** Chamado a cada 100 ms. */
   tick() {
     const now = Date.now();
+    if (this.race?.isActive) {
+      this.race.update(now);
+      if (this.race.status !== this.raceStatus) this.afterRaceUpdate();
+      else if (now - this.lastRaceAt >= RACE_BROADCAST_MS) this.broadcastRace();
+    }
     if (this.game) {
       this.dispatch(this.game.update());
       if (this.game.dirty) this.broadcastSnapshot();
@@ -225,7 +358,7 @@ export class Room {
   private checkAutoSpawn() {
     if (!this.entitled()) return;
     const signal = this.spawner.tick({
-      running: !!this.game?.isRunning,
+      running: this.activeGame() !== null,
       activeChatters: this.activity.count(),
       live: this.isLive(),
     });
@@ -264,6 +397,7 @@ export class Room {
       nextAutoAt: this.spawner.nextAt,
       live: this.isLive(),
       overlays: [...this.sockets].filter((ws) => !this.panels.has(ws) && ws.readyState === 1).length,
+      game: this.activeGame(),
       serverNow: Date.now(),
     };
   }
@@ -284,6 +418,8 @@ export class Room {
     this.send(ws, { type: 'room', status: this.status() });
     const state = this.currentSnapshot();
     if (state) this.send(ws, { type: 'boss', state: { ...state, recentHits: [] } });
+    const race = this.raceSnapshot();
+    if (race) this.send(ws, { type: 'race', state: race });
     ws.on('close', () => {
       this.sockets.delete(ws);
       if (!this.panels.has(ws)) this.broadcastStatus();

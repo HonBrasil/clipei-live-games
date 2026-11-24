@@ -16,6 +16,7 @@ import { TestPage } from './pages/TestPage.tsx';
 import { PlanPage } from './pages/PlanPage.tsx';
 import { Account } from './pages/Account.tsx';
 import { Admin } from './pages/Admin.tsx';
+import { RacePage } from './pages/RacePage.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -34,6 +35,8 @@ createRoot(document.getElementById('root')!).render(
           <Route index element={<Home />} />
           <Route path="jogos" element={<Games />} />
           <Route path="jogos/boss" element={<BossPage />} />
+          <Route path="jogos/race" element={<RacePage />} />
+          <Route path="jogos/corrida" element={<RacePage />} />
           <Route path="overlay" element={<OverlayPage />} />
           <Route path="conexoes" element={<Connections />} />
           <Route path="testar" element={<TestPage />} />

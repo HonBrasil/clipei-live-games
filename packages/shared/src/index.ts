@@ -196,6 +196,11 @@ export interface LayoutSettings {
   showRanking: boolean;
   /** Círculo discreto no chão sob os personagens. */
   showFloor: boolean;
+  /**
+   * overlay: fundo transparente por cima do jogo (posição e tamanho ajustáveis).
+   * fullscreen: o minigame vira a tela principal, com cenário completo.
+   */
+  display: 'overlay' | 'fullscreen';
 }
 
 export const ARENA_SIZE = { min: 40, max: 130, presets: [{ label: 'P', value: 55 }, { label: 'M', value: 75 }, { label: 'G', value: 100 }] };
@@ -209,12 +214,14 @@ export interface RoomSettings {
   clip: ClipSettings;
   /** Bot da Clipei: falar no chat (ele sempre lê o chat para os jogos funcionarem). */
   bot: { speak: boolean };
+  /** Última configuração da Corrida (o painel e o !corrida dos mods usam). */
+  race: RaceConfig;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
   volume: 60,
   autoSpawn: { enabled: false, intervalMin: 60, skin: 'random', warn: true, minChatters: 3 },
-  layout: { position: 'right', size: 75, hpBar: 'boss', showRanking: true, showFloor: true },
+  layout: { position: 'right', size: 75, hpBar: 'boss', showRanking: true, showFloor: true, display: 'overlay' },
   support: {
     bits: { enabled: true, damagePerBit: 3 },
     subs: { enabled: true, damagePerSub: 250 },
@@ -223,6 +230,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   },
   clip: { enabled: false, postInChat: true },
   bot: { speak: true },
+  race: { track: 'neon', joinSec: 45, laps: 2, maxRunners: 60, fillBots: true },
 };
 
 /** Mescla configurações parciais com validação dos limites. */
@@ -260,6 +268,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
       hpBar: l.hpBar === 'top' ? 'top' : 'boss',
       showRanking: l.showRanking !== false,
       showFloor: l.showFloor !== false,
+      display: l.display === 'fullscreen' ? 'fullscreen' : 'overlay',
     },
     support: {
       bits: { enabled: Boolean(sup.bits.enabled), damagePerBit: num(sup.bits.damagePerBit, 3, 1, 50) },
@@ -273,6 +282,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     },
     clip: { enabled: Boolean(clip.enabled), postInChat: clip.postInChat !== false },
     bot: { speak: (p.bot?.speak ?? base.bot?.speak ?? true) !== false },
+    race: normalizeRaceConfig({ ...(base.race ?? {}), ...((p.race ?? {}) as Partial<RaceConfig>) }),
   };
 }
 
@@ -287,6 +297,8 @@ export interface RoomStatus {
   live: boolean;
   /** Fontes do OBS conectadas agora (o painel não conta). */
   overlays: number;
+  /** Minigame rolando agora na tela (só um por vez). */
+  game: 'boss' | 'race' | null;
   serverNow: number;
 }
 
@@ -295,6 +307,7 @@ export interface RoomStatus {
 export type ServerMessage =
   | { type: 'hello'; channel: { name: string; demo: boolean } }
   | { type: 'boss'; state: BossSnapshot }
+  | { type: 'race'; state: RaceSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -390,10 +403,10 @@ export const GAMES: GameInfo[] = [
   {
     id: 'race',
     name: 'Corrida',
-    tagline: 'Cada um no seu corredor',
-    description: 'Quem entra escolhe um personagem e o chat empurra até a linha de chegada.',
-    status: 'soon',
-    commands: ['!entrar', '!correr'],
+    tagline: 'O chat inteiro na pista',
+    description: 'Cada pessoa vira um piloto num circuito visto de cima. Sorte, janelas de turbo e apoios viram foguetes e cascas de banana.',
+    status: 'active',
+    commands: ['!correr', '!turbo'],
   },
   {
     id: 'teams',
@@ -566,4 +579,112 @@ export interface AdminOverview {
     billing: BillingView;
   }[];
   founders: { used: number; total: number };
+}
+
+// ─── Corrida ────────────────────────────────────────────────
+
+export type RaceTrackId = 'neon' | 'deserto' | 'gelo' | 'castelo';
+
+export const RACE_TRACKS: Record<RaceTrackId, { name: string; title: string }> = {
+  neon: { name: 'Cidade Neon', title: 'Asfalto e luzes' },
+  deserto: { name: 'Deserto', title: 'Areia, cactos e calor' },
+  gelo: { name: 'Pista de Gelo', title: 'Neve e pinheiros' },
+  castelo: { name: 'Castelo', title: 'Pedra, tochas e fosso' },
+};
+export const RACE_TRACK_IDS = Object.keys(RACE_TRACKS) as RaceTrackId[];
+export const isRaceTrack = (v: unknown): v is RaceTrackId => typeof v === 'string' && v in RACE_TRACKS;
+
+export interface RaceConfig {
+  track: RaceTrackId;
+  /** Tempo de inscrição (!correr), em segundos. */
+  joinSec: number;
+  laps: number;
+  maxRunners: number;
+  /** Completa com pilotos da Clipei (CPU) até 4 na pista. */
+  fillBots: boolean;
+}
+
+export const DEFAULT_RACE_CONFIG: RaceConfig = { track: 'neon', joinSec: 45, laps: 2, maxRunners: 60, fillBots: true };
+export const RACE_LIMITS = { joinSec: [15, 120], laps: [1, 3], maxRunners: [4, 150] } as const;
+
+export function normalizeRaceConfig(c: Partial<RaceConfig> | undefined): RaceConfig {
+  const d = DEFAULT_RACE_CONFIG;
+  const num = (v: unknown, def: number, [min, max]: readonly [number, number]) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  return {
+    track: isRaceTrack(c?.track) ? c.track : d.track,
+    joinSec: num(c?.joinSec, d.joinSec, RACE_LIMITS.joinSec),
+    laps: num(c?.laps, d.laps, RACE_LIMITS.laps),
+    maxRunners: num(c?.maxRunners, d.maxRunners, RACE_LIMITS.maxRunners),
+    fillBots: c?.fillBots !== false,
+  };
+}
+
+/** lobby = inscrições; running = largada (contagem até startedAt) e corrida. */
+export type RaceStatus = 'idle' | 'lobby' | 'running' | 'finished' | 'stopped';
+
+export interface RaceRosterEntry {
+  name: string;
+  color: string;
+  bot?: boolean;
+}
+
+/** [índice no roster, progresso ×1e4 (voltas), posição lateral −100..100, velocidade ×1e5 (voltas/s), flags RACE_FLAG] */
+export type RaceRunnerTuple = [number, number, number, number, number];
+
+export const RACE_FLAG = { boost: 1, stumble: 2, shield: 4, finished: 8, rocket: 16 } as const;
+
+export interface RaceObstacle {
+  id: number;
+  kind: 'banana' | 'oil';
+  /** posição em voltas (0..laps) */
+  p: number;
+  /** −1..1 através da pista */
+  lat: number;
+}
+
+export type RaceEventKind = 'join' | 'turbo' | 'trip' | 'rocket' | 'shield' | 'banana' | 'hit' | 'blocked' | 'finish' | 'raid';
+
+export interface RaceEvent {
+  id: number;
+  kind: RaceEventKind;
+  /** índice no roster (−1 = ninguém em especial) */
+  who: number;
+  label?: string;
+  place?: number;
+}
+
+export interface RacePodiumEntry {
+  name: string;
+  color: string;
+  timeMs: number | null;
+  bot?: boolean;
+}
+
+export interface RaceSnapshot {
+  status: RaceStatus;
+  track: RaceTrackId;
+  laps: number;
+  maxRunners: number;
+  lobbyEndsAt: number | null;
+  /** Momento da largada (antes dele: contagem 3, 2, 1). */
+  startedAt: number | null;
+  /** Limite de tempo da corrida. */
+  endsAt: number | null;
+  finishedAt: number | null;
+  serverNow: number;
+  rosterVersion: number;
+  /** Só vem quando muda (ou na conexão): nomes e cores por índice. */
+  roster?: RaceRosterEntry[];
+  runners: RaceRunnerTuple[];
+  obstacles: RaceObstacle[];
+  turbo: { open: boolean; until: number | null; nextAt: number | null };
+  events: RaceEvent[];
+  /** Índices do roster na ordem atual (até 5). */
+  leaders: number[];
+  podium: RacePodiumEntry[];
+  /** Pessoas (sem contar CPU). */
+  participants: number;
 }

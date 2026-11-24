@@ -1,6 +1,7 @@
-import { DEFAULT_SETTINGS, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RoomSettings } from '@clipei/shared';
+import { DEFAULT_SETTINGS, RACE_TRACKS, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
 import { Arena } from './arena/arena.ts';
 import { Sfx } from './arena/sfx.ts';
+import { RaceArena } from './race/race-arena.ts';
 
 /**
  * Overlay do OBS: tela 1920×1080 transparente com a arena (boss + heróis)
@@ -55,9 +56,34 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       </div>
       <div class="bb-hp" id="hp-text"></div>
     </div>
+    <section class="zone race-zone is-hidden" id="race-zone">
+      <canvas class="arena-canvas" id="race-canvas"></canvas>
+      <div class="race-chip" id="race-chip"><b id="race-track">Corrida</b><span id="race-info"></span></div>
+      <ol class="rank race-rank" id="race-rank" aria-label="Posições"></ol>
+      <div class="race-lobby" id="race-lobby" hidden>
+        <small>Corrida aberta</small>
+        <b>Digite <kbd>!correr</kbd> para entrar</b>
+        <span>Largada em <em id="race-lobby-time">0:45</em> · <em id="race-lobby-count">0</em> pilotos</span>
+      </div>
+      <div class="race-count" id="race-count" hidden></div>
+      <div class="race-turbo" id="race-turbo" hidden>
+        <b>⚡ TURBO!</b><span>digite <kbd>!turbo</kbd></span>
+        <i><em id="race-turbo-bar"></em></i>
+      </div>
+      <div class="alerts" id="race-alerts" aria-live="polite"></div>
+      <div class="result" id="race-result">
+        <div class="confetti" id="race-confetti"></div>
+        <div class="result-card" id="race-result-card"></div>
+      </div>
+    </section>
+    <div class="idle-screen" id="idle-screen" hidden>
+      <img src="${logo}" alt="" />
+      <b>Aguardando o próximo jogo</b>
+      <span>Fique de olho no chat: vem boss <kbd>!atk</kbd> ou corrida <kbd>!correr</kbd></span>
+    </div>
     ${
       opts.preview
-        ? `<div class="waiting" id="waiting"><img src="${logo}" alt="" /><span>Aguardando boss…</span><small>A arena aparece aqui quando um boss for invocado</small></div>`
+        ? `<div class="waiting" id="waiting"><img src="${logo}" alt="" /><span>Aguardando jogo…</span><small>O minigame aparece aqui quando começar</small></div>`
         : ''
     }
     <div class="conn-lost" id="conn" hidden>Reconectando…</div>
@@ -84,12 +110,28 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     incomingTime: $('incoming-time'),
     waiting: stage.querySelector<HTMLElement>('#waiting'),
     conn: $('conn'),
+    raceZone: $('race-zone'),
+    raceTrack: $('race-track'),
+    raceInfo: $('race-info'),
+    raceRank: $('race-rank'),
+    raceLobby: $('race-lobby'),
+    raceLobbyTime: $('race-lobby-time'),
+    raceLobbyCount: $('race-lobby-count'),
+    raceCount: $('race-count'),
+    raceTurbo: $('race-turbo'),
+    raceTurboBar: $('race-turbo-bar'),
+    raceAlerts: $('race-alerts'),
+    raceResult: $('race-result'),
+    raceResultCard: $('race-result-card'),
+    raceConfetti: $('race-confetti'),
+    idle: $('idle-screen'),
   };
 
   const sfx = new Sfx();
   sfx.muted = !!opts.muted;
   const canvas = $('arena') as HTMLCanvasElement;
   const arena = new Arena(canvas, sfx);
+  const raceArena = new RaceArena($('race-canvas') as HTMLCanvasElement, sfx);
 
   // ─── Layout (posição, tamanho, barra de vida) ───────────────
   let layout: LayoutSettings = DEFAULT_SETTINGS.layout;
@@ -97,6 +139,10 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
 
   function applyLayout(next: LayoutSettings) {
     layout = next;
+    const full = next.display === 'fullscreen';
+    stage.dataset.display = full ? 'fullscreen' : 'overlay';
+    arena.setBackdrop(full);
+    raceArena.setDisplay(full);
     stage.dataset.pos = next.position;
     stage.dataset.hp = next.hpBar;
     stage.style.setProperty('--z', String(next.size / 100));
@@ -109,7 +155,11 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   }
 
   function updateResolution() {
-    arena.setResolution(stageScale * (layout.size / 100) * (window.devicePixelRatio || 1));
+    // tela cheia: a arena de 960×540 ocupa 1920×1080 (escala 2)
+    const zoom = layout.display === 'fullscreen' ? 2 : layout.size / 100;
+    const res = stageScale * zoom * (window.devicePixelRatio || 1);
+    arena.setResolution(res);
+    raceArena.setResolution(res);
   }
 
   // ─── Escala 1920×1080 → tamanho real (fonte do OBS ou container) ──
@@ -151,6 +201,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     const justEnded = prevStatus === 'running' && (next.status === 'victory' || next.status === 'escaped');
 
     if (running) {
+      els.raceZone.classList.add('is-hidden');
       clearTimeout(resultTimer);
       els.result.classList.remove('is-visible');
       els.cta.hidden = false;
@@ -223,9 +274,9 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     }, 9000);
   }
 
-  function confetti() {
+  function confetti(box: HTMLElement = els.confetti) {
     const colors = ['#ff1f2d', '#ffffff', '#ffc83d', '#ff4b55'];
-    els.confetti.innerHTML = '';
+    box.innerHTML = '';
     for (let i = 0; i < 90; i++) {
       const c = document.createElement('i');
       c.style.left = `${10 + Math.random() * 80}%`;
@@ -234,7 +285,108 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       c.style.setProperty('--rot', `${Math.random() * 1080}deg`);
       c.style.animationDuration = `${1.8 + Math.random() * 1.8}s`;
       c.style.animationDelay = `${Math.random() * 0.6}s`;
-      els.confetti.appendChild(c);
+      box.appendChild(c);
+    }
+  }
+
+  // ─── Corrida ────────────────────────────────────────────────
+  let race: RaceSnapshot | null = null;
+  let raceOffset = 0;
+  let raceResultTimer: number | undefined;
+  let goUntil = 0;
+
+  function renderRace(next: RaceSnapshot) {
+    const prev = race;
+    race = next;
+    raceOffset = next.serverNow - Date.now();
+    raceArena.setState(next);
+    const active = next.status === 'lobby' || next.status === 'running';
+    const roster = raceArena.rosterEntries;
+
+    if (active) {
+      clearTimeout(raceResultTimer);
+      els.raceResult.classList.remove('is-visible');
+      els.raceZone.classList.remove('is-hidden');
+      // um jogo por vez: a corrida tira o boss da tela
+      els.zone.classList.add('is-hidden');
+      els.bossbar.classList.add('is-hidden');
+    } else if (prev && (prev.status === 'running' || prev.status === 'lobby') && next.status === 'finished') {
+      setTimeout(() => showRaceResult(next), 1200);
+    } else if (next.status === 'stopped' || next.status === 'idle') {
+      els.raceZone.classList.add('is-hidden');
+    }
+    if (els.waiting) els.waiting.hidden = active || next.status === 'finished' || state?.status === 'running';
+
+    els.raceTrack.textContent = RACE_TRACKS[next.track].name;
+    els.raceLobby.hidden = next.status !== 'lobby';
+    els.raceLobbyCount.textContent = nf.format(next.participants);
+    els.raceRank.hidden = next.status !== 'running' || !layout.showRanking;
+    els.raceRank.innerHTML = next.leaders
+      .map((idx, i) => {
+        const r = roster[idx];
+        if (!r) return '';
+        return `<li><span class="pos">${i + 1}</span><i class="dot" style="background:${esc(r.color)}"></i><span class="who">${esc(r.name)}</span></li>`;
+      })
+      .join('');
+
+    const ICON: Record<string, string> = { rocket: '🚀', shield: '🛡️', banana: '🍌', raid: '🌬️' };
+    const TEXT: Record<string, string> = { rocket: 'FOGUETE', shield: 'ESCUDO', banana: 'banana no líder', raid: 'vento a favor' };
+    for (const e of next.events) {
+      if (!ICON[e.kind]) continue;
+      const who = e.kind === 'banana' || e.kind === 'raid' ? (e.label ?? 'Apoio') : (roster[e.who]?.name ?? '');
+      const el = document.createElement('div');
+      el.className = `alert alert--${e.kind === 'shield' ? 'points' : e.kind === 'raid' ? 'raid' : 'bits'}`;
+      el.innerHTML = `<span class="a-ico">${ICON[e.kind]}</span><b>${esc(who)}</b><span>${TEXT[e.kind]}</span>`;
+      els.raceAlerts.prepend(el);
+      while (els.raceAlerts.children.length > 3) els.raceAlerts.lastElementChild?.remove();
+      setTimeout(() => el.classList.add('is-out'), 4500);
+      setTimeout(() => el.remove(), 5000);
+    }
+    tickRace();
+  }
+
+  function showRaceResult(s: RaceSnapshot) {
+    const [a] = s.podium;
+    const medals = ['🥇', '🥈', '🥉'];
+    const fmt = (ms: number | null) => (ms === null ? 'não chegou' : `${(ms / 1000).toFixed(1).replace('.', ',')} s`);
+    els.raceResultCard.innerHTML = `
+      <div class="r-title">${a ? `${esc(a.name)} venceu!` : 'Fim da corrida'}</div>
+      <div class="r-sub">${nf.format(s.participants)} ${s.participants === 1 ? 'piloto' : 'pilotos'} · ${esc(RACE_TRACKS[s.track].name)}</div>
+      <div class="r-podium">${s.podium.map((p, i) => `<span class="r-top"><i>${medals[i]}</i> ${esc(p.name)} <em>${fmt(p.timeMs)}</em></span>`).join('')}</div>`;
+    els.raceResult.classList.add('is-visible');
+    els.raceConfetti.innerHTML = '';
+    confetti(els.raceConfetti);
+    clearTimeout(raceResultTimer);
+    raceResultTimer = window.setTimeout(() => {
+      els.raceResult.classList.remove('is-visible');
+      els.raceZone.classList.add('is-hidden');
+    }, 9000);
+  }
+
+  /** Relógios da corrida (inscrição, contagem 3-2-1, janela de turbo, volta). */
+  function tickRace() {
+    if (!race) return;
+    const now = Date.now() + raceOffset;
+    if (race.status === 'lobby' && race.lobbyEndsAt) {
+      const left = Math.max(0, Math.ceil((race.lobbyEndsAt - now) / 1000));
+      els.raceLobbyTime.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+      els.raceInfo.textContent = 'Inscrições';
+    }
+    const counting = race.status === 'running' && race.startedAt !== null && now < race.startedAt;
+    if (race.status === 'running' && race.startedAt !== null && now >= race.startedAt && now - race.startedAt < 800) goUntil = Date.now() + 700;
+    const showGo = Date.now() < goUntil;
+    els.raceCount.hidden = !counting && !showGo;
+    if (counting) els.raceCount.textContent = String(Math.ceil((race.startedAt! - now) / 1000));
+    else if (showGo) els.raceCount.textContent = 'JÁ!';
+
+    const open = race.status === 'running' && race.turbo.open && race.turbo.until !== null;
+    els.raceTurbo.hidden = !open;
+    if (open) els.raceTurboBar.style.width = `${Math.max(0, Math.min(100, ((race.turbo.until! - now) / 4000) * 100))}%`;
+
+    if (race.status === 'running' && !counting) {
+      const lead = race.runners.find((r) => r[0] === race!.leaders[0]);
+      const lap = lead ? Math.min(race.laps, Math.floor(lead[1] / 1e4) + 1) : 1;
+      els.raceInfo.textContent = `Volta ${lap}/${race.laps}`;
     }
   }
 
@@ -256,10 +408,16 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       els.incomingTime.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
       if (els.waiting) els.waiting.hidden = true;
     }
+    tickRace();
+    // tela cheia sem jogo: tela de espera com a marca (o OBS não fica vazio)
+    const nothing = els.zone.classList.contains('is-hidden') && els.raceZone.classList.contains('is-hidden');
+    els.idle.hidden = !(layout.display === 'fullscreen' && nothing);
+    if (els.waiting && layout.display === 'fullscreen') els.waiting.hidden = true;
   }, 250);
 
   return {
     render,
+    renderRace,
     setOnline(online: boolean) {
       els.conn.hidden = online || !state;
     },

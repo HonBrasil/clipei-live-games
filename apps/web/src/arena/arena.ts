@@ -160,6 +160,8 @@ export class Arena {
   private bolts: { x: number; life: number; max: number; points: { x: number; y: number }[] }[] = [];
   private scheduled: { at: number; run: () => void }[] = [];
   private showFloor = true;
+  private backdrop = false;
+  private backdropCache: { key: string; canvas: HTMLCanvasElement } | null = null;
   private res = 1;
   private last = performance.now();
 
@@ -191,6 +193,11 @@ export class Arena {
 
   setFloor(show: boolean) {
     this.showFloor = show;
+  }
+
+  /** Tela cheia: cenário completo atrás do boss (céu, montanhas e chão). */
+  setBackdrop(on: boolean) {
+    this.backdrop = on;
   }
 
   // ─── Entrada de dados ────────────────────────────────────────
@@ -812,6 +819,78 @@ export class Arena {
 
   // ─── Desenho ─────────────────────────────────────────────────
 
+  /** Cenário do boss em pixel art (desenhado uma vez por boss e resolução). */
+  private backdropFor(skin: BossSkinId) {
+    const key = `${skin}:${this.res}`;
+    if (this.backdropCache?.key === key) return this.backdropCache.canvas;
+    const c = document.createElement('canvas');
+    c.width = Math.round(W * this.res);
+    c.height = Math.round(H * this.res);
+    const g = c.getContext('2d')!;
+    g.setTransform(this.res, 0, 0, this.res, 0, 0);
+    g.imageSmoothingEnabled = false;
+    const { sky, glow, ridge } = bossDef(skin).theme;
+    let seed = skin.length * 7919;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296), seed / 4294967296);
+
+    // céu: escuro em cima, cor do tema no horizonte
+    const sk = g.createLinearGradient(0, 0, 0, 380);
+    sk.addColorStop(0, '#030306');
+    sk.addColorStop(1, sky);
+    g.fillStyle = sk;
+    g.fillRect(0, 0, W, 380);
+    // estrelas
+    for (let i = 0; i < 90; i++) {
+      g.globalAlpha = 0.25 + rnd() * 0.6;
+      g.fillStyle = '#fff';
+      g.fillRect(Math.floor(rnd() * W), Math.floor(rnd() * 260), rnd() < 0.15 ? 2 : 1, rnd() < 0.15 ? 2 : 1);
+    }
+    g.globalAlpha = 1;
+    // sol/lua com o brilho do boss
+    const sun = g.createRadialGradient(CX, 300, 10, CX, 300, 260);
+    sun.addColorStop(0, `rgba(${glow},0.55)`);
+    sun.addColorStop(1, `rgba(${glow},0)`);
+    g.fillStyle = sun;
+    g.fillRect(0, 0, W, 400);
+    // duas camadas de montanhas em degraus (pixel art)
+    const ridgeLine = (base: number, amp: number, color: string, step: number) => {
+      g.fillStyle = color;
+      let h = amp * 0.5;
+      for (let x = 0; x < W; x += step) {
+        h = Math.max(amp * 0.15, Math.min(amp, h + (rnd() - 0.5) * amp * 0.5));
+        g.fillRect(x, base - h, step, h + 200);
+      }
+    };
+    ridgeLine(330, 120, ridge[0], 12);
+    ridgeLine(370, 80, ridge[1], 8);
+    // chão de pedra com perspectiva
+    g.fillStyle = '#07070a';
+    g.fillRect(0, 380, W, H - 380);
+    g.strokeStyle = `rgba(${glow},0.22)`;
+    g.lineWidth = 1;
+    for (let i = 0; i < 7; i++) {
+      const y = 380 + (i * i * (H - 380)) / 36;
+      g.beginPath();
+      g.moveTo(0, Math.round(y) + 0.5);
+      g.lineTo(W, Math.round(y) + 0.5);
+      g.stroke();
+    }
+    for (let i = -10; i <= 10; i++) {
+      g.beginPath();
+      g.moveTo(CX + i * 40, 380);
+      g.lineTo(CX + i * 160, H);
+      g.stroke();
+    }
+    const fog = g.createLinearGradient(0, 360, 0, 420);
+    fog.addColorStop(0, `rgba(${glow},0)`);
+    fog.addColorStop(0.5, `rgba(${glow},0.18)`);
+    fog.addColorStop(1, `rgba(${glow},0)`);
+    g.fillStyle = fog;
+    g.fillRect(0, 360, W, 60);
+    this.backdropCache = { key, canvas: c };
+    return c;
+  }
+
   private draw(now: number) {
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -822,6 +901,16 @@ export class Arena {
     if (now < this.shakeUntil) {
       const m = this.shakeMag * ((this.shakeUntil - now) / 300);
       ctx.translate(rand(-m, m), rand(-m, m));
+    }
+    if (this.backdrop) {
+      ctx.drawImage(this.backdropFor(geom.skin), -12, -12, W + 24, H + 24);
+      // brilho pulsando atrás do boss
+      const glow = bossDef(geom.skin).theme.glow;
+      const g = ctx.createRadialGradient(CX, BOSS_FEET - 140, 20, CX, BOSS_FEET - 140, 300);
+      g.addColorStop(0, `rgba(${glow},${0.16 + 0.05 * Math.sin(now / 700)})`);
+      g.addColorStop(1, `rgba(${glow},0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
     }
     // fundo transparente: só um círculo discreto no chão (opcional)
     if (this.showFloor && (this.status === 'running' || this.deathT0 >= 0 || this.escapeT0 >= 0)) this.drawFloor();

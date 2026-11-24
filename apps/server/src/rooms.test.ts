@@ -91,4 +91,41 @@ describe('Room', () => {
     expect(calls).toEqual([false, true]);
     expect(room.game!.leaderboard()[0]).toMatchObject({ name: 'Bia', damage: 300 });
   });
+
+  it('corrida: mod abre, chat entra, larga, termina com anúncio; boss fica bloqueado durante a corrida', () => {
+    const { room, msgs, sent, tickFor } = setup();
+    room.handleChat(chat('mod', '!corrida iniciar', 'mod'));
+    expect(room.activeGame()).toBe('race');
+    room.handleChat(chat('ana', '!correr'));
+    room.handleChat(chat('bia', '!correr'));
+    room.handleChat(chat('mod', '!boss iniciar', 'mod'));
+    expect(room.game?.isRunning).toBeFalsy();
+    tickFor(46_000);
+    expect(room.race?.status).toBe('running');
+    tickFor(130_000);
+    expect(room.race?.status).toBe('finished');
+    expect(room.activeGame()).toBeNull();
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('CORRIDA ABERTA'))).toBe(true);
+    expect(said.some((t) => t.includes('Largou'))).toBe(true);
+    expect(said.some((t) => t.includes('venceu a corrida'))).toBe(true);
+    expect(sent.length).toBeGreaterThan(0);
+    const race = msgs.filter((m) => m.type === 'race');
+    expect(race.length).toBeGreaterThan(100);
+    expect(race.some((m) => m.type === 'race' && m.state.roster?.length === 4)).toBe(true);
+  });
+
+  it('corrida: apoio durante a corrida vira poder e pontos sem corrida são devolvidos', () => {
+    const { room, msgs, tickFor } = setup();
+    const refunds: boolean[] = [];
+    room.hooks.redemption = (_e, ok) => refunds.push(ok);
+    room.startRace({ joinSec: 15 });
+    room.handleChat(chat('ana', '!correr'));
+    tickFor(20_000);
+    room.handleSupport({ kind: 'bits', amount: 300, platform: 'twitch', user: { id: 'ana', name: 'ana' } });
+    expect(msgs.some((m) => m.type === 'toast' && m.text.includes('FOGUETE'))).toBeTruthy();
+    room.stopRace();
+    room.handleSupport({ kind: 'points', amount: 1, platform: 'twitch', user: { id: 'ana', name: 'ana' } });
+    expect(refunds).toContain(false);
+  });
 });

@@ -32,7 +32,7 @@ export function OverlayPage() {
 
       <div className="grid wide-left">
         <div className="col">
-          <Card title="Prévia" subtitle="A arena aparece aqui quando um boss for invocado">
+          <Card title="Prévia" subtitle="O minigame aparece aqui quando começar">
             <OverlayPreview overlayKey={me.overlayKey} />
           </Card>
           <Card title="Como adicionar no OBS">
@@ -83,6 +83,24 @@ export function OverlayPage() {
         <div className="col">
           <Card title="Visual na live">
             <div className="field">
+              <span className="field-label">Modo de exibição</span>
+              <Options
+                name="display"
+                value={l.display}
+                onChange={(v) => saveSettings({ layout: { display: v } })}
+                options={[
+                  { value: 'overlay' as const, label: 'Sobreposto', hint: 'Fundo transparente, por cima do seu jogo' },
+                  { value: 'fullscreen' as const, label: 'Tela cheia', hint: 'O minigame vira a tela da live, com cenário' },
+                ]}
+              />
+            </div>
+            {l.display === 'fullscreen' && (
+              <p className="muted" style={{ marginTop: -4 }}>
+                Em tela cheia o minigame ocupa a fonte inteira do OBS. Sem jogo rolando, aparece a tela "Aguardando o próximo jogo". Dica: use numa cena só para os minigames.
+              </p>
+            )}
+            <fieldset className="plain" disabled={l.display === 'fullscreen'}>
+            <div className="field">
               <span className="field-label">Posição na tela</span>
               <Options<ArenaPosition>
                 tight
@@ -118,6 +136,7 @@ export function OverlayPage() {
                 ))}
               </div>
             </div>
+            </fieldset>
             <div className="field">
               <span className="field-label">Barra de vida</span>
               <Options
@@ -132,7 +151,7 @@ export function OverlayPage() {
               />
             </div>
             <Check checked={l.showRanking} onChange={(v) => saveSettings({ layout: { showRanking: v } })}>
-              Mostrar o top 3 de dano
+              Mostrar o ranking (top dano no boss, posições na corrida)
             </Check>
             <Check checked={l.showFloor} onChange={(v) => saveSettings({ layout: { showFloor: v } })}>
               Círculo discreto no chão sob os personagens

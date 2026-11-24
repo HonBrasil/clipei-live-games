@@ -11,6 +11,7 @@ import {
   FOUNDER_SLOTS,
   isBossSkin,
   type BossConfig,
+  type RaceConfig,
   type BossPresetKey,
   type MeResponse,
   type SimulatorStatus,
@@ -642,6 +643,7 @@ app.post<{ Body: Partial<Omit<BossConfig, 'skin'>> & { preset?: BossPresetKey | 
   };
   if (!Number.isFinite(cfg.maxHp)) return reply.code(400).send({ error: 'Vida inválida' });
   if (!room.entitled()) return reply.code(402).send({ error: 'Seu teste acabou. Assine um plano para voltar a invocar bosses.' });
+  if (room.race?.isActive) return reply.code(409).send({ error: 'Tem uma corrida rolando. Encerre a corrida antes de invocar o boss.' });
   const started = room.startBoss(cfg, hpMode);
   return { ok: true, config: started, hpMode };
 });
@@ -668,6 +670,20 @@ app.post('/api/sound/test', async (req) => {
   currentRoom(req).testSound();
   return { ok: true };
 });
+
+// ─── Corrida ─────────────────────────────────────────────────
+
+app.post<{ Body: Partial<RaceConfig> }>('/api/race/start', async (req, reply) => {
+  const room = currentRoom(req);
+  if (!room.entitled()) return reply.code(402).send({ error: 'Seu teste acabou. Assine um plano para voltar a jogar.' });
+  const res = room.startRace(req.body && Object.keys(req.body).length ? req.body : undefined);
+  if (!res.ok) return reply.code(409).send({ error: res.error });
+  return res;
+});
+
+app.post('/api/race/go', async (req) => ({ ok: currentRoom(req).raceGo() }));
+
+app.post('/api/race/stop', async (req) => ({ ok: currentRoom(req).stopRace() }));
 
 app.post('/api/boss/stop', async (req) => {
   currentRoom(req).stopBoss();

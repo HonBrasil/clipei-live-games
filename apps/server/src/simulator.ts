@@ -23,6 +23,11 @@ export class ChatSimulator {
   private viewers: FakeViewer[] = [];
   private carry = 0;
   private seq = 0;
+  /**
+   * Roteiro do jogo ativo (ex.: corrida pede !correr e !turbo). Devolve o texto,
+   * 'chatter' para uma conversa qualquer ou undefined para o padrão do boss.
+   */
+  script: (() => string | undefined) | null = null;
   status: SimulatorStatus = { running: false, viewers: 60, messagesPerSecond: 25, subRatio: 0.2 };
 
   constructor(
@@ -73,7 +78,8 @@ export class ChatSimulator {
     while (count-- > 0) {
       const v = pick(this.viewers);
       const r = Math.random();
-      const text = r < 0.86 ? '!atk' : r < 0.9 ? '!ult' : pick(CHATTER);
+      const scripted = this.script?.();
+      const text = scripted === 'chatter' ? pick(CHATTER) : (scripted ?? (r < 0.86 ? '!atk' : r < 0.9 ? '!ult' : pick(CHATTER)));
       this.emit({
         id: `sim-msg-${++this.seq}`,
         platform: 'simulator',
