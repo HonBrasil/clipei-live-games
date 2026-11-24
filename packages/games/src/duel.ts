@@ -82,6 +82,10 @@ export class DuelGame {
   get duelists() {
     return this.players.map((p) => p.name);
   }
+  /** Encarada: o tempo de torcida (se ligada) ou só a apresentação dos nomes. */
+  get introMs() {
+    return this.config.cheer ? Math.max(DUEL_INTRO_MS, this.config.cheerSec * 1000) : DUEL_INTRO_MS;
+  }
   get target() {
     return this.config.bestOf === 3 ? 2 : 1;
   }
@@ -268,8 +272,9 @@ export class DuelGame {
       p.jammed = false;
       p.readyAt = 0;
     }
-    // a encarada longa só na primeira rodada
-    this.phase(this.round === 1 ? 'intro' : 'countdown', now + (this.round === 1 ? DUEL_INTRO_MS : DUEL_COUNTDOWN_MS));
+    // a encarada (com a torcida escolhendo lado) só na primeira rodada
+    if (this.round === 1) this.phase('intro', now + this.introMs);
+    else this.phase('countdown', now + DUEL_COUNTDOWN_MS);
   }
 
   private endRound(winner: number, now: number) {
@@ -355,8 +360,10 @@ export function duelOpenAnnouncement(cfg: DuelConfig) {
   return `🤠 DUELO ${cfg.bestOf === 3 ? '(melhor de 3)' : 'X1'}! Os dois primeiros que digitarem !duelo se enfrentam. No FOGO!, digite !bang (atirar antes trava a arma).`;
 }
 
-export function duelStartAnnouncement(a: string, b: string, cheer: boolean) {
-  return `🔥 ${a} x ${b}! Duelistas: !bang só no FOGO.${cheer ? ' Torcida: !1 para ' + a + ', !2 para ' + b + '.' : ''}`;
+export function duelStartAnnouncement(a: string, b: string, cheer: boolean, cheerSec = 15) {
+  return cheer
+    ? `🔥 ${a} x ${b}! TORCIDA ABERTA por ${cheerSec} s: !1 para ${a}, !2 para ${b}. Depois vem a contagem: duelistas, !bang só no FOGO.`
+    : `🔥 ${a} x ${b}! Duelistas: !bang só no FOGO.`;
 }
 
 export function duelResultAnnouncement(winner: string | null, loser: string | null, score: [number, number], bestOf: number) {

@@ -244,7 +244,7 @@ Em **Overlay (OBS) → Modo de exibição → Tela cheia**, o minigame ocupa a f
 X1 (ou melhor de 3) no velho oeste. **Minigames → Duelo** no painel ou `!duelo iniciar` (mods).
 
 1. `!duelo`: os dois primeiros entram (se não aparecer o segundo no tempo escolhido, cancela).
-2. Encarada com os nomes, contagem 3-2-1 e um **silêncio sorteado de 1 a 4 s** antes do **FOGO!**, para ninguém contar o tempo.
+2. Encarada com os nomes e **tempo de torcida** (10 a 30 s, escolhido no painel), depois contagem 3-2-1 e um **silêncio sorteado de 1 a 4 s** antes do **FOGO!**, para ninguém contar o tempo.
 3. `!bang`: **reflexo com sorte**. O primeiro tiro sai antes, mas acerta ~60%; errou, recarrega 1,2 s e o outro tem a vez. Isso diminui a vantagem de quem tem menos atraso na live. Atirar antes do FOGO **trava a arma** (o primeiro tiro só sai 1,5 s depois).
 4. **Torcida:** `!1` / `!2`. O lado com mais torcida ganha até +10% de mira.
 5. **Apoios viram equipamento** (para quem duela ou para o lado que a pessoa torce): pontos = mira +15%, bits = colete (aguenta 1 tiro), sub = revólver dourado (o próximo tiro não erra). 1 de cada item por duelista.

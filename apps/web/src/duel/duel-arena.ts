@@ -9,36 +9,71 @@ import type { Sfx } from '../arena/sfx.ts';
 
 const W = 960;
 const H = 540;
-const PX = 6;
+const PX = 5;
 const GROUND = 440;
 const POS = [255, 705];
+/** Coluna do centro do corpo no sprite (o desenho fica centrado nela). */
+const CENTER = 11.5;
 
+/** Cowboy de frente para a direita, 22 colunas (o canvas tem 28 para caber o revólver no saque). */
 const COWBOY = [
-  '......HHHH......',
-  '.....HHHHHH.....',
-  '...hhhhhhhhhh...',
-  '......SSSS......',
-  '......SSES......',
-  '......SSSS......',
-  '.......SS.......',
-  '.....CCCCCC.....',
-  '....CCVVVVCC....',
-  '....CCVVVVCC....',
-  '....CCVVVVCC....',
-  '....SCVVVVCS....',
-  '....SBBBBBBS....',
-  '.....BBBBBBG....',
-  '.....PPPPPPG....',
-  '.....PPPPPP.....',
-  '.....PP..PP.....',
-  '.....PP..PP.....',
-  '.....PP..PP.....',
-  '.....PP..PP.....',
-  '.....PP..PP.....',
-  '....KKK..KKK....',
+".........oooooo.......",
+"........oLLHHHHo......",
+"........oLHHHHHo......",
+"........obbbbbbo......",
+"....oooohhhhhhhhoooo..",
+"...oLLHHHHHHHHHHHHHho.",
+"....oooooooooooooooo..",
+"........osSSSMMo......",
+"........osSSSESo......",
+"........osSSSSSSo.....",
+"........osSMMMSo......",
+".........osSSSo.......",
+".........oDDDDDo......",
+".......oDdDDDDDdo.....",
+"......olCCVVVVCco.....",
+".....olCCVvVVvVCco....",
+".....olCCVvVVvVCco....",
+".....oSCCVvVVvVCcSo...",
+".....oSoBBBBBBBBoSo...",
+"......ooBBBYYBBBGgo...",
+".......oPPPPPPPPRgo...",
+".......oPPPpPPPPRo....",
+".......oPPPpoPPPPo....",
+".......oPPPpooPPPpo...",
+".......oPPPpooPPPpo...",
+".......oPPPpooPPPpo...",
+".......oPPPpooPPPpo...",
+".......oPPpo..oPPpo...",
+"......oKKKKo.oKKKKo...",
+"......oKKKKKooKKKKKo..",
+"......okkkkkookkkkkko.",
 ];
+const ROWS_N = COWBOY.length;
 
-const PAL: Record<string, string> = { H: '#5a3a1e', h: '#43290f', S: '#e0a57a', E: '#1a1a1a', V: '#3b2a20', B: '#2a1d14', G: '#a7adb3', P: '#3d4f6e', K: '#4a2f18' };
+const BASE: Record<string, string> = {
+  o: '#1a1210',
+  S: '#e8b08a',
+  s: '#c98d66',
+  E: '#1a1a1a',
+  M: '#3b2412',
+  V: '#4a3020',
+  v: '#36210f',
+  B: '#2a1a10',
+  Y: '#f0c44c',
+  G: '#c3c9cf',
+  g: '#6b7075',
+  R: '#7a4a26',
+  P: '#4a5f82',
+  p: '#384a68',
+  K: '#5a3418',
+  k: '#3e220e',
+};
+/** Chapéu marrom (mocinho, esquerda) e preto (vilão, direita). */
+const HATS = [
+  { H: '#6b4423', h: '#4e2f17', L: '#8f5f33', b: '#2a1a10' },
+  { H: '#2c2a30', h: '#1c1b20', L: '#4a4752', b: '#8a2d2d' },
+];
 
 function shade(hex: string, amt: number) {
   const n = parseInt(hex.slice(1), 16);
@@ -47,39 +82,53 @@ function shade(hex: string, amt: number) {
 }
 
 const spriteCache = new Map<string, HTMLCanvasElement>();
-/** Cowboy virado para a direita; aim = braço esticado com o revólver. */
-function cowboy(color: string, aim: boolean, hat = true) {
-  const key = `${color}:${aim}:${hat}`;
+/** Cowboy virado para a direita. aim = braço esticado com o revólver; blink = piscando. */
+function cowboy(color: string, who: number, aim: boolean, hat = true, blink = false) {
+  const key = `${color}:${who}:${aim}:${hat}:${blink}`;
   let c = spriteCache.get(key);
   if (c) return c;
   c = document.createElement('canvas');
-  c.width = 22 * PX;
-  c.height = COWBOY.length * PX;
+  c.width = 28 * PX;
+  c.height = ROWS_N * PX;
   const g = c.getContext('2d')!;
+  const pal: Record<string, string> = { ...BASE, ...HATS[who], C: color, c: shade(color, -0.3), l: shade(color, 0.3), D: shade(color, -0.15), d: shade(color, -0.4) };
+  const dot = (x: number, y: number, col: string) => {
+    g.fillStyle = col;
+    g.fillRect(x * PX, y * PX, PX, PX);
+  };
   COWBOY.forEach((row, y) =>
     [...row].forEach((ch, x) => {
       if (ch === '.') return;
-      if (!hat && (ch === 'H' || ch === 'h')) return;
-      if (aim && ((y === 11 && x === 11) || (ch === 'G' && y >= 13))) return; // a mão e a arma saem do coldre
-      g.fillStyle = ch === 'C' ? (y === 7 ? shade(color, 0.2) : color) : PAL[ch];
-      g.fillRect(x * PX, y * PX, PX, PX);
+      if (!hat && y <= 6) return;
+      // no saque, a arma sai do coldre e a mão direita sobe
+      if (aim && ((y >= 19 && (ch === 'G' || ch === 'g')) || ((y === 17 || y === 18) && (x === 17 || x === 18)))) return;
+      if (blink && ch === 'E') ch = 'S';
+      dot(x, y, pal[ch]);
     }),
   );
   if (!hat) {
-    // cabelo
-    g.fillStyle = '#3b2412';
-    g.fillRect(6 * PX, 2 * PX, 4 * PX, PX);
+    // cabelo bagunçado
+    for (let x = 9; x <= 14; x++) dot(x, 6, '#3b2412');
+    for (let x = 10; x <= 13; x++) dot(x, 5, '#3b2412');
   }
   if (aim) {
-    // braço esticado + revólver
-    g.fillStyle = color;
-    g.fillRect(11 * PX, 8 * PX, 4 * PX, 2 * PX);
-    g.fillStyle = PAL.S;
-    g.fillRect(15 * PX, 8 * PX, PX, 2 * PX);
-    g.fillStyle = PAL.G;
-    g.fillRect(16 * PX, 8 * PX, 4 * PX, PX);
-    g.fillStyle = '#6b7075';
-    g.fillRect(16 * PX, 9 * PX, PX, 2 * PX);
+    for (let x = 15; x <= 20; x++) {
+      dot(x, 15, BASE.o);
+      dot(x, 16, pal.l);
+      dot(x, 17, pal.C);
+      dot(x, 18, BASE.o);
+    }
+    for (const y of [15, 16, 17, 18]) dot(21, y, BASE.o);
+    dot(20, 16, BASE.S);
+    dot(20, 17, BASE.s);
+    for (let x = 21; x <= 26; x++) {
+      dot(x, 15, BASE.o);
+      dot(x, 16, BASE.G);
+      dot(x, 17, BASE.o);
+    }
+    dot(27, 16, BASE.o);
+    dot(21, 17, BASE.R);
+    dot(21, 18, BASE.R);
   }
   spriteCache.set(key, c);
   return c;
@@ -179,7 +228,7 @@ export class DuelArena {
   }
 
   private head(who: number) {
-    return { x: POS[who], y: GROUND - COWBOY.length * PX };
+    return { x: POS[who], y: GROUND - ROWS_N * PX };
   }
 
   private float(who: number, text: string, color: string, size = 22) {
@@ -201,7 +250,7 @@ export class DuelArena {
     } else if (e.kind === 'vest') {
       this.float(e.who, 'COLETE!', '#5ce1ff');
       const h = this.head(e.who);
-      for (let i = 0; i < 14; i++) this.sparks.push({ x: h.x, y: h.y + 10 * PX, vx: (Math.random() - 0.5) * 220, vy: (Math.random() - 0.7) * 200, life: 0, max: 380, color: Math.random() < 0.5 ? '#ffd23d' : '#ffffff' });
+      for (let i = 0; i < 14; i++) this.sparks.push({ x: h.x, y: h.y + 16 * PX, vx: (Math.random() - 0.5) * 220, vy: (Math.random() - 0.7) * 200, life: 0, max: 380, color: Math.random() < 0.5 ? '#ffd23d' : '#ffffff' });
       this.sfx?.play('hit');
     } else if (e.kind === 'hit') {
       const t = 1 - e.who;
@@ -294,8 +343,8 @@ export class DuelArena {
     // rastro da bala
     if (this.tracer && now < this.tracer.until) {
       const from = this.tracer.from;
-      const y = GROUND - COWBOY.length * PX + 9 * PX;
-      const x0 = POS[from] + (from === 0 ? 1 : -1) * 11 * PX;
+      const y = GROUND - ROWS_N * PX + 16.5 * PX;
+      const x0 = POS[from] + (from === 0 ? 1 : -1) * (27 - CENTER) * PX;
       const x1 = POS[1 - from] + (from === 0 ? -1 : 1) * (this.tracer.hit ? 0 : -90);
       ctx.strokeStyle = 'rgba(255,230,150,0.9)';
       ctx.lineWidth = 2;
@@ -337,7 +386,9 @@ export class DuelArena {
   private drawCowboy(who: number, color: string, now: number) {
     const ctx = this.ctx;
     const p = this.poses[who];
-    const spr = cowboy(color, p.aim, !p.hatFly);
+    // pisca de vez em quando (cada um no seu ritmo)
+    const blink = !p.dead && (now + who * 1700) % 3800 < 130;
+    const spr = cowboy(color, who, p.aim, !p.hatFly, blink);
     const w = spr.width;
     const h = spr.height;
     const x = POS[who];
@@ -353,12 +404,12 @@ export class DuelArena {
     if (who === 1) ctx.scale(-1, 1);
     // queda para trás
     if (p.dead > 0) ctx.rotate(-p.dead * (Math.PI / 2));
-    ctx.drawImage(spr, -w / 2 + 2 * PX, -h + breathe, w, h);
+    ctx.drawImage(spr, -CENTER * PX, -h + breathe, w, h);
     // clarão do tiro
     if (this.flash?.who === who && now < this.flash.until) {
       ctx.fillStyle = '#fff6b0';
-      const fx = -w / 2 + 2 * PX + 20 * PX;
-      const fy = -h + 8.5 * PX;
+      const fx = (27.5 - CENTER) * PX;
+      const fy = -h + 16.5 * PX;
       ctx.beginPath();
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2;
@@ -374,10 +425,13 @@ export class DuelArena {
       ctx.save();
       ctx.translate(p.hatFly.x, p.hatFly.y);
       ctx.rotate(p.hatFly.rot);
-      ctx.fillStyle = PAL.H;
-      ctx.fillRect(-3 * PX, -2 * PX, 6 * PX, 2 * PX);
-      ctx.fillStyle = PAL.h;
-      ctx.fillRect(-5 * PX, 0, 10 * PX, PX);
+      const hat = HATS[who];
+      ctx.fillStyle = hat.H;
+      ctx.fillRect(-3 * PX, -3 * PX, 6 * PX, 3 * PX);
+      ctx.fillStyle = hat.b;
+      ctx.fillRect(-3 * PX, -PX, 6 * PX, PX);
+      ctx.fillStyle = hat.h;
+      ctx.fillRect(-8 * PX, 0, 16 * PX, PX);
       ctx.restore();
     }
   }

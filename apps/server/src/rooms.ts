@@ -186,7 +186,7 @@ export class Room {
     if (prev !== next) {
       this.duelStatus = next;
       const [a, b] = d.duelists;
-      if (prev === 'lobby' && next === 'intro') this.say(duelStartAnnouncement(a, b, d.config.cheer));
+      if (prev === 'lobby' && next === 'intro') this.say(duelStartAnnouncement(a, b, d.config.cheer, d.config.cheerSec));
       if (next === 'finished' || next === 'stopped') {
         if (next === 'finished') {
           const w = d.winner;

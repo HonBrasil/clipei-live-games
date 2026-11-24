@@ -532,7 +532,10 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     let big = '';
     let cls = '';
     if (duel.status === 'intro' && a && b) {
-      big = `<span style="color:${esc(a.color)}">${esc(a.name)}</span><i>x</i><span style="color:${esc(b.color)}">${esc(b.name)}</span>`;
+      const left = duel.phaseEndsAt ? Math.max(0, Math.ceil((duel.phaseEndsAt - now) / 1000)) : 0;
+      big = `<div class="vs-names"><span style="color:${esc(a.color)}">${esc(a.name)}</span><i>x</i><span style="color:${esc(b.color)}">${esc(b.name)}</span></div>${
+        duel.cheerOn ? `<small class="vs-cheer">Torcida aberta: <kbd>!1</kbd> ou <kbd>!2</kbd> · <b>${left}s</b></small>` : ''
+      }`;
       cls = 'vs';
     } else if (duel.status === 'countdown' && duel.phaseEndsAt) {
       const n = Math.ceil((duel.phaseEndsAt - now) / 1000);

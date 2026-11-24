@@ -13,7 +13,7 @@ type Tab = (typeof TABS)[number]['id'];
 const STATUS_LABEL: Record<DuelSnapshot['status'], string> = {
   idle: 'Parado',
   lobby: 'Esperando duelistas',
-  intro: 'Encarada',
+  intro: 'Torcida escolhendo lado',
   countdown: 'Contagem',
   wait: 'Silêncio…',
   fire: 'FOGO!',
@@ -130,6 +130,12 @@ function DuelTab() {
           <Check checked={cfg.cheer} onChange={(v) => set({ cheer: v })}>
             Torcida do chat (!1 / !2): o lado com mais torcida ganha até +10% de mira
           </Check>
+          {cfg.cheer && (
+            <div className="field" style={{ marginTop: 12 }}>
+              <span className="field-label">Tempo de torcida antes da contagem</span>
+              <Options tight name="cheersec" value={cfg.cheerSec} onChange={(v) => set({ cheerSec: v })} options={[10, 15, 20, 30].map((v) => ({ value: v, label: `${v}s` }))} />
+            </div>
+          )}
           {busy && <p className="chat-error">{busy === 'boss' ? 'Tem um boss na arena.' : 'Tem uma corrida rolando.'} Um jogo por vez: espere terminar para abrir o duelo.</p>}
           <div className="actions">
             <button className="btn primary lg" disabled={active || !!busy} onClick={open}>
@@ -224,7 +230,7 @@ function CommandsTab() {
           <div className="cmd">
             <kbd>!1 / !2</kbd>
             <p>
-              <b>Torcida</b> para o duelista da esquerda (1) ou da direita (2). O lado com mais torcida ganha até +10% de mira.
+              <b>Torcida</b> para o duelista da esquerda (1) ou da direita (2). Assim que os dois entram, a torcida tem um tempo só para escolher lado (você define), antes da contagem. O lado com mais torcida ganha até +10% de mira.
             </p>
           </div>
         </div>

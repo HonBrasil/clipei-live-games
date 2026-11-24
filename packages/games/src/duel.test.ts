@@ -15,7 +15,7 @@ const T0 = 1_000_000;
 /** Leva o duelo até o FOGO e devolve o instante. */
 function toFire(g: DuelGame, from: number) {
   let now = from;
-  for (let i = 0; i < 200 && g.status !== 'fire'; i++) g.update((now += 100));
+  for (let i = 0; i < 600 && g.status !== 'fire'; i++) g.update((now += 100));
   return now;
 }
 
@@ -41,7 +41,7 @@ describe('Duelo', () => {
   });
 
   it('fases: encarada → contagem → silêncio → FOGO', () => {
-    const g = new DuelGame({}, () => 0.5);
+    const g = new DuelGame({ cheer: false }, () => 0.5);
     g.open(T0);
     g.join('a', 'A', undefined, T0);
     g.join('b', 'B', undefined, T0);
@@ -53,7 +53,7 @@ describe('Duelo', () => {
   });
 
   it('X1: tiro certeiro decide; atirar antes do FOGO trava a arma', () => {
-    const g = new DuelGame({ bestOf: 1 }, () => 0.1); // sempre acerta
+    const g = new DuelGame({ bestOf: 1, cheer: false }, () => 0.1); // sempre acerta
     g.open(T0);
     g.join('a', 'A', undefined, T0);
     g.join('b', 'B', undefined, T0);
@@ -120,5 +120,16 @@ describe('Duelo', () => {
     expect(parseDuelChatCommand(chat('m', '!duelo parar', true))).toEqual({ type: 'stop' });
     expect(parseDuelChatCommand(chat('x', '!duelo iniciar'))).toBeNull();
     expect(parseDuelChatCommand(chat('x', '!duelo'))).toBeNull(); // "!duelo" puro é entrar
+  });
+
+  it('com torcida ligada, a encarada dura o tempo de torcida', () => {
+    const g = new DuelGame({ cheer: true, cheerSec: 20 }, () => 0.5);
+    g.open(T0);
+    g.join('a', 'A', undefined, T0);
+    g.join('b', 'B', undefined, T0);
+    g.update(T0 + 19_000);
+    expect(g.status).toBe('intro');
+    g.update(T0 + 20_000);
+    expect(g.status).toBe('countdown');
   });
 });

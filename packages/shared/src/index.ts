@@ -232,7 +232,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   clip: { enabled: false, postInChat: true },
   bot: { speak: true },
   race: { track: 'neon', joinSec: 45, laps: 2, maxRunners: 60, fillBots: true },
-  duel: { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true },
+  duel: { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true, cheerSec: 15 },
 };
 
 /** Mescla configurações parciais com validação dos limites. */
@@ -720,9 +720,11 @@ export interface DuelConfig {
   joinSec: number;
   /** Torcida do chat (!1 / !2) dá um bônus pequeno de mira. */
   cheer: boolean;
+  /** Tempo de torcida antes da contagem (com os dois duelistas na tela), em segundos. */
+  cheerSec: number;
 }
 
-export const DEFAULT_DUEL_CONFIG: DuelConfig = { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true };
+export const DEFAULT_DUEL_CONFIG: DuelConfig = { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true, cheerSec: 15 };
 
 export function normalizeDuelConfig(c: Partial<DuelConfig> | undefined): DuelConfig {
   const join = Math.round(Number(c?.joinSec));
@@ -731,6 +733,7 @@ export function normalizeDuelConfig(c: Partial<DuelConfig> | undefined): DuelCon
     scene: c?.scene && c.scene in DUEL_SCENES ? c.scene : 'saloon',
     joinSec: Number.isFinite(join) ? Math.min(180, Math.max(15, join)) : 60,
     cheer: c?.cheer !== false,
+    cheerSec: Number.isFinite(Math.round(Number(c?.cheerSec))) ? Math.min(60, Math.max(5, Math.round(Number(c?.cheerSec)))) : 15,
   };
 }
 
