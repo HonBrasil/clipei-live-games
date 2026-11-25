@@ -34,6 +34,12 @@ function shade(hex: string, k: number) {
 }
 
 const ease = (t: number) => 1 - (1 - t) * (1 - t);
+const SKINS = ['#f1c9a5', '#e0ac69', '#c68642', '#a86b3c', '#8d5524', '#ffdbac'];
+const HAIRS = ['#1b120c', '#2b1d12', '#3b2414', '#0d0d0d', '#6b4423', '#7a3b1d'];
+function isLight(hex: string) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 170;
+}
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
 
 interface Confetti {
@@ -159,8 +165,8 @@ export class PenaltyArena {
     const kickerColor = s.teams[s.kicking].color;
 
     // goleiro
-    const keeper = this.keeperPose(r?.dive ?? 1, r?.outcome, kickT, t);
-    this.drawKeeper(keeper.x, keeper.y, keeper.rot, keeperColor, keeper.reach);
+    const keeper = this.keeperPose(r?.dive ?? 1, r?.corner ?? 1, r?.outcome, kickT, t);
+    this.drawKeeper(keeper.x, keeper.y, keeper.rot, keeperColor, keeper.reach, s.keepers[defending]?.name);
 
     // bola
     const ball = this.ballPos(r?.corner ?? 1, r?.height ?? 0, r?.outcome, kickT);
@@ -169,16 +175,16 @@ export class PenaltyArena {
       this.drawBall(ball.x, ball.y, ball.size, ball.spin);
       this.drawNetBulge(ball, kickT);
     }
-    // cobrador (de costas)
-    const kicker = this.kickerPose(kickT);
-    this.drawKicker(kicker.x, kicker.y, kicker.leg, kickerColor);
+    // a bola fica sempre mais longe da câmera que o cobrador (de costas, na frente da tela)
     if (ball.z <= 0.6) this.drawBall(ball.x, ball.y, ball.size, ball.spin);
+    const kicker = this.kickerPose(kickT);
+    this.drawKicker(kicker, kickerColor, s.status === 'lobby' ? undefined : s.kicker?.name);
 
     // nomes
     const tags: NameTag[] = [];
     const kp = s.keepers[defending];
-    if (kp && s.status !== 'lobby') tags.push({ x: keeper.x, y: keeper.y - 50, name: `🧤 ${kp.name}`, color: keeperColor, priority: 1 });
-    if (s.kicker && s.status !== 'lobby' && s.status !== 'finished') tags.push({ x: kicker.x, y: kicker.y - 132, name: `⚽ ${s.kicker.name}`, color: kickerColor, priority: 2 });
+    if (kp && s.status !== 'lobby') tags.push({ x: keeper.x, y: keeper.y - 68, name: `🧤 ${kp.name}`, color: keeperColor, priority: 1 });
+    if (s.kicker && s.status !== 'lobby' && s.status !== 'finished') tags.push({ x: kicker.x, y: kicker.y - 162, name: `⚽ ${s.kicker.name}`, color: kickerColor, priority: 2 });
     drawNameTags(ctx, tags, 11);
 
     // confete e clarão do gol
@@ -250,129 +256,359 @@ export class PenaltyArena {
     return { x, y, size, z, spin: kickT / 90 };
   }
 
-  private keeperPose(dive: PenaltyCorner, outcome: PenaltyOutcome | undefined, kickT: number, t: number) {
+  private keeperPose(dive: PenaltyCorner, corner: PenaltyCorner, outcome: PenaltyOutcome | undefined, kickT: number, t: number) {
     const idle = { x: 480 + Math.sin(t * 2.2) * 16, y: GOAL.line - 2, rot: 0, reach: 0 };
     if (kickT < STRIKE - 80 || !outcome) return idle;
     const f = ease(clamp01((kickT - (STRIKE - 80)) / 460));
-    if (dive === 1) return { x: 480, y: GOAL.line - 2 - Math.sin(f * Math.PI) * 26, rot: 0, reach: f };
-    const dir = dive === 0 ? -1 : 1;
-    const tx = this.cornerX(dive) - dir * 6;
+    // pulou certo e foi gol: chega atrasado (para antes da bola); defendeu com o paredão: alcança o canto ao lado
+    const late = outcome === 'goal' && dive === corner;
+    const stretch = outcome === 'save' && dive !== corner;
+    if (dive === 1 && !stretch) return { x: 480, y: GOAL.line - 2 - Math.sin(f * Math.PI) * 26, rot: 0, reach: f * (late ? 0.6 : 1) };
+    const side: PenaltyCorner = stretch ? corner : dive;
+    const dir = side === 0 ? -1 : 1;
+    const tx = stretch ? (this.cornerX(side) + this.cornerX(dive)) / 2 + dir * 30 : this.cornerX(side) - dir * (late ? 46 : 6);
     const fall = clamp01((kickT - STRIKE - 420) / 400);
     return { x: idle.x + (tx - idle.x) * f, y: GOAL.line - 2 - Math.sin(f * Math.PI) * 24 + fall * 6, rot: dir * f * 1.25, reach: f };
   }
 
   private kickerPose(kickT: number) {
-    if (kickT < 0) return { x: 446, y: 540, leg: 0 };
+    if (kickT < 0) return { x: 446, y: 540, run: 0, phase: 'idle' as const, f: 0, t: 0 };
     const run = ease(clamp01(kickT / STRIKE));
     const x = 446 + (470 - 446) * run;
     const y = 540 - 40 * run;
-    const leg = kickT < STRIKE - 120 ? Math.sin(kickT / 60) * 0.4 : clamp01((kickT - (STRIKE - 120)) / 260);
-    return { x, y, leg };
+    if (kickT < STRIKE - 180) return { x, y, run, phase: 'run' as const, f: kickT / 95, t: kickT };
+    if (kickT < STRIKE) return { x, y, run, phase: 'back' as const, f: (kickT - (STRIKE - 180)) / 180, t: kickT };
+    return { x, y, run, phase: 'strike' as const, f: clamp01((kickT - STRIKE) / 260), t: kickT };
   }
 
-  // ─── Desenho ───────────────────────────────────────────────
+  // ─── Bonecos ───────────────────────────────────────────────
 
-  private drawKeeper(x: number, y: number, rot: number, color: string, reach: number) {
+  private look(name: string | undefined) {
+    let h = 0;
+    for (const ch of name ?? 'x') h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return {
+      skin: SKINS[h % SKINS.length],
+      hair: HAIRS[(h >>> 3) % HAIRS.length],
+      style: (h >>> 6) % 4,
+      number: ((h >>> 9) % 98) + 2,
+    };
+  }
+
+  /**
+   * Perna vista de trás: coxa e canela com meião e chuteira.
+   * `spread` abre para o lado; `pitch` leva a coxa para frente (encurta na tela);
+   * `bend` dobra o joelho (acima de 90° o pé sobe atrás, em direção à câmera).
+   */
+  private leg(hipX: number, hipY: number, spread: number, pitch: number, bend: number, len: number, skin: string, sock: string, boot: string, footScale = 1) {
     const ctx = this.ctx;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(rot);
-    // sombra
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.ellipse(0, 2, 16, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // pernas
-    ctx.fillStyle = '#1b1b22';
-    ctx.fillRect(-8, -16, 6, 16);
-    ctx.fillRect(2, -16, 6, 16);
-    ctx.fillStyle = '#f2f2f2';
-    ctx.fillRect(-8, -6, 6, 4);
-    ctx.fillRect(2, -6, 6, 4);
-    // corpo (camisa de goleiro: cor do time mais escura com faixa)
-    ctx.fillStyle = shade(color, -0.25);
-    ctx.fillRect(-11, -38, 22, 23);
-    ctx.fillStyle = shade(color, 0.35);
-    ctx.fillRect(-11, -30, 22, 4);
-    // braços abertos (sobem no pulo)
-    const up = -10 - reach * 22;
-    ctx.strokeStyle = shade(color, -0.25);
-    ctx.lineWidth = 6;
+    const tl = len * Math.cos(pitch);
+    const kx = hipX + Math.sin(spread) * tl;
+    const ky = hipY + Math.cos(spread) * tl;
+    const sl = len * 0.95 * Math.cos(bend);
+    const fx = kx + Math.sin(spread) * Math.abs(sl) * 0.4;
+    const fy = ky + sl;
     ctx.lineCap = 'round';
+    ctx.strokeStyle = skin;
+    ctx.lineWidth = 14;
     ctx.beginPath();
-    ctx.moveTo(-10, -34);
-    ctx.lineTo(-24, -34 + up * 0.6);
-    ctx.moveTo(10, -34);
-    ctx.lineTo(24, -34 + up * 0.6);
+    ctx.moveTo(hipX, hipY);
+    ctx.lineTo(kx, ky);
     ctx.stroke();
-    // luvas
-    ctx.fillStyle = '#c6ff3d';
+    if (Math.abs(sl) > 2) {
+      ctx.strokeStyle = sock;
+      ctx.lineWidth = 12.5;
+      ctx.beginPath();
+      ctx.moveTo(kx + (fx - kx) * 0.15, ky + (fy - ky) * 0.15);
+      ctx.lineTo(fx, fy);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+      ctx.beginPath();
+      ctx.moveTo(kx + (fx - kx) * 0.18, ky + (fy - ky) * 0.18);
+      ctx.lineTo(kx + (fx - kx) * 0.27, ky + (fy - ky) * 0.27);
+      ctx.stroke();
+    }
+    // chuteira: de sola (pé subindo atrás) ou de calcanhar (no chão)
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.scale(footScale, footScale);
+    ctx.fillStyle = '#111216';
     ctx.beginPath();
-    ctx.arc(-25, -34 + up * 0.6, 4.5, 0, Math.PI * 2);
-    ctx.arc(25, -34 + up * 0.6, 4.5, 0, Math.PI * 2);
+    if (sl < 0) ctx.roundRect(-7, -9, 14, 13, 5);
+    else ctx.roundRect(-8, -3, 16, 10, 4);
     ctx.fill();
-    // cabeça
-    ctx.fillStyle = '#e0ac69';
-    ctx.beginPath();
-    ctx.arc(0, -45, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#2b1d12';
-    ctx.beginPath();
-    ctx.arc(0, -48, 7, Math.PI, 0);
-    ctx.fill();
+    ctx.fillStyle = boot;
+    ctx.fillRect(-6, sl < 0 ? -6 : 1, 12, 2);
     ctx.restore();
   }
 
-  /** Cobrador de costas, grande, perto da câmera. */
-  private drawKicker(x: number, y: number, leg: number, color: string) {
+  /** Goleiro de frente, joelhos flexionados e luvas grandes; no pulo, estica o corpo. */
+  private drawKeeper(x: number, y: number, rot: number, color: string, reach: number, name?: string) {
     const ctx = this.ctx;
+    const l = this.look(name);
+    const kit = shade(color, -0.3);
+    const kitLight = shade(color, 0.15);
     ctx.save();
     ctx.translate(x, y);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath();
-    ctx.ellipse(0, 0, 30, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 1, 17 + reach * 8, 4, 0, 0, Math.PI * 2);
     ctx.fill();
-    // perna de apoio
-    ctx.fillStyle = '#e0ac69';
-    ctx.fillRect(-16, -44, 11, 34);
-    ctx.fillStyle = '#f2f2f2';
-    ctx.fillRect(-17, -24, 13, 18);
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-18, -8, 15, 8);
-    // perna do chute (balança para trás e chuta)
-    ctx.save();
-    ctx.translate(10, -46);
-    ctx.rotate(-0.5 + leg * 0.9);
-    ctx.fillStyle = '#e0ac69';
-    ctx.fillRect(-5, 0, 11, 30);
-    ctx.fillStyle = '#f2f2f2';
-    ctx.fillRect(-6, 18, 13, 16);
-    ctx.fillStyle = '#111';
-    ctx.fillRect(-7, 32, 15, 8);
-    ctx.restore();
+    ctx.rotate(rot);
+    const crouch = 1 - reach;
+    // pernas (agachado em posição de defesa; esticadas no pulo)
+    ctx.lineCap = 'round';
+    for (const side of [-1, 1]) {
+      const hx = side * 5;
+      const kx = side * (9 - reach * 3);
+      const ky = -13 - reach * 2;
+      const fx = side * (8 - reach * 4);
+      ctx.strokeStyle = '#1b1c24';
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(hx, -24);
+      ctx.lineTo(kx, ky + crouch * 1);
+      ctx.stroke();
+      ctx.strokeStyle = kitLight;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(kx, ky);
+      ctx.lineTo(fx, -2);
+      ctx.stroke();
+      ctx.fillStyle = '#111216';
+      ctx.beginPath();
+      ctx.roundRect(fx - 4.5, -3, 9, 4.5, 2);
+      ctx.fill();
+    }
     // calção
-    ctx.fillStyle = '#f5f5f5';
-    ctx.fillRect(-20, -62, 40, 20);
-    // camisa
-    ctx.fillStyle = color;
+    ctx.fillStyle = '#1b1c24';
     ctx.beginPath();
-    ctx.roundRect(-24, -112, 48, 54, 8);
+    ctx.roundRect(-10, -28, 20, 9, 3);
     ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.fillRect(-24, -66, 48, 6);
-    // número nas costas
-    ctx.fillStyle = shade(color, 0.7);
-    ctx.font = 'italic 900 24px "Exo 2", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('10', 0, -76);
-    // braços
-    ctx.fillStyle = '#e0ac69';
-    ctx.fillRect(-32, -106, 9, 34);
-    ctx.fillRect(23, -106, 9, 34);
-    // cabeça (de trás: cabelo)
-    ctx.fillStyle = '#2b1d12';
+    // camisa de goleiro (manga longa, com listras diagonais)
+    const g = ctx.createLinearGradient(-12, -48, 12, -24);
+    g.addColorStop(0, kitLight);
+    g.addColorStop(1, kit);
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(0, -124, 14, 0, Math.PI * 2);
+    ctx.moveTo(-12, -46);
+    ctx.quadraticCurveTo(0, -50, 12, -46);
+    ctx.lineTo(10, -26);
+    ctx.lineTo(-10, -26);
+    ctx.closePath();
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 3;
+    for (let i = -24; i < 24; i += 8) {
+      ctx.beginPath();
+      ctx.moveTo(i, -50);
+      ctx.lineTo(i + 16, -24);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = 'italic 900 8px "Exo 2", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('1', 0, -33);
+    // braços: abertos na espera, esticados para o canto no pulo
+    const armY = -44;
+    for (const side of [-1, 1]) {
+      const ex = side * (19 - reach * 3);
+      const ey = armY + 6 - reach * 14;
+      const hx = side * (23 - reach * 2);
+      const hy = armY - 2 - reach * 24;
+      ctx.strokeStyle = kit;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(side * 10, armY);
+      ctx.lineTo(ex, ey);
+      ctx.lineTo(hx, hy);
+      ctx.stroke();
+      // luva grande
+      ctx.fillStyle = '#c6ff3d';
+      ctx.beginPath();
+      ctx.ellipse(hx, hy - 1, 5, 6, side * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1b1c24';
+      ctx.fillRect(hx - 4, hy + 3, 8, 2);
+    }
+    // pescoço e cabeça (de frente: rosto)
+    ctx.fillStyle = l.skin;
+    ctx.fillRect(-3, -52, 6, 5);
+    ctx.beginPath();
+    ctx.arc(0, -57, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = l.hair;
+    ctx.beginPath();
+    ctx.arc(0, -59, 7.8, Math.PI * 1.05, Math.PI * 1.95);
+    ctx.fill();
+    ctx.fillStyle = '#1b1b1b';
+    ctx.fillRect(-3.5, -57, 2, 2);
+    ctx.fillRect(1.5, -57, 2, 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(-2, -53.5, 4, 1);
+    ctx.restore();
+  }
+
+  /** Cobrador de costas, perto da câmera: nome e número nas costas, corrida e chute com a perna em dois segmentos. */
+  private drawKicker(pose: ReturnType<PenaltyArena['kickerPose']>, color: string, name?: string) {
+    const ctx = this.ctx;
+    const l = this.look(name);
+    const { x, y } = pose;
+    const sock = shade(color, -0.15);
+    const bob = pose.phase === 'run' ? Math.abs(Math.sin(pose.f)) * 4 : 0;
+    // poses das pernas: [coxa, joelho] esquerda (apoio) e direita (chute)
+    // [abertura, coxa para frente, dobra do joelho]
+    let left: [number, number, number] = [0.04, 0, 0.05];
+    let right: [number, number, number] = [-0.04, 0, 0.05];
+    let footScale = 1;
+    let armSwing = 0;
+    let armOut = 0;
+    if (pose.phase === 'run') {
+      const c = Math.sin(pose.f);
+      left = [0.05, 0.25 * Math.max(0, c), 0.2 + 1.9 * Math.max(0, -c)];
+      right = [-0.05, 0.25 * Math.max(0, -c), 0.2 + 1.9 * Math.max(0, c)];
+      armSwing = c * 0.5;
+    } else if (pose.phase === 'back') {
+      // perna do chute vai para trás: joelho dobrado, pé sobe
+      left = [0.08, 0, 0.15];
+      // de costas: o pé sobe atrás, a canela aponta para cima
+      right = [0.1, 0, 0.6 + 1.9 * ease(pose.f)];
+      armOut = pose.f;
+    } else if (pose.phase === 'strike') {
+      // chute: a perna vai para a frente (de costas, parece encolher e subir)
+      left = [0.1, 0, 0.2];
+      right = [-0.05, 1.1 * ease(pose.f), 2.5 - 2.4 * ease(pose.f)];
+      footScale = 1 - 0.3 * ease(pose.f);
+      armOut = 1 - 0.4 * pose.f;
+    }
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(0,0,0,0.32)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 34, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.translate(0, -bob);
+    const hipY = -62;
+    this.leg(-10, hipY, left[0], left[1], left[2], 30, l.skin, sock, color);
+    this.leg(10, hipY, right[0], right[1], right[2], 30, l.skin, sock, color, footScale);
+    // calção com faixa lateral
+    ctx.fillStyle = '#f4f4f6';
+    ctx.beginPath();
+    ctx.moveTo(-21, -78);
+    ctx.lineTo(21, -78);
+    ctx.lineTo(23, -56);
+    ctx.quadraticCurveTo(12, -52, 2, -58);
+    ctx.lineTo(-2, -58);
+    ctx.quadraticCurveTo(-12, -52, -23, -56);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.fillRect(-22, -77, 3, 19);
+    ctx.fillRect(19, -77, 3, 19);
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(-1, -74, 2, 15);
+    // braços (atrás do tronco nas costas, mão balançando)
+    const shoulderY = -118;
+    for (const side of [-1, 1]) {
+      const swing = side === -1 ? armSwing : -armSwing;
+      const out = armOut * (side === -1 ? 0.9 : 0.5);
+      const sx = side * 25;
+      const ex = sx + side * (6 + out * 14) + Math.sin(swing) * 4;
+      const ey = shoulderY + 26 - out * 6;
+      const hx = ex + side * (4 + out * 14);
+      const hy = ey + 22 - out * 10 + Math.cos(swing) * 2;
+      // manga
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 15;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(sx, shoulderY + 4);
+      ctx.lineTo(sx + (ex - sx) * 0.55, shoulderY + 4 + (ey - shoulderY - 4) * 0.55);
+      ctx.stroke();
+      // braço
+      ctx.strokeStyle = l.skin;
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(sx + (ex - sx) * 0.5, shoulderY + 4 + (ey - shoulderY - 4) * 0.5);
+      ctx.lineTo(ex, ey);
+      ctx.lineTo(hx, hy);
+      ctx.stroke();
+      ctx.fillStyle = l.skin;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // camisa: ombros arredondados, cintura mais fina, volume com degradê
+    const g = ctx.createLinearGradient(-28, shoulderY, 26, -76);
+    g.addColorStop(0, shade(color, 0.22));
+    g.addColorStop(0.55, color);
+    g.addColorStop(1, shade(color, -0.28));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(-22, -76);
+    ctx.lineTo(-25, shoulderY + 8);
+    ctx.quadraticCurveTo(-27, shoulderY - 4, -14, shoulderY - 6);
+    ctx.lineTo(14, shoulderY - 6);
+    ctx.quadraticCurveTo(27, shoulderY - 4, 25, shoulderY + 8);
+    ctx.lineTo(22, -76);
+    ctx.quadraticCurveTo(0, -72, -22, -76);
+    ctx.closePath();
+    ctx.fill();
+    // gola e barra
+    ctx.fillStyle = shade(color, -0.45);
+    ctx.beginPath();
+    ctx.ellipse(0, shoulderY - 5, 8, 2.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fillRect(-22, -80, 44, 4);
+    // nome e número nas costas
+    const light = isLight(color);
+    ctx.fillStyle = light ? '#14141a' : '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = '800 8.5px Inter, sans-serif';
+    const label = (name ?? '').replace(/^@/, '').toUpperCase().slice(0, 11);
+    if (label) ctx.fillText(label, 0, shoulderY + 6);
+    ctx.font = 'italic 900 27px "Exo 2", sans-serif';
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = light ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.35)';
+    ctx.strokeText(String(l.number), 0, -86);
+    ctx.fillText(String(l.number), 0, -86);
+    // pescoço, orelhas e cabelo (de costas)
+    ctx.fillStyle = shade(l.skin, -0.12);
+    ctx.fillRect(-6, shoulderY - 14, 12, 10);
+    ctx.fillStyle = l.skin;
+    ctx.beginPath();
+    ctx.ellipse(-13, shoulderY - 22, 3, 4.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(13, shoulderY - 22, 3, 4.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const hy = shoulderY - 24;
+    ctx.fillStyle = l.hair;
+    if (l.style === 2) {
+      // black power
+      ctx.beginPath();
+      ctx.arc(0, hy - 3, 17, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, hy, 13, 0, Math.PI * 2);
+      ctx.fill();
+      if (l.style === 1) {
+        // degradê: nuca mais clara
+        ctx.fillStyle = shade(l.skin, -0.25);
+        ctx.fillRect(-10, hy + 6, 20, 5);
+      } else if (l.style === 3) {
+        // coque
+        ctx.fillStyle = l.hair;
+        ctx.beginPath();
+        ctx.arc(0, hy - 14, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath();
+    ctx.ellipse(-4, hy - 6, 5, 3, -0.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
