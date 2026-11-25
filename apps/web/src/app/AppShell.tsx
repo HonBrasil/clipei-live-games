@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ERRORS, SUCCESS, api } from './api.ts';
+import { ERRORS, SUCCESS, api, fmtLeft } from './api.ts';
 import { Icon } from './components/icons.tsx';
 import { FounderBadge } from './components/plans.tsx';
 import { Logo, Toasts } from './components/ui.tsx';
@@ -94,7 +94,7 @@ export function AppShell() {
           )}
           {me.billing?.status === 'trial' && (
             <Link className="pill trial-pill" to="/app/plano">
-              Teste grátis · {me.billing.daysLeft === 1 ? 'último dia' : `${me.billing.daysLeft} dias`}
+              Teste grátis · faltam {fmtLeft(me.billing.trialEndsAt - Date.now())}
             </Link>
           )}
           {ch ? (

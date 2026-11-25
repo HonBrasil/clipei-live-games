@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { brl, planOffer, TRIAL_DAYS, type BillingCycle } from '@clipei/shared';
-import { api } from '../api.ts';
+import { api, fmtLeft } from '../api.ts';
 import { Card } from '../components/ui.tsx';
 import { FounderBadge, FounderStrip, PlanCards } from '../components/plans.tsx';
-import { useApp } from '../state.tsx';
+import { useApp, useTick } from '../state.tsx';
 
 const fmtDate = (t: number) => new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 const fmtDateTime = (t: number) => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 export function PlanPage() {
-  const { me, toast } = useApp();
+  const { me, toast, clockOffset } = useApp();
+  useTick(60_000);
   const [busy, setBusy] = useState<BillingCycle | null>(null);
   if (!me) return null;
   const b = me.billing;
@@ -60,10 +61,11 @@ export function PlanPage() {
               <div className="sub-state">
                 <div className="sub-line">
                   <b>Teste grátis</b>
-                  <span className="pill">{b.daysLeft === 1 ? 'Último dia' : `Faltam ${b.daysLeft} dias`}</span>
+                  <span className="pill">Faltam {fmtLeft(b.trialEndsAt - (Date.now() + clockOffset))}</span>
                 </div>
                 <div className="meter" aria-hidden>
-                  <i style={{ width: `${Math.min(100, ((TRIAL_DAYS - b.daysLeft) / TRIAL_DAYS) * 100)}%` }} />
+                  {/* parte do teste já usada, pelo relógio (não pelo dia arredondado) */}
+                  <i style={{ width: `${Math.max(1, Math.min(100, (1 - (b.trialEndsAt - (Date.now() + clockOffset)) / (TRIAL_DAYS * 86_400_000)) * 100))}%` }} />
                 </div>
                 <span className="muted">Tudo liberado até {fmtDateTime(b.trialEndsAt)}. Não pedimos cartão: quando acabar, é só assinar para continuar.</span>
               </div>

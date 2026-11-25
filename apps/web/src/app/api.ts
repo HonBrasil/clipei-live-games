@@ -54,3 +54,13 @@ export const SUCCESS: Record<string, string> = {
   'bot-youtube': 'Bot do YouTube conectado! 🤖',
   kick: 'Kick conectada! 🟢',
 };
+
+/** "6 dias e 2 h", "5 h", "40 min": o tempo que sobra de verdade (arredondar o dia para cima parecia parado). */
+export function fmtLeft(ms: number) {
+  const min = Math.max(0, Math.floor(ms / 60_000));
+  const d = Math.floor(min / 1440);
+  const h = Math.floor((min % 1440) / 60);
+  if (d >= 1) return h ? `${d} ${d === 1 ? 'dia' : 'dias'} e ${h} h` : `${d} ${d === 1 ? 'dia' : 'dias'}`;
+  if (h >= 1) return `${h} h`;
+  return `${min} min`;
+}

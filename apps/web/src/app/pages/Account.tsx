@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { api } from '../api.ts';
+import { api, fmtLeft } from '../api.ts';
 import { Card } from '../components/ui.tsx';
 import { FounderBadge } from '../components/plans.tsx';
 import { useApp } from '../state.tsx';
@@ -40,7 +40,7 @@ export function Account() {
                       ? 'Anual'
                       : 'Mensal'
                   : me.billing?.status === 'trial'
-                    ? `Teste grátis (${me.billing.daysLeft} ${me.billing.daysLeft === 1 ? 'dia' : 'dias'})`
+                    ? `Teste grátis (faltam ${fmtLeft(me.billing.trialEndsAt - Date.now())})`
                     : 'Pausado'}{' '}
                 · <Link to="/app/plano">gerenciar</Link>
               </dd>
