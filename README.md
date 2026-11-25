@@ -251,3 +251,8 @@ X1 (ou melhor de 3) no velho oeste. **Minigames → Duelo** no painel ou `!duelo
 6. 10 s sem ninguém acertar = rodada empatada. Fim: anúncio do bot, confete e clip (se ligado).
 
 Cenários: Rua do Saloon, Pôr do sol e Cidade fantasma (completos no modo tela cheia).
+
+## Publicação
+
+- **Site (Vercel)** e **servidor do jogo (Railway)** publicam sozinhos a cada envio para a branch `main` do GitHub.
+- A Railway precisa do **Railway App** instalado no GitHub com acesso ao repositório `clipei-live-games`.
