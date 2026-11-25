@@ -591,6 +591,7 @@ export class Room {
   /** Bits, subs, presentes, pontos de canal e raids viram golpes especiais. */
   handleSupport(e: SupportEvent) {
     if (this.kite?.isActive) {
+      this.kite.support = this.settings.gameSupport.kite;
       const res = this.kite.special(e);
       if (!res.applied) {
         if (e.kind === 'points') this.hooks.redemption?.(e, false);
@@ -605,6 +606,7 @@ export class Room {
       return { applied: true, damage: 0 };
     }
     if (this.royale?.isActive) {
+      this.royale.support = this.settings.gameSupport.royale;
       const res = this.royale.special(e);
       if (!res.applied) {
         if (e.kind === 'points') this.hooks.redemption?.(e, false);
@@ -619,6 +621,7 @@ export class Room {
       return { applied: true, damage: 0 };
     }
     if (this.duel?.isActive) {
+      this.duel.support = this.settings.gameSupport.duel;
       const res = this.duel.special(e);
       if (!res.applied) {
         if (e.kind === 'points') this.hooks.redemption?.(e, false);
@@ -633,6 +636,7 @@ export class Room {
       return { applied: true, damage: 0 };
     }
     if (this.race?.isActive) {
+      this.race.support = this.settings.gameSupport.race;
       const res = this.race.special(e);
       if (!res.applied) {
         if (e.kind === 'points') this.hooks.redemption?.(e, false);

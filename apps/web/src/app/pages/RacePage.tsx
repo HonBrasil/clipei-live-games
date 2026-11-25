@@ -4,12 +4,14 @@ import { RACE_LIMITS, RACE_TRACKS, RACE_TRACK_IDS, type RaceConfig, type RaceSna
 import { api, nf } from '../api.ts';
 import { Card, Check, Options } from '../components/ui.tsx';
 import { BUSY_TEXT } from '../components/busy.ts';
+import { GameSupportCard } from '../components/GameSupport.tsx';
 import { useApp, useTick } from '../state.tsx';
 import { drawTrackThumb } from '../../race/race-arena.ts';
 
 const TABS = [
   { id: 'corrida', label: 'Corrida' },
-  { id: 'comandos', label: 'Comandos e apoios' },
+  { id: 'apoios', label: 'Apoios' },
+  { id: 'comandos', label: 'Comandos' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
@@ -58,7 +60,15 @@ export function RacePage() {
         ))}
       </div>
 
-      {tab === 'corrida' ? <RaceTab /> : <CommandsTab />}
+      {tab === 'corrida' ? (
+        <RaceTab />
+      ) : tab === 'apoios' ? (
+        <div className="grid one">
+          <GameSupportCard game="race" />
+        </div>
+      ) : (
+        <CommandsTab />
+      )}
     </>
   );
 }
@@ -279,35 +289,6 @@ function CommandsTab() {
             <p>Encerra a corrida na hora.</p>
           </div>
         </div>
-      </Card>
-      <Card title="Apoios viram poderes" subtitle="Usa as mesmas opções da aba Apoios do Boss">
-        <div className="cmds">
-          <div className="cmd">
-            <kbd>🎯 Pontos</kbd>
-            <p>
-              <b>Escudo:</b> ignora a próxima casca de banana.
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>💎 Bits</kbd>
-            <p>
-              <b>Foguete</b> para quem está correndo (quanto mais bits, mais longo). Quem não está na pista joga uma <b>banana no líder</b>.
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>⭐ Sub</kbd>
-            <p>
-              <b>Foguete + escudo</b> para quem corre; senão, banana no líder.
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>🚀 Raid</kbd>
-            <p>
-              <b>Vento a favor:</b> turbo para todos os pilotos.
-            </p>
-          </div>
-        </div>
-        <p className="muted foot-note">Quem apoia durante as inscrições já entra na corrida. Sem corrida rolando, os pontos do canal são devolvidos.</p>
       </Card>
     </div>
   );

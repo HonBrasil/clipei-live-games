@@ -1074,3 +1074,38 @@ select.input {
   align-self: flex-start;
   border-style: dashed;
 }
+.grid.one {
+  grid-template-columns: minmax(0, 860px);
+}
+.sup-row.is-off {
+  opacity: 0.6;
+}
+.sup-row.is-off .sup-ico {
+  filter: grayscale(1);
+}
+.sup-ctrl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+.sup-field {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.input.mini.sel {
+  width: auto;
+  padding-right: 28px;
+}
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--yellow);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}

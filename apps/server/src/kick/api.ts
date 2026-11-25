@@ -181,8 +181,8 @@ export async function kickEnsureSubscriptions(token: string) {
 // ─── Recompensa de pontos de canal ───────────────────────────
 
 const REWARD = {
-  title: '⚔️ Golpe Especial no Boss',
-  description: 'Seu herói solta um golpe especial no boss da Clipei Live Games. Só vale com boss na arena (senão os pontos voltam).',
+  title: '⚡ Apoio no Minigame',
+  description: 'Vantagem no minigame da Clipei Live Games que estiver rolando: golpe no boss, escudo na corrida, curativo no battle royale e mais. Sem jogo rolando, os pontos voltam.',
   background_color: '#FF1F2D',
 };
 

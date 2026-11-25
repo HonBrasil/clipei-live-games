@@ -3,11 +3,13 @@ import { ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleConfig, t
 import { api, nf } from '../api.ts';
 import { Card, Check, Options } from '../components/ui.tsx';
 import { BUSY_TEXT } from '../components/busy.ts';
+import { GameSupportCard } from '../components/GameSupport.tsx';
 import { useApp, useTick } from '../state.tsx';
 
 const TABS = [
   { id: 'partida', label: 'Partida' },
-  { id: 'comandos', label: 'Comandos e apoios' },
+  { id: 'apoios', label: 'Apoios' },
+  { id: 'comandos', label: 'Comandos' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
@@ -56,7 +58,15 @@ export function RoyalePage() {
           </button>
         ))}
       </div>
-      {tab === 'partida' ? <MatchTab /> : <CommandsTab />}
+      {tab === 'partida' ? (
+        <MatchTab />
+      ) : tab === 'apoios' ? (
+        <div className="grid one">
+          <GameSupportCard game="royale" />
+        </div>
+      ) : (
+        <CommandsTab />
+      )}
     </>
   );
 }
@@ -255,35 +265,6 @@ function CommandsTab() {
             <p>Mods abrem o embarque pelo chat. <kbd>!royale parar</kbd> encerra.</p>
           </div>
         </div>
-      </Card>
-      <Card title="Apoios" subtitle="Vantagem, não vitória garantida">
-        <div className="cmds">
-          <div className="cmd">
-            <kbd>🎯 Pontos</kbd>
-            <p>
-              <b>Curativo extra</b> (até 3).
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>💎 Bits</kbd>
-            <p>
-              <b>Colete nível 3</b> (escudo cheio).
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>⭐ Sub</kbd>
-            <p>
-              <b>Caixa de suprimentos</b> caindo do lado de quem apoiou.
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>🚀 Raid</kbd>
-            <p>
-              <b>Bombardeio:</b> explosões aleatórias dentro da zona, caos para todo mundo.
-            </p>
-          </div>
-        </div>
-        <p className="muted foot-note">Apoiou durante o embarque? Já entra no avião com o item. Pontos de quem não está vivo na partida voltam.</p>
       </Card>
     </div>
   );

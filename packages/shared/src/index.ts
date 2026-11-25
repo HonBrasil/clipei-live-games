@@ -130,6 +130,187 @@ export interface SupportSettings {
   raid: { enabled: boolean; damagePerViewer: number };
 }
 
+// ─── Apoios por minigame (tudo editável pelo streamer) ───────
+
+export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite';
+export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite'];
+/** Presentes (gift) seguem a regra de sub. */
+export type SupportRuleKind = 'bits' | 'sub' | 'points' | 'raid';
+export const SUPPORT_RULE_KINDS: SupportRuleKind[] = ['bits', 'sub', 'points', 'raid'];
+
+export interface SupportParamDef {
+  key: string;
+  /** texto antes do campo, ex.: "Foguete de" */
+  label: string;
+  /** texto depois do campo, ex.: "s a cada 100 bits" */
+  suffix?: string;
+  min: number;
+  max: number;
+  step: number;
+  def: number;
+  /** lista fechada (vira um seletor) */
+  options?: { value: number; label: string }[];
+}
+
+export interface SupportKindDef {
+  /** o que acontece, curto: "Foguete", "Colete nível 3" */
+  effect: string;
+  detail: string;
+  params: SupportParamDef[];
+}
+
+/** Bits e raids podem ter mínimo (a partir de X bits / X pessoas). */
+export const SUPPORT_MIN: Partial<Record<SupportRuleKind, { label: string; suffix: string; max: number; step: number }>> = {
+  bits: { label: 'A partir de', suffix: 'bits', max: 100_000, step: 50 },
+  raid: { label: 'A partir de', suffix: 'pessoas no raid', max: 10_000, step: 1 },
+};
+
+/** O que cada apoio faz em cada jogo, e o que o streamer pode ajustar. Sem entrada = não tem efeito naquele jogo. */
+export const GAME_SUPPORT: Record<SupportGameId, Partial<Record<SupportRuleKind, SupportKindDef>>> = {
+  race: {
+    bits: {
+      effect: 'Foguete',
+      detail: 'Quem apoiou dispara na pista. Se não estiver correndo, joga uma casca de banana no líder.',
+      params: [
+        { key: 'secPer100', label: 'Foguete de', suffix: 's a cada 100 bits', min: 0.25, max: 5, step: 0.25, def: 0.75 },
+        { key: 'maxSec', label: 'No máximo', suffix: 's de foguete', min: 1, max: 15, step: 0.5, def: 6 },
+      ],
+    },
+    sub: {
+      effect: 'Foguete + escudo',
+      detail: 'Sub ou presente: foguete e escudo para quem apoiou (presentes somam tempo de foguete).',
+      params: [{ key: 'rocketSec', label: 'Foguete de', suffix: 's', min: 1, max: 10, step: 0.5, def: 3.5 }],
+    },
+    points: { effect: 'Escudo', detail: 'Protege da próxima casca de banana ou óleo.', params: [] },
+    raid: {
+      effect: 'Vento a favor',
+      detail: 'Todo mundo acelera junto.',
+      params: [{ key: 'sec', label: 'Vento de', suffix: 's', min: 1, max: 10, step: 0.5, def: 2.5 }],
+    },
+  },
+  duel: {
+    bits: { effect: 'Colete', detail: 'O duelista aguenta 1 tiro.', params: [] },
+    sub: { effect: 'Revólver dourado', detail: 'O primeiro tiro do duelista não erra.', params: [] },
+    points: {
+      effect: 'Mira',
+      detail: 'Mais chance de acertar.',
+      params: [{ key: 'aimPct', label: 'Mira de +', suffix: '% de acerto', min: 5, max: 40, step: 5, def: 15 }],
+    },
+  },
+  royale: {
+    bits: {
+      effect: 'Colete',
+      detail: 'Escudo para quem apoiou.',
+      params: [{ key: 'shield', label: 'Colete de', suffix: '% de escudo', min: 25, max: 100, step: 25, def: 100 }],
+    },
+    sub: { effect: 'Caixa de suprimentos', detail: 'Cai do lado de quem apoiou: arma lendária, colete e curativo.', params: [] },
+    points: {
+      effect: 'Curativo extra',
+      detail: 'Usado com !curar.',
+      params: [{ key: 'maxBandages', label: 'Até', suffix: 'curativos por pessoa', min: 1, max: 6, step: 1, def: 3 }],
+    },
+    raid: {
+      effect: 'Bombardeio',
+      detail: 'Explosões aleatórias dentro da zona.',
+      params: [
+        { key: 'bombs', label: '', suffix: 'bombas', min: 2, max: 20, step: 1, def: 8 },
+        { key: 'damage', label: 'de', suffix: 'de dano cada', min: 10, max: 100, step: 5, def: 35 },
+      ],
+    },
+  },
+  kite: {
+    bits: {
+      effect: 'Linha melhor',
+      detail: 'Mais força no relo.',
+      params: [
+        {
+          key: 'line',
+          label: 'Vira',
+          min: 1,
+          max: 3,
+          step: 1,
+          def: 2,
+          options: [
+            { value: 1, label: 'Linha Neon' },
+            { value: 2, label: 'Linha Diamante' },
+            { value: 3, label: 'Linha Dourada' },
+          ],
+        },
+      ],
+    },
+    sub: {
+      effect: 'Raia Dourada',
+      detail: 'Pipa maior e brilhante com Linha Dourada.',
+      params: [{ key: 'rabiolas', label: 'Mais', suffix: 'rabiola(s)', min: 0, max: 3, step: 1, def: 1 }],
+    },
+    points: {
+      effect: 'Rabiola extra',
+      detail: 'Um escudo a mais contra corte.',
+      params: [{ key: 'maxRabiolas', label: 'Até', suffix: 'rabiolas por pipa', min: 1, max: 5, step: 1, def: 3 }],
+    },
+    raid: {
+      effect: 'Ventania e chuva de pipas',
+      detail: 'Embaralha o céu e solta pipas para o chat aparar.',
+      params: [
+        { key: 'kites', label: '', suffix: 'pipas na chuva', min: 0, max: 15, step: 1, def: 6 },
+        { key: 'gustSec', label: 'Ventania de', suffix: 's', min: 2, max: 15, step: 1, def: 6 },
+      ],
+    },
+  },
+};
+
+export interface SupportRule {
+  enabled: boolean;
+  /** mínimo de bits / pessoas no raid (1 = qualquer valor) */
+  min: number;
+  p: Record<string, number>;
+}
+export type GameSupportConfig = Record<SupportRuleKind, SupportRule>;
+
+export function defaultGameSupport(game: SupportGameId): GameSupportConfig {
+  const out = {} as GameSupportConfig;
+  for (const kind of SUPPORT_RULE_KINDS) {
+    const def = GAME_SUPPORT[game][kind];
+    out[kind] = { enabled: !!def, min: 1, p: Object.fromEntries((def?.params ?? []).map((x) => [x.key, x.def])) };
+  }
+  return out;
+}
+
+/** Mescla e valida (limites de cada campo). */
+export function normalizeGameSupport(game: SupportGameId, base: Partial<GameSupportConfig> | undefined, patch?: unknown): GameSupportConfig {
+  const out = defaultGameSupport(game);
+  const pt = (patch ?? {}) as Partial<Record<SupportRuleKind, Partial<SupportRule>>>;
+  for (const kind of SUPPORT_RULE_KINDS) {
+    const def = GAME_SUPPORT[game][kind];
+    const b = base?.[kind];
+    const q = pt[kind];
+    if (!def) {
+      out[kind].enabled = false;
+      continue;
+    }
+    const en = q?.enabled ?? b?.enabled;
+    if (typeof en === 'boolean') out[kind].enabled = en;
+    const lim = SUPPORT_MIN[kind];
+    const mn = Number(q?.min ?? b?.min ?? 1);
+    out[kind].min = lim && Number.isFinite(mn) ? Math.min(lim.max, Math.max(1, Math.round(mn))) : 1;
+    for (const d of def.params) {
+      const v = Number(q?.p?.[d.key] ?? b?.p?.[d.key] ?? d.def);
+      const ok = Number.isFinite(v) ? Math.min(d.max, Math.max(d.min, Math.round(v / d.step) * d.step)) : d.def;
+      out[kind].p[d.key] = d.options && !d.options.some((o) => o.value === ok) ? d.def : Math.round(ok * 1000) / 1000;
+    }
+  }
+  return out;
+}
+
+/** Regra do apoio no jogo (presente usa a de sub). null = desligado ou abaixo do mínimo. */
+export function supportRule(cfg: GameSupportConfig, e: { kind: SupportKind; amount: number }): SupportRule | null {
+  const kind: SupportRuleKind = e.kind === 'gift' ? 'sub' : e.kind;
+  const r = cfg[kind];
+  if (!r?.enabled) return null;
+  if ((kind === 'bits' || kind === 'raid') && e.amount < r.min) return null;
+  return r;
+}
+
 export interface ClipSettings {
   enabled: boolean;
   /** Posta o link do clip no chat. */
@@ -221,6 +402,8 @@ export interface RoomSettings {
   duel: DuelConfig;
   royale: RoyaleConfig;
   kite: KiteConfig;
+  /** O que bits, subs, pontos e raids fazem em cada minigame (o boss usa `support`). */
+  gameSupport: Record<SupportGameId, GameSupportConfig>;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -239,6 +422,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   duel: { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true, cheerSec: 15 },
   royale: { joinSec: 60, maxPlayers: 100, fillBots: true, fullscreen: true },
   kite: { joinSec: 60, durationSec: 180, maxPlayers: 40, fillBots: true, fullscreen: true },
+  gameSupport: { race: defaultGameSupport('race'), duel: defaultGameSupport('duel'), royale: defaultGameSupport('royale'), kite: defaultGameSupport('kite') },
 };
 
 /** Mescla configurações parciais com validação dos limites. */
@@ -295,6 +479,9 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     duel: normalizeDuelConfig({ ...(base.duel ?? {}), ...((p.duel ?? {}) as Partial<DuelConfig>) }),
     royale: normalizeRoyaleConfig({ ...(base.royale ?? {}), ...((p.royale ?? {}) as Partial<RoyaleConfig>) }),
     kite: normalizeKiteConfig({ ...(base.kite ?? {}), ...((p.kite ?? {}) as Partial<KiteConfig>) }),
+    gameSupport: Object.fromEntries(
+      SUPPORT_GAME_IDS.map((g) => [g, normalizeGameSupport(g, base.gameSupport?.[g], (p.gameSupport as Record<string, unknown> | undefined)?.[g])]),
+    ) as Record<SupportGameId, GameSupportConfig>,
   };
 }
 

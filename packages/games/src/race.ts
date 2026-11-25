@@ -11,6 +11,9 @@ import {
   type RaceSnapshot,
   type RaceStatus,
   type SupportEvent,
+  type GameSupportConfig,
+  defaultGameSupport,
+  supportRule,
 } from '@clipei/shared';
 
 /**
@@ -74,6 +77,8 @@ export interface RaceSupportResult {
 
 export class RaceGame {
   readonly config: RaceConfig;
+  /** O que cada apoio faz (o streamer ajusta no painel). */
+  support: GameSupportConfig = defaultGameSupport('race');
   status: RaceStatus = 'idle';
   lobbyEndsAt: number | null = null;
   startedAt: number | null = null;
@@ -175,6 +180,8 @@ export class RaceGame {
   special(e: SupportEvent, now = Date.now()): RaceSupportResult {
     const none: RaceSupportResult = { applied: false, effect: null, events: [] };
     if (!this.isActive) return none;
+    const rule = supportRule(this.support, e);
+    if (!rule) return none;
     const id = e.user ? `${e.platform}:${e.user.id}` : null;
     let r = id ? this.byId.get(id) : undefined;
     // apoiou durante a inscrição: já entra na corrida
@@ -187,7 +194,7 @@ export class RaceGame {
 
     if (e.kind === 'raid') {
       const from = Math.max(now, this.startedAt ?? now);
-      for (const x of this.runners) if (x.finishedAt === null) x.boostUntil = from + 2500;
+      for (const x of this.runners) if (x.finishedAt === null) x.boostUntil = from + rule.p.sec * 1000;
       events.push(this.emit('raid', -1, label));
       return { applied: true, effect: 'VENTO A FAVOR para todos', events };
     }
@@ -200,7 +207,7 @@ export class RaceGame {
     }
 
     if (e.kind === 'bits') {
-      const secs = Math.min(6, 1.5 + (e.amount / 100) * 0.75);
+      const secs = Math.min(rule.p.maxSec, 1.5 + (e.amount / 100) * rule.p.secPer100);
       if (r && r.finishedAt === null) {
         this.rocketFor(r, secs, now);
         events.push(this.emit('rocket', r.idx));
@@ -211,7 +218,7 @@ export class RaceGame {
 
     // sub / gift
     if (r && r.finishedAt === null) {
-      this.rocketFor(r, e.kind === 'gift' ? Math.min(6, 3 + e.amount * 0.3) : 3.5, now);
+      this.rocketFor(r, e.kind === 'gift' ? Math.min(rule.p.rocketSec * 2, rule.p.rocketSec - 0.5 + e.amount * 0.3) : rule.p.rocketSec, now);
       r.shield = true;
       events.push(this.emit('rocket', r.idx), this.emit('shield', r.idx));
       return { applied: true, effect: 'FOGUETE + ESCUDO', events };

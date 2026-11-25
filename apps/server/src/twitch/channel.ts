@@ -15,8 +15,8 @@ export const SUPPORT_SCOPES = {
   clips: 'clips:edit',
 } as const;
 
-const REWARD_TITLE = '⚔️ Golpe Especial no Boss';
-const REWARD_PROMPT = 'Seu herói solta um golpe especial no boss da Clipei Live Games. Só funciona com boss na arena (senão os pontos voltam).';
+const REWARD_TITLE = '⚡ Apoio no Minigame';
+const REWARD_PROMPT = 'Vantagem no minigame da Clipei Live Games que estiver rolando: golpe no boss, escudo na corrida, curativo no battle royale e mais. Sem jogo rolando, os pontos voltam.';
 
 export function supportSubscriptions(broadcasterId: string, scopes: string[], rewardId: string | null): SubscriptionSpec[] {
   const has = (s: string) => scopes.includes(s);

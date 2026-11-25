@@ -3,11 +3,13 @@ import { DUEL_SCENES, DUEL_SCENE_IDS, type DuelConfig, type DuelSceneId, type Du
 import { api, nf } from '../api.ts';
 import { Card, Check, Options } from '../components/ui.tsx';
 import { BUSY_TEXT } from '../components/busy.ts';
+import { GameSupportCard } from '../components/GameSupport.tsx';
 import { useApp, useTick } from '../state.tsx';
 
 const TABS = [
   { id: 'duelo', label: 'Duelo' },
-  { id: 'comandos', label: 'Comandos e apoios' },
+  { id: 'apoios', label: 'Apoios' },
+  { id: 'comandos', label: 'Comandos' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
@@ -67,7 +69,15 @@ export function DuelPage() {
         ))}
       </div>
 
-      {tab === 'duelo' ? <DuelTab /> : <CommandsTab />}
+      {tab === 'duelo' ? (
+        <DuelTab />
+      ) : tab === 'apoios' ? (
+        <div className="grid one">
+          <GameSupportCard game="duel" />
+        </div>
+      ) : (
+        <CommandsTab />
+      )}
     </>
   );
 }
@@ -249,29 +259,6 @@ function CommandsTab() {
             <p>Encerra o duelo na hora.</p>
           </div>
         </div>
-      </Card>
-      <Card title="Apoios viram equipamento" subtitle="Vai para quem apoiou (se estiver duelando) ou para o lado que a pessoa torce">
-        <div className="cmds">
-          <div className="cmd">
-            <kbd>🎯 Pontos</kbd>
-            <p>
-              <b>Mira:</b> +15% de chance de acerto.
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>🦺 Bits</kbd>
-            <p>
-              <b>Colete:</b> aguenta 1 tiro.
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>✨ Sub</kbd>
-            <p>
-              <b>Revólver dourado:</b> o próximo tiro não erra.
-            </p>
-          </div>
-        </div>
-        <p className="muted foot-note">Cada duelista guarda 1 de cada item. Item repetido ou apoio de quem não duela nem torce não vale (os pontos voltam).</p>
       </Card>
     </div>
   );

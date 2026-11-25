@@ -14,6 +14,9 @@ import {
   type KiteStatus,
   type KiteVoada,
   type SupportEvent,
+  type GameSupportConfig,
+  defaultGameSupport,
+  supportRule,
 } from '@clipei/shared';
 
 /**
@@ -120,6 +123,8 @@ export function kiteModelFrom(word: string | undefined): number | null {
 
 export class KiteGame {
   readonly config: KiteConfig;
+  /** O que cada apoio faz (o streamer ajusta no painel). */
+  support: GameSupportConfig = defaultGameSupport('kite');
   status: KiteStatus = 'idle';
   lobbyEndsAt: number | null = null;
   startedAt: number | null = null;
@@ -294,16 +299,18 @@ export class KiteGame {
   special(e: SupportEvent, now = Date.now()): KiteSupportResult {
     const none = { applied: false, effect: null };
     if (!this.isActive) return none;
+    const rule = supportRule(this.support, e);
+    if (!rule) return none;
     if (e.kind === 'raid') {
       if (this.status !== 'play') return none;
-      this.gustUntil = now + 6000;
+      this.gustUntil = now + rule.p.gustSec * 1000;
       this.windTarget = this.wind >= 0 ? 1 : -1;
       this.push({ kind: 'gust', a: -1, b: -1, label: 'raid' });
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < rule.p.kites; i++) {
         const m = Math.floor(this.rng() * KITE_MODELS.length);
         this.spawnVoada(80 + this.rng() * (KITE_W - 160), -20 - i * 30, -1, COLORS[Math.floor(this.rng() * COLORS.length)], m, now + i * 400);
       }
-      return { applied: true, effect: 'VENTANIA e CHUVA DE PIPAS para o chat aparar' };
+      return { applied: true, effect: rule.p.kites > 0 ? 'VENTANIA e CHUVA DE PIPAS para o chat aparar' : 'VENTANIA no céu' };
     }
     const id = e.user ? `${e.platform}:${e.user.id}` : null;
     let k = id ? this.byId.get(id) : undefined;
@@ -311,22 +318,23 @@ export class KiteGame {
       k = this.add(id, e.user.name, e.user.color, false, Math.floor(this.rng() * KITE_MODELS.length));
     if (!k?.alive) return none;
     if (e.kind === 'points') {
-      if (k.rabiolas >= 3) return none;
+      if (k.rabiolas >= rule.p.maxRabiolas) return none;
       k.rabiolas++;
       this.push({ kind: 'item', a: k.idx, b: -1, label: 'rabiola' });
       return { applied: true, effect: `RABIOLA EXTRA para ${k.name}` };
     }
     if (e.kind === 'bits') {
-      if (k.line >= 2) return none;
-      k.line = 2;
-      this.push({ kind: 'item', a: k.idx, b: -1, label: 'diamante' });
-      return { applied: true, effect: `LINHA DIAMANTE para ${k.name}` };
+      const line = rule.p.line;
+      if (k.line >= line) return none;
+      k.line = line;
+      this.push({ kind: 'item', a: k.idx, b: -1, label: line === 3 ? 'linha dourada' : line === 2 ? 'diamante' : 'neon' });
+      return { applied: true, effect: `${KITE_LINES[line].name.toUpperCase()} para ${k.name}` };
     }
     // sub / gift: Raia Dourada
     if (k.golden) return none;
     k.golden = true;
     k.line = 3;
-    k.rabiolas = Math.min(3, k.rabiolas + 1);
+    k.rabiolas = Math.min(Math.max(3, this.support.points.p.maxRabiolas ?? 3), k.rabiolas + rule.p.rabiolas);
     this.rosterVersion++;
     this.push({ kind: 'item', a: k.idx, b: -1, label: 'dourada' });
     return { applied: true, effect: `RAIA DOURADA para ${k.name}` };

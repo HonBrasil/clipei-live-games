@@ -322,10 +322,10 @@ function SupportTab() {
             <SupRow
               icon="🎯"
               title="Pontos de canal"
-              effect='Recompensa "⚔️ Golpe Especial no Boss"'
+              effect='Recompensa "⚡ Apoio no Minigame"'
               enabled={sup.points.enabled}
               onToggle={(v) => set({ points: { enabled: v } })}
-              hint={me!.pointsReward?.message ?? 'Criada no seu canal. Só abre durante a luta; sem boss, os pontos voltam.'}
+              hint={me!.pointsReward?.message ?? 'Criada no seu canal, a mesma para todos os jogos. Só abre com jogo rolando; sem jogo, os pontos voltam.'}
               warn={me!.pointsReward ? !me!.pointsReward.ok : false}
             >
               custa <input className="input mini" type="number" min={1} step={50} defaultValue={sup.points.cost} onBlur={(e) => set({ points: { cost: num(e.target.value) } })} aria-label="Custo em pontos" /> pontos e causa{' '}

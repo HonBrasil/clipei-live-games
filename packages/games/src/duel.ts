@@ -7,6 +7,9 @@ import {
   type DuelSnapshot,
   type DuelStatus,
   type SupportEvent,
+  type GameSupportConfig,
+  defaultGameSupport,
+  supportRule,
 } from '@clipei/shared';
 
 /**
@@ -42,6 +45,7 @@ interface Duelist {
   name: string;
   color: string;
   aim: boolean;
+  aimBonus: number;
   vest: boolean;
   gold: boolean;
   jammed: boolean;
@@ -56,6 +60,8 @@ export interface DuelSupportResult {
 
 export class DuelGame {
   readonly config: DuelConfig;
+  /** O que cada apoio faz (o streamer ajusta no painel). */
+  support: GameSupportConfig = defaultGameSupport('duel');
   status: DuelStatus = 'idle';
   round = 0;
   score: [number, number] = [0, 0];
@@ -121,7 +127,7 @@ export class DuelGame {
     if (this.status !== 'lobby' || this.players.length >= 2 || this.players.some((p) => p.id === id)) return [];
     const taken = this.players[0]?.color;
     const pick = color && /^#[0-9a-f]{6}$/i.test(color) && color.toLowerCase() !== taken?.toLowerCase() ? color : COLORS.find((c) => c !== taken)!;
-    this.players.push({ id, name: name.slice(0, 25), color: pick, aim: false, vest: false, gold: false, jammed: false, readyAt: 0 });
+    this.players.push({ id, name: name.slice(0, 25), color: pick, aim: false, aimBonus: AIM_BONUS, vest: false, gold: false, jammed: false, readyAt: 0 });
     // quem entrou deixa de torcer
     this.cheers.delete(id);
     const ev = this.emit('join', this.players.length - 1);
@@ -171,7 +177,7 @@ export class DuelGame {
   /** Chance de acerto do duelista (0..1). */
   hitChance(who: number) {
     let p = DUEL_BASE_HIT;
-    if (this.players[who]?.aim) p += AIM_BONUS;
+    if (this.players[who]?.aim) p += this.players[who].aimBonus;
     if (this.config.cheer) {
       const [a, b] = this.cheerCount();
       const total = a + b;
@@ -192,6 +198,8 @@ export class DuelGame {
   special(e: SupportEvent): DuelSupportResult {
     const none: DuelSupportResult = { applied: false, effect: null };
     if (!this.isActive || this.status === 'lobby' || e.kind === 'raid') return none;
+    const rule = supportRule(this.support, e);
+    if (!rule) return none;
     const id = e.user ? `${e.platform}:${e.user.id}` : null;
     let who = id ? this.players.findIndex((p) => p.id === id) : -1;
     if (who < 0 && id && this.cheers.has(id)) who = this.cheers.get(id)!;
@@ -200,9 +208,10 @@ export class DuelGame {
     const item = e.kind === 'points' ? 'aim' : e.kind === 'bits' ? 'vest' : 'gold';
     if (p[item]) return none;
     p[item] = true;
+    if (item === 'aim') p.aimBonus = (rule.p.aimPct ?? 15) / 100;
     this.events.push({ id: ++this.seq, kind: 'item', who, item, label: e.user?.name });
     this.dirty = true;
-    const names = { aim: 'MIRA (+15%)', vest: 'COLETE', gold: 'REVÓLVER DOURADO' };
+    const names = { aim: `MIRA (+${Math.round(p.aimBonus * 100)}%)`, vest: 'COLETE', gold: 'REVÓLVER DOURADO' };
     return { applied: true, effect: `${names[item]} para ${p.name}` };
   }
 

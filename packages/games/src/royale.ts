@@ -14,6 +14,9 @@ import {
   type RoyaleStatus,
   type RoyaleZone,
   type SupportEvent,
+  type GameSupportConfig,
+  defaultGameSupport,
+  supportRule,
 } from '@clipei/shared';
 
 /**
@@ -126,6 +129,8 @@ export interface RoyaleSupportResult {
 
 export class RoyaleGame {
   readonly config: RoyaleConfig;
+  /** O que cada apoio faz (o streamer ajusta no painel). */
+  support: GameSupportConfig = defaultGameSupport('royale');
   status: RoyaleStatus = 'idle';
   lobbyEndsAt: number | null = null;
   dropEndsAt: number | null = null;
@@ -149,7 +154,7 @@ export class RoyaleGame {
   private votes = new Map<string, RoyaleRegionId>();
   private voteEndsAt: number | null = null;
   private nextVoteAt: number | null = null;
-  private bombs: { at: number; x: number; y: number }[] = [];
+  private bombs: { at: number; x: number; y: number; dmg: number }[] = [];
   private deaths = 0;
 
   constructor(
@@ -248,12 +253,14 @@ export class RoyaleGame {
   special(e: SupportEvent, now = Date.now()): RoyaleSupportResult {
     const none = { applied: false, effect: null };
     if (!this.isActive) return none;
+    const rule = supportRule(this.support, e);
+    if (!rule) return none;
     if (e.kind === 'raid') {
       if (this.status !== 'play') return none;
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < rule.p.bombs; i++) {
         const a = this.rng() * Math.PI * 2;
         const d = Math.sqrt(this.rng()) * this.zone.r * 0.9;
-        this.bombs.push({ at: now + 600 + i * 450, x: clampX(this.zone.cx + Math.cos(a) * d), y: clampY(this.zone.cy + Math.sin(a) * d) });
+        this.bombs.push({ at: now + 600 + i * 450, x: clampX(this.zone.cx + Math.cos(a) * d), y: clampY(this.zone.cy + Math.sin(a) * d), dmg: rule.p.damage });
       }
       return { applied: true, effect: 'BOMBARDEIO no mapa' };
     }
@@ -261,16 +268,16 @@ export class RoyaleGame {
     let p = id ? this.byId.get(id) : undefined;
     if (!p && id && e.user && this.status === 'lobby' && this.players.length < this.config.maxPlayers) p = this.add(id, e.user.name, e.user.color, false, this.pickRegion());
     if (e.kind === 'points') {
-      if (!p?.alive || p.bandages >= 3) return none;
+      if (!p?.alive || p.bandages >= rule.p.maxBandages) return none;
       p.bandages++;
       this.push({ kind: 'item', a: p.idx, b: -1, label: 'curativo' });
       return { applied: true, effect: `CURATIVO EXTRA para ${p.name}` };
     }
     if (e.kind === 'bits') {
       if (!p?.alive) return none;
-      p.shield = 100;
+      p.shield = Math.max(p.shield, rule.p.shield);
       this.push({ kind: 'item', a: p.idx, b: -1, label: 'colete' });
-      return { applied: true, effect: `COLETE NÍVEL 3 para ${p.name}` };
+      return { applied: true, effect: `COLETE ${rule.p.shield >= 100 ? 'NÍVEL 3' : `de ${rule.p.shield}%`} para ${p.name}` };
     }
     // sub / gift: caixa de suprimentos perto de quem apoiou (ou dentro da zona)
     if (p?.alive && this.status === 'lobby') {
@@ -547,7 +554,7 @@ export class RoyaleGame {
       if (now < b.at) continue;
       this.bombs.splice(this.bombs.indexOf(b), 1);
       this.push({ kind: 'bomb', a: -1, b: -1, x: Math.round(b.x), y: Math.round(b.y) });
-      for (const p of this.players) if (p.alive && dist(p.x, p.y, b.x, b.y) < 45) this.damage(p, 35, null, now, 'bombardeio');
+      for (const p of this.players) if (p.alive && dist(p.x, p.y, b.x, b.y) < 45) this.damage(p, b.dmg, null, now, 'bombardeio');
     }
   }
 

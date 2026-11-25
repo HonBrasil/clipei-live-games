@@ -286,3 +286,8 @@ Céu de fim de tarde visto de lado, sobre um morro com lajes. **Minigames → Pi
 Eventos: ventania de tempos em tempos e pipa enroscada no fio (fica vulnerável).
 Apoios: pontos = rabiola extra, bits = Linha Diamante, sub = Raia Dourada (linha dourada + rabiola), raid = ventania e chuva de pipas para aparar.
 Exibição: tela cheia (recomendado) ou janela, como no Battle Royale.
+
+## Apoios editáveis por jogo
+
+Cada minigame tem a aba **Apoios** no painel: liga/desliga bits, subs (e presentes), pontos e raids, define mínimo de bits e de pessoas no raid e ajusta a força de cada efeito (segundos de foguete, % de mira, tamanho do colete, bombas, linha da pipa…). Vale na hora, até no meio da partida. O esquema fica em `GAME_SUPPORT` (`packages/shared`), e o painel desenha os campos a partir dele. O Boss continua com a aba Apoios própria (dano por bit, por sub, por pessoa do raid).
+A recompensa de pontos virou **"⚡ Apoio no Minigame"** (uma só para todos os jogos; o custo é editável em qualquer aba Apoios).

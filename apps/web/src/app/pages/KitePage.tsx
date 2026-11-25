@@ -3,11 +3,13 @@ import { KITE_LINES, KITE_FLAG, type KiteConfig, type KiteSnapshot } from '@clip
 import { api, nf } from '../api.ts';
 import { Card, Check, Options } from '../components/ui.tsx';
 import { BUSY_TEXT } from '../components/busy.ts';
+import { GameSupportCard } from '../components/GameSupport.tsx';
 import { useApp, useTick } from '../state.tsx';
 
 const TABS = [
   { id: 'partida', label: 'Partida' },
-  { id: 'comandos', label: 'Comandos e apoios' },
+  { id: 'apoios', label: 'Apoios' },
+  { id: 'comandos', label: 'Comandos' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
@@ -58,7 +60,15 @@ export function KitePage() {
           </button>
         ))}
       </div>
-      {tab === 'partida' ? <MatchTab /> : <CommandsTab />}
+      {tab === 'partida' ? (
+        <MatchTab />
+      ) : tab === 'apoios' ? (
+        <div className="grid one">
+          <GameSupportCard game="kite" />
+        </div>
+      ) : (
+        <CommandsTab />
+      )}
     </>
   );
 }
@@ -285,35 +295,6 @@ function CommandsTab() {
             <p>De tempos em tempos vem uma ventania, e às vezes uma pipa enrosca no fio e fica vulnerável.</p>
           </div>
         </div>
-      </Card>
-      <Card title="Apoios" subtitle="Vantagem, não vitória garantida">
-        <div className="cmds">
-          <div className="cmd">
-            <kbd>🎯 Pontos</kbd>
-            <p>
-              <b>Rabiola extra</b> (até 3).
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>💎 Bits</kbd>
-            <p>
-              <b>Linha Diamante</b>.
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>⭐ Sub</kbd>
-            <p>
-              <b>Raia Dourada:</b> pipa maior e brilhante, Linha Dourada e mais uma rabiola.
-            </p>
-          </div>
-          <div className="cmd">
-            <kbd>🚀 Raid</kbd>
-            <p>
-              <b>Ventania</b> e <b>chuva de pipas</b> para o chat aparar.
-            </p>
-          </div>
-        </div>
-        <p className="muted foot-note">Apoiou nas inscrições? Já entra no céu com o item. Pontos de quem não está com pipa no céu voltam.</p>
       </Card>
     </div>
   );

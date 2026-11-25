@@ -192,7 +192,7 @@ async function syncReward(channelId: string) {
     rewardStatus.set(
       channelId,
       points.enabled
-        ? { ok: true, message: 'Recompensa "⚔️ Golpe Especial no Boss" ativa no seu canal. Ela só abre durante a luta.' }
+        ? { ok: true, message: 'Recompensa "⚡ Apoio no Minigame" ativa no seu canal. Ela só abre enquanto um jogo está rolando.' }
         : { ok: true, message: 'Recompensa desativada no seu canal.' },
     );
   } catch (err) {

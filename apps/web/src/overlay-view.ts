@@ -722,7 +722,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     for (const e of next.events) {
       if (e.kind !== 'item' && e.kind !== 'supply') continue;
       const icon = e.kind === 'supply' ? '📦' : e.label === 'colete' ? '🦺' : '🩹';
-      const text = e.kind === 'supply' ? `caixa lendária caindo${e.label ? ` · ${esc(e.label)}` : ''}` : e.label === 'colete' ? 'colete nível 3' : 'curativo extra';
+      const text = e.kind === 'supply' ? `caixa lendária caindo${e.label ? ` · ${esc(e.label)}` : ''}` : e.label === 'colete' ? 'colete' : 'curativo extra';
       const who = e.kind === 'supply' ? 'Atenção' : (roster[e.a]?.name ?? '');
       const el = document.createElement('div');
       el.className = `alert alert--${e.kind === 'supply' ? 'sub' : e.label === 'colete' ? 'bits' : 'points'}`;
@@ -851,6 +851,8 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       const map: Record<string, [string, string, string]> = {
         rabiola: ['🎏', 'rabiola extra', 'points'],
         diamante: ['💎', 'linha diamante', 'bits'],
+        neon: ['💎', 'linha neon', 'bits'],
+        'linha dourada': ['💎', 'linha dourada', 'bits'],
         dourada: ['👑', 'raia dourada', 'sub'],
         raid: ['🌪️', 'ventania e chuva de pipas', 'sub'],
       };
