@@ -137,7 +137,7 @@ export function LoopPage() {
             )}
           </Card>
 
-          <Card title={timer ? 'Quais minigames aparecem' : 'Jogos do rodízio'} subtitle={cfg.order === 'sequence' ? 'Marque os jogos e arrume a ordem com as setas' : 'Marque os jogos: o loop sorteia sem repetir o último'}>
+          <Card title={timer ? 'Quais minigames aparecem' : 'Jogos do rodízio'} subtitle={cfg.order === 'sequence' ? 'Marque os jogos e arrume a ordem com as setas' : 'Marque os jogos: abre um diferente a cada vez, sem repetir o último'}>
             <div className="field">
               <Options
                 tight

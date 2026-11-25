@@ -179,7 +179,7 @@ export class FishingGame {
     if (!rule) return none;
     if (e.kind === 'raid') {
       this.shoal(now, rule.p.seconds ?? 120);
-      return { applied: true, effect: `CARDUME! Sorte e pontos em dobro por ${Math.round((rule.p.seconds ?? 120) / 60)} min` };
+      return { applied: true, effect: `CARDUME! Peixes raros e pontos em dobro por ${Math.round((rule.p.seconds ?? 120) / 60)} min` };
     }
     if (!e.user) return none;
     const key = `${e.platform}:${e.user.id}`;
@@ -191,11 +191,11 @@ export class FishingGame {
     if (e.kind === 'bits') {
       p.luckCasts = (p.luckCasts ?? 0) + (rule.p.casts ?? 3);
       this.persist();
-      return { applied: true, effect: `ISCA RARA para ${p.name} (${p.luckCasts} lançamentos com sorte)` };
+      return { applied: true, effect: `ISCA RARA para ${p.name} (${p.luckCasts} lançamentos com chance maior de peixe raro)` };
     }
     p.luckUntil = Math.max(p.luckUntil ?? 0, now) + (rule.p.minutes ?? 30) * 60_000;
     this.persist();
-    return { applied: true, effect: `VARA DE OURO para ${p.name} (${rule.p.minutes ?? 30} min de sorte em dobro)` };
+    return { applied: true, effect: `VARA DE OURO para ${p.name} (${rule.p.minutes ?? 30} min com o dobro de chance de peixe raro)` };
   }
 
   /** Cardume: sorte e pontos em dobro e espera pela metade. */

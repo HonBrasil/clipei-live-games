@@ -39,7 +39,7 @@ export function RacePage() {
           <h1>
             Cor<span>rida</span>
           </h1>
-          <p>Cada pessoa do chat vira um piloto. Sorte, janelas de turbo e apoios que viram foguetes.</p>
+          <p>Cada pessoa do chat vira um piloto. Obstáculos na pista, janelas de turbo e apoios que viram foguetes.</p>
         </div>
         {active && race && (
           <div className="hero-live">
@@ -268,7 +268,7 @@ function CommandsTab() {
           </div>
           <div className="cmd">
             <kbd>🍌</kbd>
-            <p>Cascas de banana e manchas de óleo aparecem na pista. Desviar é sorte.</p>
+            <p>Cascas de banana e manchas de óleo aparecem na pista, e cada piloto desvia como consegue.</p>
           </div>
           <div className="cmd">
             <kbd>!corrida</kbd>

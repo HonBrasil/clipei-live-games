@@ -51,8 +51,8 @@ export function PrivacyPage() {
 
       <h2>1. O que a Clipei faz</h2>
       <p>
-        A Clipei é uma plataforma de minigames para lives: o público do streamer joga pelo chat da Twitch, da Kick ou do YouTube, e o jogo aparece na live por um
-        overlay no OBS. Para isso, o streamer conecta a conta da plataforma em que faz live.
+        A Clipei é uma ferramenta de interação para transmissões ao vivo: um overlay para o OBS com minigames que o público do streamer controla pelo chat da Twitch,
+        da Kick ou do YouTube. É entretenimento, sem dinheiro envolvido. Para usar, o streamer conecta a conta da plataforma em que faz live.
       </p>
 
       <h2>2. Dados que coletamos</h2>
@@ -181,9 +181,22 @@ export function TermsPage() {
 
       <h2>1. O serviço</h2>
       <p>
-        A Clipei oferece minigames controlados pelo chat da live (como Boss coletivo, Corrida, Duelo, Battle Royale e Pipa Combate), exibidos por um overlay no OBS,
-        com um bot que fala no chat. Os jogos são entretenimento: não envolvem apostas nem prêmios em dinheiro oferecidos pela Clipei.
+        A Clipei é uma ferramenta de software para streamers (SaaS). Ela oferece minigames interativos controlados pelo chat da live, como Boss coletivo, Corrida,
+        Duelo, Battle Royale, Pipa Combate, Pênaltis, Defesa da Base e Pescaria. Eles aparecem na transmissão por um overlay no OBS, e um bot responde no chat.
       </p>
+      <h3>Natureza do serviço: entretenimento, sem dinheiro</h3>
+      <ul>
+        <li>A Clipei é entretenimento para a comunidade do streamer, do mesmo tipo que alertas, enquetes e contadores na tela.</li>
+        <li>
+          A Clipei não oferece nem intermedia apostas, jogos de azar, cassino, rifas, loterias ou sorteios com prêmio, e não recebe nem paga valores do público.
+        </li>
+        <li>O público participa de graça, digitando comandos no chat, sem criar conta na Clipei.</li>
+        <li>Pontos, níveis, coleções e rankings não têm valor em dinheiro, não são vendidos e não podem ser trocados por dinheiro, produtos ou prêmios.</li>
+        <li>
+          Bits, subs, raids e pontos do canal são recursos das próprias plataformas (Twitch e Kick). Na Clipei, eles só ativam efeitos visuais nos minigames.
+        </li>
+        <li>O único pagamento é a assinatura da ferramenta, feita pelo streamer (item 4).</li>
+      </ul>
 
       <h2>2. Conta</h2>
       <ul>
@@ -216,12 +229,18 @@ export function TermsPage() {
       <h2>5. Uso permitido</h2>
       <p>Você concorda em não:</p>
       <ul>
-        <li>usar a Clipei para sorteios ou apostas com dinheiro em desacordo com a lei ou com as regras da plataforma;</li>
+        <li>
+          usar a Clipei para promover, operar ou divulgar apostas, jogos de azar, cassinos, rifas, loterias ou sorteios pagos, nem associar os resultados dos
+          minigames a dinheiro ou prêmios;
+        </li>
         <li>exibir conteúdo ilegal, de ódio ou de assédio por meio dos jogos, nomes ou mensagens;</li>
         <li>tentar invadir, sobrecarregar, copiar ou revender a plataforma;</li>
         <li>usar automações para simular público ou apoios.</li>
       </ul>
-      <p>Prêmios que você oferecer ao seu público por conta própria são responsabilidade sua.</p>
+      <p>
+        A Clipei não oferece nem intermedia prêmios. Se você decidir dar algum brinde ao seu público por conta própria, isso acontece fora da Clipei, sob sua
+        responsabilidade, seguindo a lei e as regras da plataforma em que faz live. Contas que descumprirem este item podem ser suspensas.
+      </p>
 
       <h2>6. Conteúdo e propriedade</h2>
       <p>

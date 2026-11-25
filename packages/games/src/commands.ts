@@ -16,7 +16,7 @@ export type BossChatCommand =
 const START = ['iniciar', 'comecar', 'start', 'invocar', 'chamar'];
 const STOP = ['parar', 'encerrar', 'stop', 'fim', 'cancelar'];
 const HELP = ['ajuda', 'help', 'comandos', '?'];
-const RANDOM = ['surpresa', 'aleatorio', 'random', 'sorteio'];
+const RANDOM = ['surpresa', 'aleatorio', 'random'];
 
 /** Apelidos aceitos para cada boss (sem acento, minúsculos). */
 export const SKIN_ALIASES: Record<string, BossSkinId> = {

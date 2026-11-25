@@ -23,6 +23,7 @@ export function Login() {
         </Link>
         <h1>Entrar na Clipei</h1>
         <p>Use a conta do seu canal. Sem senha nova: o login é feito pela própria plataforma.</p>
+        <p className="muted login-what">A Clipei é uma ferramenta de interação para lives: minigames no OBS que o seu público controla pelo chat, de graça e sem dinheiro envolvido.</p>
         <a className="btn twitch lg block" href="/api/auth/twitch/login">
           Entrar com Twitch
         </a>

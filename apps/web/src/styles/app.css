@@ -1519,3 +1519,102 @@ fieldset.plain:disabled {
   border: 1px solid var(--border);
   font-weight: 700;
 }
+
+/* ─── O que é a Clipei (landing) ──────────────────────────── */
+.l-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.l-eyebrow::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3ddc6b;
+  box-shadow: 0 0 10px rgba(61, 220, 107, 0.7);
+}
+.l-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+.l-trust li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.l-trust li::before {
+  content: '✓';
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(61, 220, 107, 0.16);
+  color: #3ddc6b;
+  font-size: 11px;
+  font-weight: 900;
+}
+.l-about {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.l-about-item {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 22px 20px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.l-about-item span {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 24px;
+}
+.l-about-item b {
+  font-size: 17px;
+}
+.l-about-item p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.5;
+}
+@media (max-width: 1000px) {
+  .l-about {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .l-about {
+    grid-template-columns: 1fr;
+  }
+}
+.landing .l-band[id] {
+  scroll-margin-top: 84px;
+}

@@ -119,7 +119,7 @@ function MainTab({ reload }: { reload: () => void }) {
               </button>
             </div>
           )}
-          <p className="muted foot-note">Cardume: sorte e pontos em dobro e espera pela metade por alguns minutos. Também vem com raid, e os mods soltam com !cardume.</p>
+          <p className="muted foot-note">Cardume: peixes raros e pontos em dobro e espera pela metade por alguns minutos. Também vem com raid, e os mods soltam com !cardume.</p>
         </Card>
         <Card title="Onde aparece" subtitle="Escolha o que mover e clique no lugar da tela">
           <ScreenMap cfg={cfg} set={set} />
@@ -181,7 +181,7 @@ function MainTab({ reload }: { reload: () => void }) {
               </span>
             ))}
           </div>
-          <p className="muted foot-note">Chances de cada pesca sem sorte extra. Peixe mais pesado vale mais pontos.</p>
+          <p className="muted foot-note">Chances de cada pesca sem isca rara nem cardume. Peixe mais pesado vale mais pontos.</p>
         </Card>
       </div>
     </div>
@@ -352,7 +352,7 @@ function CommandsTab() {
           </div>
           <div className="cmd">
             <kbd>!cardume</kbd>
-            <p>Solta um cardume: sorte e pontos em dobro por alguns minutos.</p>
+            <p>Solta um cardume: peixes raros e pontos em dobro por alguns minutos.</p>
           </div>
         </div>
       </Card>

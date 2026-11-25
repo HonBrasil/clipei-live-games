@@ -41,7 +41,7 @@ export function PenaltyPage() {
           <h1>
             Disputa de <span>Pênaltis</span>
           </h1>
-          <p>O chat se divide em dois times. Quem bate vota o canto, quem defende vota o pulo do goleiro. A maioria decide, a sorte ajuda.</p>
+          <p>O chat se divide em dois times. Quem bate vota o canto, quem defende vota o pulo do goleiro. A maioria decide.</p>
         </div>
         {active && penalty && (
           <div className="hero-live">

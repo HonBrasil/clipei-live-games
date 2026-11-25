@@ -351,7 +351,7 @@ import logoUrl from '../public/logo.png';
         <canvas width="120" height="96" aria-hidden="true"></canvas><b>${esc(s.name)}</b><small>${esc(s.title)}</small></button>`;
     }).join('') +
     `<button type="button" class="boss-opt" role="radio" aria-checked="false" data-skin="random" style="--sky:#2a2a30">
-       <canvas width="120" height="96" aria-hidden="true" data-dice></canvas><b>Surpresa</b><small>Sorteia um boss diferente</small></button>`;
+       <canvas width="120" height="96" aria-hidden="true" data-dice></canvas><b>Surpresa</b><small>Um boss diferente a cada vez</small></button>`;
 
   picker.querySelectorAll<HTMLButtonElement>('.boss-opt').forEach((btn) => {
     const c = btn.querySelector('canvas')!;

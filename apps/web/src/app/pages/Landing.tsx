@@ -10,29 +10,64 @@ import { FounderStrip, PlanCards } from '../components/plans.tsx';
 const LIVE_GAMES = GAMES.filter((g) => g.status === 'active');
 
 const STEPS = [
-  { title: 'Conecte sua Twitch', text: 'Um clique para entrar. O bot da Clipei passa a ler e responder o seu chat.' },
-  { title: 'Cole uma URL no OBS', text: 'Uma fonte de navegador, fundo transparente. Serve para todos os minigames.' },
-  { title: 'O chat joga', text: 'Escolha o minigame e abra a partida. O chat entra com um comando, e bits, subs e pontos viram vantagens.' },
+  { title: 'Conecte sua Twitch ou Kick', text: 'Um clique para entrar. O bot da Clipei passa a ler e responder o chat da sua live.' },
+  { title: 'Cole uma URL no OBS', text: 'Uma fonte de navegador com fundo transparente. Serve para todos os minigames.' },
+  { title: 'O chat participa', text: 'Abra um minigame e o público entra digitando um comando no chat, de graça e sem cadastro.' },
+];
+
+/** O que é a plataforma, em poucas palavras (para quem chega pela primeira vez). */
+const ABOUT = [
+  {
+    icon: '🎥',
+    title: 'Ferramenta para streamers',
+    text: 'Um overlay para OBS, como os de alertas e enquetes. O streamer assina a ferramenta e usa na própria transmissão.',
+  },
+  {
+    icon: '💬',
+    title: 'Interação com a comunidade',
+    text: 'O público participa pelo chat da live digitando comandos. Cada pessoa aparece na tela com o próprio nome.',
+  },
+  {
+    icon: '🤝',
+    title: 'Participar é grátis',
+    text: 'Ninguém do público paga nada para participar e não precisa criar conta. Basta estar no chat.',
+  },
+  {
+    icon: '🎉',
+    title: 'Só diversão, sem dinheiro',
+    text: 'Nada na Clipei vale dinheiro: pontos, níveis e rankings existem só dentro da brincadeira e não podem ser trocados por nada.',
+  },
 ];
 
 const FEATURES = [
   { title: 'Arena por cima do jogo', text: 'Fundo transparente, tamanho e posição ajustáveis ao vivo, sem atrapalhar a gameplay.' },
   { title: 'Tela cheia ou por cima', text: 'Cada minigame pode virar a tela principal da live, com cenário completo, ou ficar numa janela por cima do jogo.' },
-  { title: 'Apoio vira vantagem', text: 'Bits, subs, raids e pontos de canal viram golpes, turbos, coletes e caixas de suprimentos, conforme o jogo.' },
+  { title: 'Apoio vira efeito na tela', text: 'Bits, subs, raids e pontos de canal (recursos da própria Twitch e Kick) viram golpes, turbos e efeitos especiais na tela.' },
   { title: 'Nome de cada um na tela', text: 'Todo mundo do chat aparece com o próprio nome e a cor do chat em cima do personagem.' },
   { title: 'Clip da vitória', text: 'No fim de cada partida, a Clipei cria o clip na Twitch e o bot anuncia o vencedor no chat.' },
   { title: 'Moderação pelo chat', text: '!boss iniciar, !corrida iniciar, !royale iniciar: você e seus mods controlam sem abrir o painel.' },
-  { title: 'Sem apostas', text: 'Nada de dinheiro em jogo nem roleta de prêmios. É diversão para a comunidade.' },
+  { title: 'Entretenimento de verdade', text: 'Participar é grátis e nada vale dinheiro. É uma brincadeira para aproximar o streamer da comunidade.' },
 ];
 
 const FAQ = [
+  {
+    q: 'O que é a Clipei Live?',
+    a: 'Uma ferramenta para criadores de conteúdo: um overlay para o OBS com minigames interativos que o público controla pelo chat da live. É entretenimento, do mesmo jeito que os alertas de seguidor e as enquetes que aparecem na tela.',
+  },
+  {
+    q: 'Isso é aposta ou jogo de azar?',
+    a: 'Não. A Clipei não tem apostas, cassino, rifas nem sorteios valendo prêmio, e não movimenta dinheiro do público. Quem assiste participa de graça pelo chat, e pontos, níveis e rankings não têm valor fora da brincadeira nem podem ser trocados por dinheiro ou prêmios. Os Termos proíbem usar a Clipei para esse tipo de atividade.',
+  },
+  {
+    q: 'Quem paga e pelo quê?',
+    a: 'Só o streamer, que assina a ferramenta (como qualquer software para lives). O público nunca paga nada para a Clipei. Bits, subs e pontos do canal são recursos da própria Twitch e da Kick: na Clipei eles só ativam um efeito na tela.',
+  },
   { q: 'Preciso instalar alguma coisa?', a: 'Não. Tudo roda no navegador: você usa o painel da Clipei e adiciona uma fonte de navegador no OBS.' },
   { q: 'Funciona com qualquer jogo?', a: 'Sim. O minigame fica numa camada transparente por cima da sua cena, com posição e tamanho que você escolhe.' },
-  { q: 'E na Kick e no YouTube?', a: 'Hoje a Clipei funciona na Twitch. Kick e YouTube estão em preparação.' },
+  { q: 'Funciona na Kick e no YouTube?', a: 'Funciona na Twitch e na Kick. O YouTube está em preparação.' },
   { q: 'Meu chat precisa se cadastrar?', a: 'Não. Quem está no chat só digita os comandos, como !atk.' },
-  { q: 'Preciso de cartão para testar?', a: 'Não. O teste de 7 dias começa quando você conecta a Twitch, com tudo liberado. Depois, assine por mês ou por ano.' },
+  { q: 'Preciso de cartão para testar?', a: 'Não. O teste de 7 dias começa quando você conecta sua conta, com tudo liberado. Depois, assine por mês ou por ano.' },
   { q: 'Posso cancelar quando quiser?', a: 'Sim. Não tem fidelidade: você usa até o fim do período que já pagou.' },
-  { q: 'Tem aposta ou prêmio em dinheiro?', a: 'Não. Os minigames não envolvem apostas nem dinheiro.' },
 ];
 
 export function Landing() {
@@ -51,6 +86,7 @@ export function Landing() {
           <Logo className="l-logo" />
         </Link>
         <nav className="l-links" aria-label="Seções">
+          <a href="#o-que-e">O que é</a>
           <a href="#minigames">Minigames</a>
           <a href="#como-funciona">Como funciona</a>
           <a href="#planos">Planos</a>
@@ -63,11 +99,13 @@ export function Landing() {
 
       <section className="l-hero">
         <div className="l-hero-copy">
+          <span className="l-eyebrow">Ferramenta de interação para streamers</span>
           <h1>
-            Seu chat vira o <span>controle do jogo</span>
+            Seu chat vira o <span>controle da live</span>
           </h1>
           <p>
-            Minigames na sua live, controlados pelo chat. Cada pessoa vira um herói na arena, e quem apoia o canal solta os golpes mais fortes.
+            Um overlay para o OBS com minigames interativos: o público da sua live na Twitch ou na Kick participa digitando comandos no chat, e tudo aparece na tela
+            da transmissão, com o nome de cada pessoa.
           </p>
           <div className="l-cta">
             <Link className="btn twitch lg" to={logged ? '/app' : '/entrar'}>
@@ -77,8 +115,27 @@ export function Landing() {
               Testar no modo demo
             </Link>
           </div>
+          <ul className="l-trust" aria-label="Como funciona para o público">
+            <li>Participação grátis pelo chat</li>
+            <li>Sem dinheiro envolvido</li>
+            <li>Feito para entretenimento</li>
+          </ul>
         </div>
         <HeroStage />
+      </section>
+
+      <section className="l-band" id="o-que-e">
+        <h2>O que é a Clipei Live</h2>
+        <p className="l-lead">Uma ferramenta de interação para transmissões ao vivo. O streamer coloca os minigames na tela, e a comunidade participa pelo chat.</p>
+        <div className="l-about">
+          {ABOUT.map((a) => (
+            <div key={a.title} className="l-about-item">
+              <span aria-hidden="true">{a.icon}</span>
+              <b>{a.title}</b>
+              <p>{a.text}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="l-band" id="como-funciona">
@@ -95,9 +152,9 @@ export function Landing() {
       </section>
 
       <section className="l-band" id="minigames">
-        <h2>Minigames</h2>
+        <h2>Minigames interativos</h2>
         <p className="l-lead">
-          {LIVE_GAMES.length} jogos prontos para a sua live, todos no mesmo painel e na mesma URL do OBS.
+          {LIVE_GAMES.length} dinâmicas prontas para a sua live, todas no mesmo painel e na mesma URL do OBS. O público entra com um comando no chat.
         </p>
         <div className="l-games">
           {LIVE_GAMES.map((g) => (
@@ -161,7 +218,9 @@ export function Landing() {
 
       <footer className="l-foot">
         <Logo className="l-foot-logo" />
-        <span>Clipei Live Games · minigames para lives</span>
+        <span>
+          Clipei Studio Digital · ferramenta de interação para lives na Twitch e na Kick. Participação gratuita pelo chat, sem dinheiro envolvido.
+        </span>
         <nav className="l-foot-links" aria-label="Institucional">
           <Link to="/privacidade">Privacidade</Link>
           <Link to="/termos">Termos</Link>

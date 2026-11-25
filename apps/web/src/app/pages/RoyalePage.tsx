@@ -223,7 +223,7 @@ function CommandsTab() {
           <div className="cmd">
             <kbd>!entrar</kbd>
             <p>
-              <b>Embarca no avião</b> e cai num lugar sorteado.
+              <b>Embarca no avião</b> e cai num lugar qualquer do mapa.
             </p>
           </div>
           <div className="cmd">
@@ -250,7 +250,7 @@ function CommandsTab() {
         <div className="cmds">
           <div className="cmd">
             <kbd>🔫</kbd>
-            <p>Cada soldado anda, saqueia e atira sozinho (o atraso da live não deixa pilotar). A arma, o colete e a sorte decidem cada troca de tiros.</p>
+            <p>Cada soldado anda, saqueia e atira sozinho (o atraso da live não deixa pilotar). A arma, o colete e a posição decidem cada troca de tiros.</p>
           </div>
           <div className="cmd">
             <kbd>⚪🟢🔵🟣🟡</kbd>
