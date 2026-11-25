@@ -61,8 +61,11 @@ describe('GameLoop', () => {
     const l = new GameLoop();
     const c = ctx();
     l.tick(0, c);
-    expect(l.skip(1000, c.cfg)).toBe(true);
-    expect(l.tick(1000, c)).toEqual({ type: 'start', game: 'race' });
+    expect(l.skip(1000, c.cfg)).toBe('race');
+    expect(l.snapshot(1000, c.cfg).playing).toBe('race');
+    // abre na hora mesmo com a live fora do ar
+    const l2 = new GameLoop();
+    expect(l2.skip(0, ctx({ live: false }).cfg)).toBe('race');
     const ev = (text: string, isMod: boolean) => ({ text, user: { isMod, isBroadcaster: false } }) as unknown as ChatEvent;
     expect(parseLoopChatCommand(ev('!loop ligar', true))).toEqual({ type: 'on' });
     expect(parseLoopChatCommand(ev('!loop pular', true))).toEqual({ type: 'skip' });

@@ -145,15 +145,18 @@ export class GameLoop {
   }
 
   /** "Pular a espera": abre o próximo jogo no próximo tick. */
-  skip(now: number, cfg: LoopConfig) {
-    if (!cfg.enabled || this.playing) return false;
-    if (!this.next) this.next = this.pick(cfg);
-    this.at = now;
-    this.warnAt = now;
-    this.warned = true;
+  skip(now: number, cfg: LoopConfig): LoopGameId | null {
+    if (!cfg.enabled || this.playing || !cfg.games.length) return null;
+    // "Abrir agora" é o streamer mandando: abre na hora, mesmo esperando live/OBS/chat
+    const game = this.next ?? this.pick(cfg);
+    this.since ??= now;
+    this.clearSchedule();
     this.blocked = null;
-    this.dirty = true;
-    return true;
+    this.overdue = false;
+    this.playing = game;
+    this.last = game;
+    this.rounds++;
+    return game;
   }
 
   snapshot(now: number, cfg: LoopConfig): LoopSnapshot {

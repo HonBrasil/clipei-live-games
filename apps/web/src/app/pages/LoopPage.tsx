@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BOSS_SKINS, BOSS_SKIN_IDS, LOOP_BLOCK_TEXT, LOOP_GAME_INFO, LOOP_GAMES, LOOP_TIMER_INTERVALS, type LoopConfig, type LoopGameId } from '@clipei/shared';
+import { BOSS_SKINS, BOSS_SKIN_IDS, LOOP_BLOCK_TEXT, LOOP_GAME_INFO, LOOP_GAMES, LOOP_TIMER_INTERVALS, type LoopConfig, type LoopGameId, type LoopSnapshot } from '@clipei/shared';
 import { api, nf } from '../api.ts';
 import { Card, Check, Options, Switch } from '../components/ui.tsx';
 import { useApp } from '../state.tsx';
@@ -27,7 +27,10 @@ const PAGES: Record<LoopGameId, string> = {
 
 const clock = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 };
 const hour = (t: number) => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -128,12 +131,18 @@ export function LoopPage() {
                 ? 'Ligado. Espera sozinho se a live cair, o OBS fechar ou o chat esvaziar, e volta quando tudo voltar.'
                 : 'Desligado. Seus mods também ligam pelo chat com !loop ligar.'}
             </p>
+            {cfg.enabled && !playing && loop?.blocked && <BlockFix block={loop.blocked} cfg={cfg} set={set} />}
             {cfg.enabled && (
               <div className="actions">
                 <button className="btn primary" disabled={!!playing || !cfg.games.length} onClick={skip}>
-                  ⏭ Abrir o próximo agora
+                  ⏭ Abrir {loop?.next ? LOOP_GAME_INFO[loop.next].name : 'o próximo'} agora
                 </button>
               </div>
+            )}
+            {cfg.enabled && timer && !playing && loop?.at && !loop.blocked && (
+              <p className="muted foot-note">
+                No Temporizador o primeiro minigame também espera o intervalo inteiro ({cfg.intervalMin} min). Para começar já, use o botão acima.
+              </p>
             )}
           </Card>
 
@@ -245,6 +254,45 @@ export function LoopPage() {
         </div>
       </div>
     </>
+  );
+}
+
+/** Por que o automático está esperando, e o atalho para resolver. */
+function BlockFix({ block, cfg, set }: { block: NonNullable<LoopSnapshot['blocked']>; cfg: LoopConfig; set: (p: Partial<LoopConfig>) => void }) {
+  const info: Record<typeof block, { text: string; action?: { label: string; run: () => void } | { label: string; to: string } }> = {
+    offline: {
+      text: 'Sua live não está no ar, e o automático está configurado para rodar só com a live ligada.',
+      action: { label: 'Rodar mesmo fora do ar', run: () => set({ onlyLive: false }) },
+    },
+    obs: {
+      text: 'Nenhum OBS conectado. Abra a URL do overlay no OBS (ou numa aba do navegador, para testar).',
+      action: { label: 'Pegar a URL do overlay', to: '/app/overlay' },
+    },
+    chat: {
+      text: `Menos de ${cfg.minChatters} ${cfg.minChatters === 1 ? 'pessoa falou' : 'pessoas falaram'} no chat nos últimos 10 minutos.`,
+      action: { label: 'Rodar com qualquer chat', run: () => set({ minChatters: 0 }) },
+    },
+    plan: { text: 'Seu plano não está ativo.', action: { label: 'Ver planos', to: '/app/plano' } },
+    empty: { text: 'Nenhum minigame marcado. Marque pelo menos um na lista.' },
+  };
+  const { text, action } = info[block];
+  return (
+    <div className="loop-block" role="status">
+      <span aria-hidden="true">⏸</span>
+      <p>
+        <b>Esperando:</b> {text}
+      </p>
+      {action &&
+        ('to' in action ? (
+          <Link className="btn sm" to={action.to}>
+            {action.label}
+          </Link>
+        ) : (
+          <button className="btn sm" onClick={action.run}>
+            {action.label}
+          </button>
+        ))}
+    </div>
   );
 }
 

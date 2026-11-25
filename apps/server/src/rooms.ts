@@ -367,10 +367,16 @@ export class Room {
 
   /** Abre o próximo jogo do rodízio sem esperar a pausa. */
   loopSkip() {
-    if (this.activeGame()) return false;
-    const ok = this.loop.skip(Date.now(), this.settings.loop);
-    if (ok) this.tickLoop(Date.now());
-    return ok;
+    if (this.activeGame() || !this.entitled()) return false;
+    const game = this.loop.skip(Date.now(), this.settings.loop);
+    if (!game) return false;
+    if (!this.loopStart(game)) {
+      this.loop.failed(Date.now(), game);
+      this.broadcastLoop();
+      return false;
+    }
+    this.broadcastLoop();
+    return true;
   }
 
   loopSnapshot() {

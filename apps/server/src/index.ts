@@ -416,7 +416,11 @@ function roomFor(ch: StoredChannel): Room {
   let fishingWasOn = room.getSettings().fishing.enabled;
   room.onSettingsChange = (settings) => {
     store.updateChannelSettings(ch.id, settings);
-    if (settings.autoSpawn.enabled) void refreshLive();
+    // minigames automáticos precisam saber se a live está no ar (Twitch e Kick)
+    if (settings.autoSpawn.enabled || settings.loop.enabled) {
+      void refreshLive();
+      if (cur().kick) void syncKick(ch.id);
+    }
     void syncReward(ch.id);
     // pescaria ligada: a recompensa de pontos fica aberta mesmo sem jogo
     if (settings.fishing.enabled !== fishingWasOn) {
@@ -477,7 +481,7 @@ async function refreshLive() {
   if (!twitchConfigured()) return;
   const ids = rooms
     .all()
-    .filter((r) => !r.demo && r.getSettings().autoSpawn.enabled)
+    .filter((r) => !r.demo && (r.getSettings().autoSpawn.enabled || r.getSettings().loop.enabled))
     .map((r) => r.channelId);
   for (let i = 0; i < ids.length; i += 100) {
     const batch = ids.slice(i, i + 100);
