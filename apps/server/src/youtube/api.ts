@@ -15,7 +15,8 @@ const API = 'https://www.googleapis.com/youtube/v3';
 export const YT_STREAMER_SCOPES = ['https://www.googleapis.com/auth/youtube.readonly'];
 export const YT_BOT_SCOPES = ['https://www.googleapis.com/auth/youtube.force-ssl'];
 
-export const youtubeConfigured = () => Boolean(config.google.clientId && config.google.clientSecret);
+/** Chaves preenchidas e YouTube liberado (YOUTUBE_ENABLED=true). Desligado: o painel mostra "Em breve". */
+export const youtubeConfigured = () => Boolean(config.google.enabled && config.google.clientId && config.google.clientSecret);
 
 export function ytAuthorizeUrl(state: string, scopes: string[]) {
   const q = new URLSearchParams({

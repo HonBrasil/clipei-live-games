@@ -1128,6 +1128,8 @@ console.log(`  Twitch: ${twitchConfigured() ? 'configurada ✅' : 'faltando TWIT
   const missing = [!config.kick.clientId && 'KICK_CLIENT_ID', !config.kick.clientSecret && 'KICK_CLIENT_SECRET'].filter(Boolean);
   console.log(`  Kick: ${missing.length ? `faltando ${missing.join(' e ')} (vazio) ⚠️` : `configurada ✅ (retorno: ${config.kick.redirectUri})`}`);
   const gMissing = [!config.google.clientId && 'GOOGLE_CLIENT_ID', !config.google.clientSecret && 'GOOGLE_CLIENT_SECRET'].filter(Boolean);
-  console.log(`  YouTube: ${gMissing.length ? `faltando ${gMissing.join(' e ')} (vazio) ⚠️` : `configurado ✅ (retorno: ${config.google.redirectUri})`}\n`);
+  console.log(
+    `  YouTube: ${gMissing.length ? `faltando ${gMissing.join(' e ')} (vazio) ⚠️` : config.google.enabled ? `configurado ✅ (retorno: ${config.google.redirectUri})` : 'chaves ok, desligado até YOUTUBE_ENABLED=true (em breve) ⏸️'}\n`,
+  );
 }
 

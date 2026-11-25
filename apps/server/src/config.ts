@@ -36,6 +36,8 @@ export const config = {
     clientId: env.GOOGLE_CLIENT_ID ?? '',
     clientSecret: env.GOOGLE_CLIENT_SECRET ?? '',
     redirectUri: env.GOOGLE_REDIRECT_URI ?? 'http://localhost:3000/api/auth/youtube/callback',
+    /** YouTube só liga com YOUTUBE_ENABLED=true (aguardando a verificação do app no Google). */
+    enabled: env.YOUTUBE_ENABLED === 'true',
   },
   kick: {
     clientId: env.KICK_CLIENT_ID ?? '',

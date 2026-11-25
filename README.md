@@ -297,7 +297,7 @@ A recompensa de pontos virou **"⚡ Apoio no Minigame"** (uma só para todos os 
 
 ## YouTube
 
-Google Cloud: projeto com a **YouTube Data API v3** ativada, tela de consentimento (Externo; em modo Teste só entram os e-mails cadastrados como usuários de teste) e um **ID do cliente OAuth (Aplicativo da Web)** com os retornos `https://clipei-live-games.vercel.app/api/auth/youtube/callback` e `http://localhost:3000/api/auth/youtube/callback`. Na Railway: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `GOOGLE_REDIRECT_URI`.
+Google Cloud: projeto com a **YouTube Data API v3** ativada, tela de consentimento (Externo; em modo Teste só entram os e-mails cadastrados como usuários de teste) e um **ID do cliente OAuth (Aplicativo da Web)** com os retornos `https://clipei-live-games.vercel.app/api/auth/youtube/callback` e `http://localhost:3000/api/auth/youtube/callback`. Na Railway: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `GOOGLE_REDIRECT_URI`. **Fica desligado ("Em breve" no painel) até `YOUTUBE_ENABLED=true`**, a ligar depois que o Google aprovar o app.
 
 - **Streamer:** Conexões → YouTube → Conectar (permissão `youtube.readonly`). Também dá para entrar só com o YouTube (conta `yt:<canal>`).
 - **Bot:** o admin conecta o canal do bot em Admin → Plataformas → YouTube → Conectar bot (permissão `youtube.force-ssl`).

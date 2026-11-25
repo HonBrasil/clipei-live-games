@@ -140,14 +140,14 @@ export function Admin() {
               <div className="conn-logo yt">▶</div>
               <div className="conn-info">
                 <b>YouTube</b>
-                <span>{me?.youtube.botConnected ? `Bot: ${me.youtube.botName}` : 'GOOGLE_CLIENT_ID / SECRET · conecte o canal do bot'}</span>
+                <span>{me?.youtube.botConnected ? `Bot: ${me.youtube.botName}` : data?.platforms.youtube ? 'Conecte o canal do bot' : 'Em breve: liga com YOUTUBE_ENABLED=true após a aprovação do Google'}</span>
               </div>
               {data?.platforms.youtube ? (
                 <a className="btn sm" href="/api/auth/youtube/login?as=bot">
                   {me?.youtube.botConnected ? 'Trocar bot' : 'Conectar bot'}
                 </a>
               ) : (
-                <Status tone="">Desligado</Status>
+                <Status tone="">Em breve</Status>
               )}
             </div>
           </div>
