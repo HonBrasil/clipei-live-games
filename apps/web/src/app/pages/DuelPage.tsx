@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { DUEL_SCENES, DUEL_SCENE_IDS, type DuelConfig, type DuelSceneId, type DuelSnapshot } from '@clipei/shared';
 import { api, nf } from '../api.ts';
 import { Card, Check, Options } from '../components/ui.tsx';
+import { BUSY_TEXT } from '../components/busy.ts';
 import { useApp, useTick } from '../state.tsx';
 
 const TABS = [
@@ -136,7 +137,7 @@ function DuelTab() {
               <Options tight name="cheersec" value={cfg.cheerSec} onChange={(v) => set({ cheerSec: v })} options={[10, 15, 20, 30].map((v) => ({ value: v, label: `${v}s` }))} />
             </div>
           )}
-          {busy && <p className="chat-error">{busy === 'boss' ? 'Tem um boss na arena.' : busy === 'royale' ? 'Tem um Battle Royale rolando.' : 'Tem uma corrida rolando.'} Um jogo por vez: espere terminar para abrir o duelo.</p>}
+          {busy && <p className="chat-error">{BUSY_TEXT[busy]} Um jogo por vez: espere terminar para abrir o duelo.</p>}
           <div className="actions">
             <button className="btn primary lg" disabled={active || !!busy} onClick={open}>
               🤠 Abrir duelo

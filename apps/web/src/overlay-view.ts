@@ -1,9 +1,10 @@
-import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
+import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type KiteSnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
 import { Arena } from './arena/arena.ts';
 import { Sfx } from './arena/sfx.ts';
 import { RaceArena } from './race/race-arena.ts';
 import { DuelArena } from './duel/duel-arena.ts';
 import { RoyaleArena } from './royale/royale-arena.ts';
+import { KiteArena } from './kite/kite-arena.ts';
 
 /**
  * Overlay do OBS: tela 1920×1080 transparente com a arena (boss + heróis)
@@ -127,10 +128,33 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
         <div class="result-card" id="br-result-card"></div>
       </div>
     </section>
+    <section class="zone royale-zone kite-zone is-hidden" id="kite-zone">
+      <canvas class="arena-canvas" id="kite-canvas"></canvas>
+      <div class="br-top">
+        <div class="br-chip"><b>Pipa Combate</b><span id="kite-alive"></span></div>
+        <div class="br-storm kite-time" id="kite-time" hidden></div>
+        <div class="br-storm kite-wind" id="kite-wind" hidden></div>
+      </div>
+      <ol class="br-feed" id="kite-feed" aria-label="Cortes"></ol>
+      <div class="race-lobby br-lobby" id="kite-lobby" hidden>
+        <small>🪁 Pipa Combate</small>
+        <b>Digite <kbd>!pipa</kbd></b>
+        <span>ou escolha o modelo: <kbd class="sm">!pipa</kbd> + raia, capucheta, arraia ou peixinho</span>
+        <span>Sobe em <em id="kite-lobby-time">1:00</em> · <em id="kite-lobby-count">0</em> pipas</span>
+      </div>
+      <div class="kite-aparar" id="kite-aparar" hidden>🪁 PIPA VOADA! Qualquer um: <kbd>!aparar</kbd></div>
+      <div class="duel-big br-big" id="kite-big" hidden></div>
+      <div class="cta br-cta" id="kite-cta" hidden>No céu: <kbd>!puxar</kbd> <kbd>!dibicar</kbd> <kbd>!descarregar</kbd> <span class="dot">·</span> Pipa voada: <kbd class="alt">!aparar</kbd></div>
+      <div class="alerts" id="kite-alerts" aria-live="polite"></div>
+      <div class="result" id="kite-result">
+        <div class="confetti" id="kite-confetti"></div>
+        <div class="result-card" id="kite-result-card"></div>
+      </div>
+    </section>
     <div class="idle-screen" id="idle-screen" hidden>
       <img src="${logo}" alt="" />
       <b>Aguardando o próximo jogo</b>
-      <span>Fique de olho no chat: vem boss <kbd>!atk</kbd>, corrida <kbd>!correr</kbd> duelo <kbd>!duelo</kbd> ou battle royale <kbd>!entrar</kbd></span>
+      <span>Fique de olho no chat: vem boss <kbd>!atk</kbd>, corrida <kbd>!correr</kbd> duelo <kbd>!duelo</kbd>, battle royale <kbd>!entrar</kbd> ou pipa <kbd>!pipa</kbd></span>
     </div>
     ${
       opts.preview
@@ -191,6 +215,21 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     duelResult: $('duel-result'),
     duelResultCard: $('duel-result-card'),
     duelConfetti: $('duel-confetti'),
+    kiteZone: $('kite-zone'),
+    kiteAlive: $('kite-alive'),
+    kiteTime: $('kite-time'),
+    kiteWind: $('kite-wind'),
+    kiteFeed: $('kite-feed'),
+    kiteLobby: $('kite-lobby'),
+    kiteLobbyTime: $('kite-lobby-time'),
+    kiteLobbyCount: $('kite-lobby-count'),
+    kiteAparar: $('kite-aparar'),
+    kiteBig: $('kite-big'),
+    kiteCta: $('kite-cta'),
+    kiteAlerts: $('kite-alerts'),
+    kiteResult: $('kite-result'),
+    kiteResultCard: $('kite-result-card'),
+    kiteConfetti: $('kite-confetti'),
     brZone: $('br-zone'),
     brAlive: $('br-alive'),
     brStorm: $('br-storm'),
@@ -215,6 +254,9 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   const raceArena = new RaceArena($('race-canvas') as HTMLCanvasElement, sfx);
   const duelArena = new DuelArena($('duel-canvas') as HTMLCanvasElement, sfx);
   const brArena = new RoyaleArena($('br-canvas') as HTMLCanvasElement, sfx);
+  const kiteArena = new KiteArena($('kite-canvas') as HTMLCanvasElement, sfx);
+  /** O Pipa Combate também pode ocupar a tela inteira com o overlay sobreposto. */
+  let kiteFull = true;
   /** O Battle Royale pode ocupar a tela inteira mesmo com o overlay no modo sobreposto. */
   let brFull = true;
 
@@ -237,6 +279,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     arena.setNames(next.names);
     raceArena.setNames(next.names);
     brArena.setNames(next.names);
+    kiteArena.setNames(next.names);
     // barra de vida: acima do boss (dentro da arena) ou no topo da tela
     if (next.hpBar === 'top') stage.appendChild(els.bossbar);
     else els.zone.appendChild(els.bossbar);
@@ -251,6 +294,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     raceArena.setResolution(res);
     duelArena.setResolution(res);
     brArena.setResolution(stageScale * (brFull || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
+    kiteArena.setResolution(stageScale * (kiteFull || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
   }
 
   // ─── Escala 1920×1080 → tamanho real (fonte do OBS ou container) ──
@@ -638,7 +682,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       clearTimeout(brResultTimer);
       els.brResult.classList.remove('is-visible');
       els.brZone.classList.remove('is-hidden');
-      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone]) z.classList.add('is-hidden');
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.kiteZone]) z.classList.add('is-hidden');
     } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
       brBigText = next.winner === null ? 'NINGUÉM SOBREVIVEU' : 'ÚLTIMO DE PÉ!';
       brBigUntil = Date.now() + 2600;
@@ -745,6 +789,148 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   void ROYALE_FLAG;
   void ROYALE_REGIONS;
 
+  // ─── Pipa Combate ───────────────────────────────────────────
+  let kite: KiteSnapshot | null = null;
+  let kiteOffset = 0;
+  let kiteResultTimer: number | undefined;
+  let kiteBigUntil = 0;
+  let kiteBigText = '';
+
+  function renderKite(next: KiteSnapshot) {
+    const prev = kite;
+    kite = next;
+    kiteOffset = next.serverNow - Date.now();
+    if (kiteFull !== next.fullscreen) {
+      kiteFull = next.fullscreen;
+      updateResolution();
+    }
+    els.kiteZone.classList.toggle('force-full', next.fullscreen);
+    kiteArena.setState(next);
+    const active = next.status === 'lobby' || next.status === 'play';
+    const roster = kiteArena.rosterEntries;
+
+    if (active) {
+      clearTimeout(kiteResultTimer);
+      els.kiteResult.classList.remove('is-visible');
+      els.kiteZone.classList.remove('is-hidden');
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.brZone]) z.classList.add('is-hidden');
+    } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
+      kiteBigText = next.winner === null ? 'CÉU LIMPO' : next.winReason === 'time' ? 'TEMPO!' : 'REI DO CÉU!';
+      kiteBigUntil = Date.now() + 2600;
+      setTimeout(() => showKiteResult(next), 2600);
+    } else if (next.status === 'stopped' || next.status === 'idle') {
+      els.kiteZone.classList.add('is-hidden');
+    }
+    if (els.waiting) els.waiting.hidden = active || next.status === 'finished' || state?.status === 'running';
+    if (prev?.status === 'lobby' && next.status === 'play') {
+      kiteBigText = 'SOLTA A PIPA!';
+      kiteBigUntil = Date.now() + 1800;
+    }
+
+    els.kiteLobby.hidden = next.status !== 'lobby';
+    els.kiteLobbyCount.textContent = nf.format(next.participants);
+    els.kiteCta.hidden = next.status !== 'play';
+    els.kiteAlive.textContent = next.status === 'lobby' ? 'inscrições' : `${nf.format(next.alive)} no céu`;
+
+    const name = (i: number) => `<b style="color:${esc(roster[i]?.color ?? '#fff')}">${esc(roster[i]?.name ?? '')}</b>`;
+    for (const e of next.events) {
+      let html = '';
+      if (e.kind === 'cut') html = `${name(e.a)} <i>✂️ cortou</i> <span>${esc(roster[e.b]?.name ?? '')}</span>`;
+      else if (e.kind === 'rabiola') html = `${name(e.a)} <i>🎏 levou a rabiola de</i> <span>${esc(roster[e.b]?.name ?? '')}</span>`;
+      else if (e.kind === 'aparar') html = `<b style="color:${esc(e.color ?? '#3ddc6b')}">${esc(e.label ?? '')}</b> <i>🙌 aparou</i> <span>${e.b >= 0 ? `a pipa de ${esc(roster[e.b]?.name ?? '')}` : 'uma pipa'}</span>`;
+      if (!html) continue;
+      const li = document.createElement('li');
+      li.innerHTML = html;
+      els.kiteFeed.prepend(li);
+      while (els.kiteFeed.children.length > 5) els.kiteFeed.lastElementChild?.remove();
+      setTimeout(() => li.classList.add('is-out'), 6000);
+      setTimeout(() => li.remove(), 6600);
+    }
+    for (const e of next.events) {
+      if (e.kind !== 'item' && !(e.kind === 'gust' && e.label === 'raid')) continue;
+      const map: Record<string, [string, string, string]> = {
+        rabiola: ['🎏', 'rabiola extra', 'points'],
+        diamante: ['💎', 'linha diamante', 'bits'],
+        dourada: ['👑', 'raia dourada', 'sub'],
+        raid: ['🌪️', 'ventania e chuva de pipas', 'sub'],
+      };
+      const [icon, text, tone] = map[e.label ?? ''] ?? ['🎁', e.label ?? '', 'points'];
+      const who = e.kind === 'gust' ? 'RAID' : (roster[e.a]?.name ?? '');
+      const el = document.createElement('div');
+      el.className = `alert alert--${tone}`;
+      el.innerHTML = `<span class="a-ico">${icon}</span><b>${esc(who)}</b><span>${esc(text)}</span>`;
+      els.kiteAlerts.prepend(el);
+      while (els.kiteAlerts.children.length > 3) els.kiteAlerts.lastElementChild?.remove();
+      setTimeout(() => el.classList.add('is-out'), 4500);
+      setTimeout(() => el.remove(), 5000);
+    }
+    if (next.events.some((e) => e.kind === 'gust') && next.status === 'play') {
+      kiteBigText = 'VENTANIA!';
+      kiteBigUntil = Date.now() + 1500;
+    }
+    tickKite();
+  }
+
+  function showKiteResult(s: KiteSnapshot) {
+    const roster = kiteArena.rosterEntries;
+    const w = s.winner === null ? null : roster[s.winner];
+    const wc = s.winner === null ? 0 : (s.kites.find((k) => k[0] === s.winner)?.[6] ?? 0);
+    const top = s.topCuts
+      .slice(0, 3)
+      .map((idx) => `<span class="r-top"><i>✂️</i> ${esc(roster[idx]?.name ?? '')} <em>${s.kites.find((k) => k[0] === idx)?.[6] ?? 0}</em></span>`)
+      .join('');
+    const ap = s.aparadores[0];
+    els.kiteResultCard.innerHTML = `
+      <div class="r-title">${w ? `${esc(w.name)} é o Rei do Céu!` : 'Céu limpo!'}</div>
+      <div class="r-sub">${
+        w
+          ? s.winReason === 'time'
+            ? `Mais cortes quando o tempo acabou · ${wc} ${wc === 1 ? 'corte' : 'cortes'}`
+            : `Última pipa no céu entre <b>${nf.format(roster.length)}</b> · ${wc} ${wc === 1 ? 'corte' : 'cortes'}`
+          : 'Ninguém sobrou lá em cima'
+      }</div>
+      ${top ? `<div class="r-podium">${top}</div>` : ''}
+      ${ap ? `<div class="r-sub kite-ap">🙌 Rei da aparada: <b style="color:${esc(ap.color)}">${esc(ap.name)}</b> (${ap.n})</div>` : ''}`;
+    els.kiteResult.classList.add('is-visible');
+    if (w) confetti(els.kiteConfetti);
+    clearTimeout(kiteResultTimer);
+    kiteResultTimer = window.setTimeout(() => {
+      els.kiteResult.classList.remove('is-visible');
+      els.kiteZone.classList.add('is-hidden');
+    }, 9000);
+  }
+
+  function tickKite() {
+    if (!kite) return;
+    const now = Date.now() + kiteOffset;
+    const fmt = (ms: number) => {
+      const t = Math.max(0, Math.ceil(ms / 1000));
+      return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    };
+    if (kite.status === 'lobby' && kite.lobbyEndsAt) els.kiteLobbyTime.textContent = fmt(kite.lobbyEndsAt - now);
+    const playing = kite.status === 'play';
+    els.kiteTime.hidden = !playing || !kite.endsAt;
+    els.kiteWind.hidden = !playing;
+    if (playing && kite.endsAt) {
+      const left = kite.endsAt - now;
+      els.kiteTime.textContent = `⏱️ ${fmt(left)}`;
+      els.kiteTime.classList.toggle('is-urgent', left <= 15_000);
+    }
+    if (playing) {
+      const w = kite.wind;
+      const arrow = Math.abs(w) < 0.15 ? '·' : w > 0 ? (w > 0.6 ? '→→' : '→') : w < -0.6 ? '←←' : '←';
+      els.kiteWind.textContent = `${kite.gust ? '🌪️ Ventania' : '🍃 Vento'} ${arrow}`;
+      els.kiteWind.classList.toggle('is-urgent', kite.gust);
+    }
+    els.kiteAparar.hidden = !(playing && kite.voadas.some((v) => v.endsAt > now));
+    const showBig = Date.now() < kiteBigUntil;
+    els.kiteBig.hidden = !showBig;
+    if (showBig && els.kiteBig.textContent !== kiteBigText) {
+      els.kiteBig.textContent = kiteBigText;
+      els.kiteBig.className = `duel-big br-big ${kiteBigText === 'VENTANIA!' ? 'wind' : kiteBigText === 'REI DO CÉU!' || kiteBigText === 'TEMPO!' ? 'round' : 'fire'}`;
+    }
+  }
+
   // ─── Relógio + aviso de boss chegando ───────────────────────
   setInterval(() => {
     if (state?.status === 'running' && state.endsAt) {
@@ -766,8 +952,9 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     tickRace();
     tickDuel();
     tickRoyale();
+    tickKite();
     // tela cheia sem jogo: tela de espera com a marca (o OBS não fica vazio)
-    const nothing = els.zone.classList.contains('is-hidden') && els.raceZone.classList.contains('is-hidden') && els.duelZone.classList.contains('is-hidden') && els.brZone.classList.contains('is-hidden');
+    const nothing = els.zone.classList.contains('is-hidden') && els.raceZone.classList.contains('is-hidden') && els.duelZone.classList.contains('is-hidden') && els.brZone.classList.contains('is-hidden') && els.kiteZone.classList.contains('is-hidden');
     els.idle.hidden = !(layout.display === 'fullscreen' && nothing);
     if (els.waiting && layout.display === 'fullscreen') els.waiting.hidden = true;
   }, 250);
@@ -777,6 +964,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     renderRace,
     renderDuel,
     renderRoyale,
+    renderKite,
     setOnline(online: boolean) {
       els.conn.hidden = online || !state;
     },

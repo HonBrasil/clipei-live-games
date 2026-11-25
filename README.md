@@ -269,3 +269,20 @@ Mapa visto de cima (cidade, porto, fazenda, floresta e rio). **Minigames → Bat
 
 Apoios: pontos = curativo extra, bits = colete nível 3, sub = caixa de suprimentos do lado de quem apoiou, raid = bombardeio.
 Exibição: **tela cheia (recomendado)** mesmo com o overlay no modo sobreposto, ou **janela** no tamanho/posição do overlay. Partidas de ~2 a 3 min depois do salto, de 10 a 100 jogadores.
+
+## Pipa Combate
+
+Céu de fim de tarde visto de lado, sobre um morro com lajes. **Minigames → Pipa Combate** ou `!pipa iniciar` (mods).
+
+1. **Inscrições** (30 a 120 s): `!pipa` (modelo sorteado) ou `!pipa raia|capucheta|arraia|peixinho`. Cada pessoa vira um bonequinho numa laje. Menos de 6? Entram pipas CPU (opcional).
+2. **No céu:** as pipas voam sozinhas com o vento. O chat escolhe a tática:
+   - `!puxar`: sobe (altura pesa no relo), recarga 5 s;
+   - `!dibicar`: mergulha atrás da pipa mais perto e puxa um relo (+10%), recarga 6 s;
+   - `!descarregar`: no relo, +40% de força para cortar, mas a pipa perde altura. Vale até 4 s antes do relo abrir (atraso da live).
+3. **Relo:** linhas cruzando perto das pipas abrem um relo de 6 s. Pesa a linha (Comum, Neon, Diamante, Dourada), a altura, a tática e a sorte. A **rabiola** é escudo: o primeiro corte leva só ela.
+4. **Pipa voada:** a cortada cai balançando; **qualquer pessoa do chat** apara com `!aparar` (o primeiro leva, ranking de aparadores).
+5. **Fim:** última pipa no céu ou, quando o tempo acaba (2 a 5 min), quem cortou mais. Anúncio do bot com o Rei do Céu e o rei da aparada, e clip.
+
+Eventos: ventania de tempos em tempos e pipa enroscada no fio (fica vulnerável).
+Apoios: pontos = rabiola extra, bits = Linha Diamante, sub = Raia Dourada (linha dourada + rabiola), raid = ventania e chuva de pipas para aparar.
+Exibição: tela cheia (recomendado) ou janela, como no Battle Royale.

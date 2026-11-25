@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleConfig, type RoyaleSnapshot } from '@clipei/shared';
 import { api, nf } from '../api.ts';
 import { Card, Check, Options } from '../components/ui.tsx';
+import { BUSY_TEXT } from '../components/busy.ts';
 import { useApp, useTick } from '../state.tsx';
 
 const TABS = [
@@ -111,7 +112,7 @@ function MatchTab() {
           <Check checked={cfg.fillBots} onChange={(v) => set({ fillBots: v })}>
             Completar com soldados CPU até 10 jogadores (recomendado para chat pequeno)
           </Check>
-          {busy && <p className="chat-error">Tem outro jogo rolando agora. Um jogo por vez: espere terminar.</p>}
+          {busy && <p className="chat-error">{BUSY_TEXT[busy]} Um jogo por vez: espere terminar.</p>}
           <div className="actions">
             <button className="btn primary lg" disabled={active || !!busy} onClick={open}>
               🪂 Abrir embarque

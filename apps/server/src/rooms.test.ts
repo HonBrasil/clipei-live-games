@@ -174,4 +174,29 @@ describe('Room', () => {
     expect(said.some((t) => t.includes('BOMBARDEIO'))).toBe(true);
     expect(said.some((t) => t.includes('ÚLTIMO DE PÉ') || t.includes('Ninguém sobreviveu'))).toBe(true);
   });
+
+  it('pipa combate: mod abre, chat solta pipa, relos, chat apara, alguém vira rei do céu', () => {
+    const { room, msgs, tickFor } = setup();
+    room.handleChat(chat('mod', '!pipa iniciar', 'mod'));
+    expect(room.activeGame()).toBe('kite');
+    room.handleChat(chat('ana', '!pipa raia'));
+    room.handleChat(chat('bia', '!pipa'));
+    room.handleChat(chat('mod', '!royale iniciar', 'mod'));
+    expect(room.royale).toBeNull();
+    tickFor(61_000);
+    expect(room.kite?.status).toBe('play');
+    room.handleChat(chat('ana', '!dibicar'));
+    room.handleSupport({ kind: 'bits', amount: 100, platform: 'twitch', user: { id: 'bia', name: 'bia' } });
+    for (let i = 0; i < 400 && room.kite?.status === 'play'; i++) {
+      tickFor(1000);
+      room.handleChat(chat(`fã${i % 5}`, '!aparar'));
+    }
+    expect(room.kite?.status).toBe('finished');
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('PIPA COMBATE'))).toBe(true);
+    expect(said.some((t) => t.includes('6 pipas no céu'))).toBe(true);
+    expect(said.some((t) => t.includes('LINHA DIAMANTE para bia'))).toBe(true);
+    expect(said.some((t) => t.includes('REI DO CÉU') || t.includes('Céu limpo'))).toBe(true);
+    expect(msgs.some((m) => m.type === 'kite' && m.state.events.some((e) => e.kind === 'aparar'))).toBe(true);
+  });
 });

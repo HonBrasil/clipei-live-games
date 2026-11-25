@@ -816,6 +816,11 @@ button.pill {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
+@media (min-width: 1100px) {
+  .l-games {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (max-width: 760px) {
   .l-games {
     grid-template-columns: 1fr;

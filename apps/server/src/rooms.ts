@@ -13,6 +13,12 @@ import {
   DuelGame,
   parseDuelChatCommand,
   RoyaleGame,
+  KiteGame,
+  parseKiteChatCommand,
+  kiteHelpText,
+  kiteOpenAnnouncement,
+  kiteStartAnnouncement,
+  kiteResultAnnouncement,
   parseRoyaleChatCommand,
   royaleHelpText,
   royaleOpenAnnouncement,
@@ -56,6 +62,9 @@ import {
   type DuelSnapshot,
   type DuelStatus,
   type RoyaleConfig,
+  type KiteConfig,
+  type KiteSnapshot,
+  type KiteStatus,
   type RoyaleSnapshot,
   type RoyaleStatus,
   ROYALE_REGION_IDS,
@@ -94,6 +103,7 @@ export class Room {
   race: RaceGame | null = null;
   duel: DuelGame | null = null;
   royale: RoyaleGame | null = null;
+  kite: KiteGame | null = null;
   lastConfig: BossConfig = { ...DEFAULT_CONFIG };
   hpMode: HpMode = 'auto';
   readonly sockets = new Set<WebSocket>();
@@ -123,6 +133,8 @@ export class Room {
   private duelStatus: DuelStatus = 'idle';
   private royaleStatus: RoyaleStatus = 'idle';
   private lastRoyaleAt = 0;
+  private kiteStatus: KiteStatus = 'idle';
+  private lastKiteAt = 0;
 
   constructor(
     public key: string,
@@ -135,6 +147,13 @@ export class Room {
     this.spawner = new AutoSpawner(this.settings.autoSpawn);
     this.simulator = new ChatSimulator(channelId, (e) => this.handleChat(e));
     this.simulator.script = () => {
+      const kg = this.kite;
+      if (kg?.isActive) {
+        const x = Math.random();
+        const models = ['', '', 'raia', 'capucheta', 'arraia', 'peixinho'];
+        if (kg.status === 'lobby') return x < 0.7 ? `!pipa ${models[Math.floor(Math.random() * models.length)]}`.trim() : 'chatter';
+        return x < 0.12 ? '!puxar' : x < 0.22 ? '!dibicar' : x < 0.34 ? '!descarregar' : x < 0.5 ? '!aparar' : 'chatter';
+      }
       const br = this.royale;
       if (br?.isActive) {
         const x = Math.random();
@@ -158,19 +177,91 @@ export class Room {
   }
 
   /** Só um minigame por vez na tela. */
-  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | null {
+  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | 'kite' | null {
     if (this.game?.isRunning) return 'boss';
     if (this.race?.isActive) return 'race';
     if (this.duel?.isActive) return 'duel';
     if (this.royale?.isActive) return 'royale';
+    if (this.kite?.isActive) return 'kite';
     return null;
+  }
+
+  private busyText(busy: NonNullable<ReturnType<Room['activeGame']>>) {
+    const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu' }[busy];
+    return `Tem ${what}. Um jogo por vez: espere terminar.`;
+  }
+
+  // ─── Pipa Combate ──────────────────────────────────────────
+
+  startKite(patch?: Partial<KiteConfig>) {
+    const busy = this.activeGame();
+    if (busy) return { ok: false as const, error: this.busyText(busy) };
+    if (patch) this.updateSettings({ kite: patch });
+    this.kite = new KiteGame(this.settings.kite);
+    this.kite.open();
+    this.kiteStatus = 'lobby';
+    this.spawner.fightStarted();
+    this.hooks.fightStarted?.();
+    this.broadcast({ type: 'incoming', at: null, serverNow: Date.now() });
+    this.say(kiteOpenAnnouncement(this.kite.config));
+    this.broadcastKite();
+    this.broadcastStatus();
+    return { ok: true as const, config: this.kite.config };
+  }
+
+  kiteGo() {
+    if (this.kite?.status !== 'lobby') return false;
+    this.kite.startNow();
+    this.afterKiteUpdate();
+    return true;
+  }
+
+  stopKite() {
+    if (!this.kite?.isActive) return false;
+    this.kite.stop();
+    this.afterKiteUpdate();
+    return true;
+  }
+
+  kiteSnapshot(): KiteSnapshot | null {
+    return this.kite && this.kite.status !== 'idle' ? this.kite.snapshot(Date.now(), true) : null;
+  }
+
+  private broadcastKite() {
+    if (!this.kite) return;
+    this.lastKiteAt = Date.now();
+    this.broadcast({ type: 'kite', state: this.kite.snapshot() });
+  }
+
+  private afterKiteUpdate() {
+    const g = this.kite;
+    if (!g) return;
+    const prev = this.kiteStatus;
+    const next = g.status;
+    if (prev === next) return;
+    this.kiteStatus = next;
+    if (prev === 'lobby' && next === 'play') this.say(kiteStartAnnouncement(g.size, g.config.durationSec));
+    if (next === 'finished' || next === 'stopped') {
+      if (next === 'finished') {
+        this.say(kiteResultAnnouncement(g.nameOf(g.winner), g.winner === null ? 0 : g.cutsOf(g.winner), g.winReason, g.topAparador()), 'success');
+        if (g.winner !== null) this.clipVictory(`Pipa Combate · ${g.nameOf(g.winner)}`);
+      } else if (prev === 'lobby' && g.humans === 0) {
+        this.say('🪁 Ninguém soltou pipa dessa vez. Fica para a próxima!', 'warning');
+      } else {
+        this.say('🪁 Pipa Combate encerrado pelo streamer.', 'warning');
+      }
+      this.spawner.fightEnded();
+      this.hooks.fightEnded?.();
+    }
+    this.broadcastKite();
+    this.broadcastStatus();
   }
 
   // ─── Battle Royale ─────────────────────────────────────────
 
   startRoyale(patch?: Partial<RoyaleConfig>) {
     const busy = this.activeGame();
-    if (busy) return { ok: false as const, error: `Tem ${busy === 'boss' ? 'um boss na arena' : busy === 'race' ? 'uma corrida rolando' : 'um duelo rolando'}. Um jogo por vez: espere terminar.` };
+    if (busy) return { ok: false as const, error: this.busyText(busy) };
     if (patch) this.updateSettings({ royale: patch });
     this.royale = new RoyaleGame(this.settings.royale);
     this.royale.open();
@@ -236,7 +327,7 @@ export class Room {
 
   startDuel(patch?: Partial<DuelConfig>) {
     const busy = this.activeGame();
-    if (busy) return { ok: false as const, error: busy === 'boss' ? 'Tem um boss na arena. Encerre a luta antes do duelo.' : 'Tem uma corrida rolando. Espere terminar para abrir o duelo.' };
+    if (busy) return { ok: false as const, error: this.busyText(busy) };
     if (patch) this.updateSettings({ duel: patch });
     this.duel = new DuelGame(this.settings.duel);
     this.duel.open();
@@ -297,9 +388,8 @@ export class Room {
 
   /** Abre as inscrições com a configuração salva (ou a enviada). */
   startRace(patch?: Partial<RaceConfig>) {
-    if (this.game?.isRunning) return { ok: false as const, error: 'Tem um boss na arena. Encerre a luta antes de abrir a corrida.' };
-    if (this.duel?.isActive) return { ok: false as const, error: 'Tem um duelo rolando. Espere terminar para abrir a corrida.' };
-    if (this.royale?.isActive) return { ok: false as const, error: 'Tem um Battle Royale rolando. Espere terminar para abrir a corrida.' };
+    const busy = this.activeGame();
+    if (busy && busy !== 'race') return { ok: false as const, error: this.busyText(busy) };
     if (patch) this.updateSettings({ race: patch });
     this.race?.stop();
     this.race = new RaceGame(this.settings.race);
@@ -434,6 +524,24 @@ export class Room {
       }
       return;
     }
+    const kiteCmd = parseKiteChatCommand(event);
+    if (kiteCmd) {
+      if (kiteCmd.type === 'help') {
+        if (Date.now() - this.lastHelpAt > HELP_COOLDOWN_MS) {
+          this.lastHelpAt = Date.now();
+          this.say(kiteHelpText(this.kite?.status ?? 'idle'));
+        }
+      } else if (kiteCmd.type === 'start') {
+        if (this.entitled() && !this.activeGame()) this.startKite();
+      } else {
+        this.stopKite();
+      }
+      return;
+    }
+    if (this.kite?.isActive) {
+      this.kite.handle(event);
+      return;
+    }
     const brCmd = parseRoyaleChatCommand(event);
     if (brCmd) {
       if (brCmd.type === 'help') {
@@ -470,7 +578,7 @@ export class Room {
           this.say(bossHelpText(!!this.game?.isRunning));
         }
       } else if (cmd.type === 'start') {
-        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive && !this.royale?.isActive) this.startQuick(cmd.skin);
+        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive && !this.royale?.isActive && !this.kite?.isActive) this.startQuick(cmd.skin);
       } else if (cmd.type === 'stop') {
         this.stopBoss();
       }
@@ -482,6 +590,20 @@ export class Room {
 
   /** Bits, subs, presentes, pontos de canal e raids viram golpes especiais. */
   handleSupport(e: SupportEvent) {
+    if (this.kite?.isActive) {
+      const res = this.kite.special(e);
+      if (!res.applied) {
+        if (e.kind === 'points') this.hooks.redemption?.(e, false);
+        const thanks = supportThanks(e);
+        if (thanks && e.kind !== 'points') this.say(thanks);
+        return { applied: false, damage: 0 };
+      }
+      const icon = e.kind === 'points' ? '🎏' : e.kind === 'bits' ? '💎' : e.kind === 'raid' ? '🌪️' : '👑';
+      this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
+      if (e.kind === 'points') this.hooks.redemption?.(e, true);
+      this.broadcastKite();
+      return { applied: true, damage: 0 };
+    }
     if (this.royale?.isActive) {
       const res = this.royale.special(e);
       if (!res.applied) {
@@ -574,6 +696,11 @@ export class Room {
   /** Chamado a cada 100 ms. */
   tick() {
     const now = Date.now();
+    if (this.kite?.isActive) {
+      this.kite.update(now);
+      if (this.kite.status !== this.kiteStatus) this.afterKiteUpdate();
+      else if (now - this.lastKiteAt >= RACE_BROADCAST_MS) this.broadcastKite();
+    }
     if (this.royale?.isActive) {
       this.royale.update(now);
       if (this.royale.status !== this.royaleStatus) this.afterRoyaleUpdate();
@@ -668,6 +795,8 @@ export class Room {
     if (duel) this.send(ws, { type: 'duel', state: duel });
     const br = this.royaleSnapshot();
     if (br) this.send(ws, { type: 'royale', state: br });
+    const kite = this.kiteSnapshot();
+    if (kite) this.send(ws, { type: 'kite', state: kite });
     ws.on('close', () => {
       this.sockets.delete(ws);
       if (!this.panels.has(ws)) this.broadcastStatus();

@@ -19,6 +19,7 @@ import { Admin } from './pages/Admin.tsx';
 import { RacePage } from './pages/RacePage.tsx';
 import { DuelPage } from './pages/DuelPage.tsx';
 import { RoyalePage } from './pages/RoyalePage.tsx';
+import { KitePage } from './pages/KitePage.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -42,6 +43,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="jogos/duel" element={<DuelPage />} />
           <Route path="jogos/duelo" element={<DuelPage />} />
           <Route path="jogos/royale" element={<RoyalePage />} />
+          <Route path="jogos/kite" element={<KitePage />} />
+          <Route path="jogos/pipa" element={<KitePage />} />
           <Route path="overlay" element={<OverlayPage />} />
           <Route path="conexoes" element={<Connections />} />
           <Route path="testar" element={<TestPage />} />

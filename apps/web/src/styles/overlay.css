@@ -994,3 +994,56 @@ body.overlay-body {
   bottom: auto;
   top: 42px;
 }
+
+/* ─── Pipa Combate ────────────────────────────────────────── */
+.kite-zone .br-feed i {
+  color: var(--yellow);
+}
+.kite-wind {
+  color: #c9f7ff;
+}
+.kite-wind.is-urgent {
+  background: rgba(20, 120, 160, 0.85);
+}
+.kite-aparar {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  translate: -50% 0;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(20, 120, 60, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font: italic 900 15px var(--font-display);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: kite-aparar 0.8s ease-in-out infinite alternate;
+}
+.kite-aparar kbd {
+  padding: 0 7px;
+  border-radius: 6px;
+  background: #fff;
+  color: #0d5c2c;
+  font: italic 900 14px var(--font-display);
+}
+@keyframes kite-aparar {
+  to {
+    scale: 1.06;
+  }
+}
+.kite-cta kbd {
+  margin: 0 1px;
+}
+.kite-ap {
+  margin-top: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kite-aparar {
+    animation: none;
+  }
+}
+.kite-zone .br-big.wind {
+  top: 18%;
+  font-size: 56px;
+  color: #c9f7ff;
+}

@@ -220,6 +220,7 @@ export interface RoomSettings {
   race: RaceConfig;
   duel: DuelConfig;
   royale: RoyaleConfig;
+  kite: KiteConfig;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -237,6 +238,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   race: { track: 'neon', joinSec: 45, laps: 2, maxRunners: 60, fillBots: true },
   duel: { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true, cheerSec: 15 },
   royale: { joinSec: 60, maxPlayers: 100, fillBots: true, fullscreen: true },
+  kite: { joinSec: 60, durationSec: 180, maxPlayers: 40, fillBots: true, fullscreen: true },
 };
 
 /** Mescla configurações parciais com validação dos limites. */
@@ -292,6 +294,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     race: normalizeRaceConfig({ ...(base.race ?? {}), ...((p.race ?? {}) as Partial<RaceConfig>) }),
     duel: normalizeDuelConfig({ ...(base.duel ?? {}), ...((p.duel ?? {}) as Partial<DuelConfig>) }),
     royale: normalizeRoyaleConfig({ ...(base.royale ?? {}), ...((p.royale ?? {}) as Partial<RoyaleConfig>) }),
+    kite: normalizeKiteConfig({ ...(base.kite ?? {}), ...((p.kite ?? {}) as Partial<KiteConfig>) }),
   };
 }
 
@@ -307,7 +310,7 @@ export interface RoomStatus {
   /** Fontes do OBS conectadas agora (o painel não conta). */
   overlays: number;
   /** Minigame rolando agora na tela (só um por vez). */
-  game: 'boss' | 'race' | 'duel' | 'royale' | null;
+  game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | null;
   serverNow: number;
 }
 
@@ -319,6 +322,7 @@ export type ServerMessage =
   | { type: 'race'; state: RaceSnapshot }
   | { type: 'duel'; state: DuelSnapshot }
   | { type: 'royale'; state: RoyaleSnapshot }
+  | { type: 'kite'; state: KiteSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -382,7 +386,7 @@ export interface SimulatorStatus {
 
 // ─── Catálogo da plataforma ─────────────────────────────────
 
-export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'quiz' | 'teams' | 'wheel' | 'missions';
+export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'quiz' | 'teams' | 'wheel' | 'missions';
 
 export interface GameInfo {
   id: GameId;
@@ -426,6 +430,14 @@ export const GAMES: GameInfo[] = [
     description: 'O chat salta de paraquedas num mapa visto de cima, pega armas e luta até sobrar um. A tempestade fecha e quem morreu vota onde cai a caixa.',
     status: 'active',
     commands: ['!entrar', '!cair', '!curar', '!caixa'],
+  },
+  {
+    id: 'kite',
+    name: 'Pipa Combate',
+    tagline: 'Último no céu vence',
+    description: 'Cada pessoa solta uma pipa sobre o morro. Quando as linhas cruzam, é relo: puxe, dibique ou descarregue para cortar. Pipa voada, o chat apara.',
+    status: 'active',
+    commands: ['!pipa', '!dibicar', '!puxar', '!descarregar', '!aparar'],
   },
   {
     id: 'quiz',
@@ -926,4 +938,142 @@ export interface RoyaleSnapshot {
   winner: number | null;
   /** top abates: índices do roster */
   topKills: number[];
+}
+
+// ─── Pipa Combate ────────────────────────────────────────────
+
+/** Céu visto de lado, 960×540 lógicos. */
+export const KITE_MODELS = [
+  { id: 'pipa', name: 'Pipa' },
+  { id: 'raia', name: 'Raia' },
+  { id: 'capucheta', name: 'Capucheta' },
+  { id: 'arraia', name: 'Arraia' },
+  { id: 'peixinho', name: 'Peixinho' },
+] as const;
+export type KiteModelId = (typeof KITE_MODELS)[number]['id'];
+
+/** Linhas inventadas (nada de cerol ou chilena). `power` pesa no relo. */
+export const KITE_LINES = [
+  { name: 'Linha Comum', color: '#f2efe6', power: 1 },
+  { name: 'Linha Neon', color: '#39f3ff', power: 1.2 },
+  { name: 'Linha Diamante', color: '#c08bff', power: 1.45 },
+  { name: 'Linha Dourada', color: '#ffc83d', power: 1.7 },
+] as const;
+
+/** Largura de cada casa do morro (px lógicos). */
+export const KITE_HOUSE_W = 48;
+
+/** Altura do telhado (laje) da casa em x: mesma conta no servidor e no desenho. */
+export function kiteRoofY(x: number) {
+  const h = Math.floor(Math.max(0, x) / KITE_HOUSE_W);
+  const hill = 470 - 50 * Math.sin((h / 20) * Math.PI);
+  const n = ((h * 2654435761) >>> 0) % 37;
+  return Math.round(hill - n);
+}
+
+export interface KiteConfig {
+  /** Inscrições (!pipa), em segundos. */
+  joinSec: number;
+  /** Tempo máximo da partida; acabou o tempo, vence quem cortou mais. */
+  durationSec: number;
+  maxPlayers: number;
+  /** Completa com pipas CPU até 6. */
+  fillBots: boolean;
+  /** Tela cheia (recomendado) mesmo com o overlay sobreposto. Desligado = janela. */
+  fullscreen: boolean;
+}
+
+export function normalizeKiteConfig(c: Partial<KiteConfig> | undefined): KiteConfig {
+  const num = (v: unknown, def: number, min: number, max: number) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  return {
+    joinSec: num(c?.joinSec, 60, 15, 180),
+    durationSec: num(c?.durationSec, 180, 60, 600),
+    maxPlayers: num(c?.maxPlayers, 40, 6, 60),
+    fillBots: c?.fillBots !== false,
+    fullscreen: c?.fullscreen !== false,
+  };
+}
+
+/** lobby = inscrições · play = céu valendo · finished / stopped. */
+export type KiteStatus = 'idle' | 'lobby' | 'play' | 'finished' | 'stopped';
+
+export interface KiteRosterEntry {
+  name: string;
+  color: string;
+  bot?: boolean;
+  model: number;
+  /** mão do boneco na laje */
+  ax: number;
+  ay: number;
+}
+
+/** [índice, x, y, flags KITE_FLAG, rabiolas, linha (0-3), cortes] */
+export type KiteTuple = [number, number, number, number, number, number, number];
+export const KITE_FLAG = { alive: 1, relo: 2, puxar: 4, descarregar: 8, stuck: 16, golden: 32, dibicar: 64 } as const;
+
+export interface KiteRelo {
+  a: number;
+  b: number;
+  x: number;
+  y: number;
+  endsAt: number;
+}
+
+/** Pipa voada caindo: o chat apara com !aparar. */
+export interface KiteVoada {
+  id: number;
+  x: number;
+  y: number;
+  /** dona (índice do roster) ou −1 (chuva de pipas do raid) */
+  owner: number;
+  color: string;
+  model: number;
+  endsAt: number;
+}
+
+export type KiteEventKind = 'relo' | 'rabiola' | 'cut' | 'aparar' | 'lost' | 'tactic' | 'gust' | 'stuck' | 'item' | 'win';
+
+export interface KiteEvent {
+  id: number;
+  kind: KiteEventKind;
+  /** quem cortou / quem agiu (−1 = ninguém) */
+  a: number;
+  /** quem foi cortado (−1 = ninguém) */
+  b: number;
+  x?: number;
+  y?: number;
+  /** tática ('puxar' | 'dibicar' | 'descarregar'), item, ou nome de quem aparou */
+  label?: string;
+  color?: string;
+  voada?: number;
+}
+
+export interface KiteSnapshot {
+  status: KiteStatus;
+  fullscreen: boolean;
+  lobbyEndsAt: number | null;
+  startedAt: number | null;
+  endsAt: number | null;
+  serverNow: number;
+  rosterVersion: number;
+  roster?: KiteRosterEntry[];
+  kites: KiteTuple[];
+  relos: KiteRelo[];
+  voadas: KiteVoada[];
+  /** vento: −1 (para a esquerda) a 1 (para a direita) */
+  wind: number;
+  gust: boolean;
+  alive: number;
+  participants: number;
+  events: KiteEvent[];
+  winner: number | null;
+  /** 'last' = último no céu · 'time' = acabou o tempo (mais cortes) */
+  winReason: 'last' | 'time' | null;
+  /** top cortes: índices do roster */
+  topCuts: number[];
+  /** quem mais aparou (qualquer pessoa do chat) */
+  aparadores: { name: string; color: string; n: number }[];
 }

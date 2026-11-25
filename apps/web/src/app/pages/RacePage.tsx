@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { RACE_LIMITS, RACE_TRACKS, RACE_TRACK_IDS, type RaceConfig, type RaceSnapshot, type RaceTrackId } from '@clipei/shared';
 import { api, nf } from '../api.ts';
 import { Card, Check, Options } from '../components/ui.tsx';
+import { BUSY_TEXT } from '../components/busy.ts';
 import { useApp, useTick } from '../state.tsx';
 import { drawTrackThumb } from '../../race/race-arena.ts';
 
@@ -143,7 +144,7 @@ function RaceTab() {
           <Check checked={cfg.fillBots} onChange={(v) => set({ fillBots: v })}>
             Completar com pilotos da Clipei (CPU) quando tiver menos de 4
           </Check>
-          {busy && <p className="chat-error">{busy === 'boss' ? 'Tem um boss na arena.' : busy === 'royale' ? 'Tem um Battle Royale rolando.' : 'Tem um duelo rolando.'} Um jogo por vez: espere terminar para abrir a corrida.</p>}
+          {busy && <p className="chat-error">{BUSY_TEXT[busy]} Um jogo por vez: espere terminar para abrir a corrida.</p>}
           <div className="actions">
             <button className="btn primary lg" disabled={active || !!busy} onClick={open}>
               🏁 Abrir corrida
