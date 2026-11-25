@@ -1,5 +1,6 @@
 import { RACE_FLAG, type RaceEvent, type RaceObstacle, type RaceRosterEntry, type RaceSnapshot, type RaceTrackId } from '@clipei/shared';
 import type { Sfx } from '../arena/sfx.ts';
+import { drawNameTags, type NameMode, type NameTag } from '../arena/name-tags.ts';
 
 /**
  * Corrida vista de cima, desenhada em 960×540 "lógicos" (como a arena do boss).
@@ -225,6 +226,7 @@ export class RaceArena {
   private last = performance.now();
   private lastBeep = -1;
   private running = false;
+  private names: NameMode = 'all';
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -245,6 +247,10 @@ export class RaceArena {
   }
 
   /** Tela cheia: desenha o cenário em volta da pista. */
+  setNames(mode: NameMode) {
+    this.names = mode;
+  }
+
   setDisplay(fullscreen: boolean) {
     if (this.full === fullscreen) return;
     this.full = fullscreen;
@@ -426,12 +432,26 @@ export class RaceArena {
     ctx.globalAlpha = 1;
 
     for (const { idx, sh, pos } of order) this.drawKart(idx, sh, pos, now);
-    // nomes por cima de tudo (só os 5 primeiros, para não poluir)
-    if (s.status === 'running') {
+    // nomes por cima de tudo: todo mundo do chat (ou só os 5 primeiros)
+    if (s.status === 'running' || s.status === 'lobby') {
+      const tags: NameTag[] = [];
       for (const { idx, sh, pos } of order) {
-        if (!leaders.has(idx) || sh.flags & RACE_FLAG.finished) continue;
-        this.drawLabel(this.roster[idx]?.name ?? '', pos.x, pos.y - 22, idx === first && this.running);
+        if (sh.flags & RACE_FLAG.finished) continue;
+        const r = this.roster[idx];
+        const top = leaders.has(idx);
+        if (!r || (this.names === 'top' ? !top : r.bot && !top)) continue;
+        const rank = s.leaders.indexOf(idx);
+        tags.push({
+          x: pos.x,
+          y: pos.y - 14,
+          name: r.name,
+          color: r.color,
+          leader: idx === first && this.running,
+          priority: rank >= 0 ? 100 - rank : r.bot ? 0 : 10,
+          alpha: top ? 1 : 0.9,
+        });
       }
+      drawNameTags(ctx, tags, 11);
     }
 
     ctx.textAlign = 'center';
@@ -487,22 +507,6 @@ export class RaceArena {
         ctx.fillRect(pos.x + Math.cos(a) * 13 - 1.5, pos.y - 14 + Math.sin(a) * 4 - 1.5, 3, 3);
       }
     }
-  }
-
-  private drawLabel(name: string, x: number, y: number, leader: boolean) {
-    const ctx = this.ctx;
-    ctx.font = '800 12px Inter, sans-serif';
-    const text = name.length > 14 ? `${name.slice(0, 13)}…` : name;
-    const w = ctx.measureText(text).width + (leader ? 22 : 10);
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.beginPath();
-    ctx.roundRect(x - w / 2, y - 10, w, 17, 4);
-    ctx.fill();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = leader ? '#ffd23d' : '#ffffff';
-    ctx.fillText(leader ? `👑 ${text}` : text, x, y - 1);
-    ctx.textBaseline = 'alphabetic';
   }
 
   private drawObstacle(o: RaceObstacle, now: number) {

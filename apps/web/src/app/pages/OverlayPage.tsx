@@ -150,6 +150,20 @@ export function OverlayPage() {
                 ]}
               />
             </div>
+            <div className="field">
+              <span className="field-label">Nomes em cima dos personagens</span>
+              <Options
+                tight
+                name="names"
+                value={l.names}
+                onChange={(v) => saveSettings({ layout: { names: v } })}
+                options={[
+                  { value: 'all' as const, label: 'Todos do chat' },
+                  { value: 'top' as const, label: 'Só os destaques' },
+                ]}
+              />
+              <small className="muted">Vale para todos os minigames. Com a tela lotada, nomes que se sobreporiam esperam abrir espaço.</small>
+            </div>
             <Check checked={l.showRanking} onChange={(v) => saveSettings({ layout: { showRanking: v } })}>
               Mostrar o ranking (top dano no boss, posições na corrida)
             </Check>

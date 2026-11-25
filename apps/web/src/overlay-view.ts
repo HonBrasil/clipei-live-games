@@ -234,6 +234,9 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     stage.style.setProperty('--z', String(next.size / 100));
     els.rank.hidden = !next.showRanking;
     arena.setFloor(next.showFloor);
+    arena.setNames(next.names);
+    raceArena.setNames(next.names);
+    brArena.setNames(next.names);
     // barra de vida: acima do boss (dentro da arena) ou no topo da tela
     if (next.hpBar === 'top') stage.appendChild(els.bossbar);
     else els.zone.appendChild(els.bossbar);

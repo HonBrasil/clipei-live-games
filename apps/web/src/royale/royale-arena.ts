@@ -9,6 +9,7 @@ import {
   type RoyaleSnapshot,
 } from '@clipei/shared';
 import type { Sfx } from '../arena/sfx.ts';
+import { drawNameTags, type NameMode, type NameTag } from '../arena/name-tags.ts';
 
 /**
  * Battle Royale visto de cima, em 960×540 "lógicos".
@@ -35,6 +36,23 @@ interface Shown {
   aimX: number;
   aimY: number;
   deadAt: number;
+  /** Direção em que o corpo aponta (suavizada). */
+  ang: number;
+  /** Fase da passada (anda conforme a distância percorrida). */
+  walk: number;
+  moving: boolean;
+  shotAt: number;
+  hitAt: number;
+}
+
+const SKIN = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#a86b3c'];
+
+function shade(hex: string, k: number) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const ch = (v: number) => Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k);
+  return `rgb(${ch(n >> 16)},${ch((n >> 8) & 255)},${ch(n & 255)})`;
 }
 
 interface Tracer {
@@ -77,6 +95,7 @@ export class RoyaleArena {
   private cam = { x: W / 2, y: H / 2, z: 1 };
   private last = performance.now();
   private lastShotSound = 0;
+  private names: NameMode = 'all';
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -85,6 +104,10 @@ export class RoyaleArena {
     this.ctx = canvas.getContext('2d')!;
     this.setResolution(1);
     requestAnimationFrame(this.frame);
+  }
+
+  setNames(mode: NameMode) {
+    this.names = mode;
   }
 
   setResolution(res: number) {
@@ -109,7 +132,8 @@ export class RoyaleArena {
     const now = performance.now();
     for (const [idx, x, y, hp, shield, weapon, flags, kills] of s.players) {
       const cur = this.shown.get(idx);
-      if (!cur) this.shown.set(idx, { x, y, tx: x, ty: y, hp, shield, weapon, flags, kills, aimX: x + 1, aimY: y, deadAt: 0 });
+      if (!cur)
+        this.shown.set(idx, { x, y, tx: x, ty: y, hp, shield, weapon, flags, kills, aimX: x + 1, aimY: y, deadAt: 0, ang: Math.PI / 2, walk: 0, moving: false, shotAt: 0, hitAt: 0 });
       else {
         if (cur.flags & ROYALE_FLAG.alive && !(flags & ROYALE_FLAG.alive)) cur.deadAt = now;
         Object.assign(cur, { tx: x, ty: y, hp, shield, weapon, flags, kills });
@@ -135,6 +159,8 @@ export class RoyaleArena {
         this.tracers.push({ x0: a.x, y0: a.y, x1: b.x + (Math.random() - 0.5) * miss * 2, y1: b.y + (Math.random() - 0.5) * miss * 2, color: ROYALE_WEAPONS[e.weapon ?? 0]?.color ?? '#fff', until: now + 90 });
         a.aimX = b.x;
         a.aimY = b.y;
+        a.shotAt = now;
+        if (e.hit) b.hitAt = now;
         if (now - this.lastShotSound > 140) {
           this.lastShotSound = now;
           this.sfx?.play('hit');
@@ -174,9 +200,21 @@ export class RoyaleArena {
   };
 
   private update(dt: number) {
+    const now = performance.now();
     for (const p of this.shown.values()) {
-      p.x += (p.tx - p.x) * Math.min(1, dt * 6);
-      p.y += (p.ty - p.y) * Math.min(1, dt * 6);
+      const dx = (p.tx - p.x) * Math.min(1, dt * 6);
+      const dy = (p.ty - p.y) * Math.min(1, dt * 6);
+      p.x += dx;
+      p.y += dy;
+      const dist = Math.hypot(dx, dy);
+      p.walk += dist * 0.55;
+      p.moving = dt > 0 && dist / dt > 3;
+      // atirando: mira no alvo; andando: olha para onde vai
+      const want = now - p.shotAt < 900 ? Math.atan2(p.aimY - p.y, p.aimX - p.x) : p.moving ? Math.atan2(dy, dx) : p.ang;
+      let d = want - p.ang;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      p.ang += d * Math.min(1, dt * 12);
     }
     // câmera: zoom nos últimos vivos
     const s = this.state;
@@ -238,6 +276,7 @@ export class RoyaleArena {
     ctx.globalAlpha = 1;
     this.tracers = this.tracers.filter((t) => now <= t.until);
     this.drawFx(now);
+    if (s.status === 'play' || s.status === 'finished' || s.status === 'drop') this.drawNames(s, serverNow);
   }
 
   // ─── Camadas ───────────────────────────────────────────────
@@ -335,14 +374,27 @@ export class RoyaleArena {
         ctx.lineTo(x, y);
         ctx.stroke();
         // cúpula do paraquedas na cor da pessoa
-        ctx.fillStyle = color;
+        const sway = Math.sin(serverNow / 380 + idx) * 0.12;
+        ctx.save();
+        ctx.translate(x, y - 15 * sc);
+        ctx.rotate(sway);
+        for (let i = 0; i < 5; i++) {
+          ctx.fillStyle = i % 2 ? '#ffffff' : color;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.ellipse(0, 0, 10.5 * sc, 7 * sc, 0, Math.PI + (i * Math.PI) / 5, Math.PI + ((i + 1) * Math.PI) / 5);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.lineWidth = 0.8;
         ctx.beginPath();
-        ctx.ellipse(x, y - 15 * sc, 10 * sc, 6 * sc, 0, Math.PI, 0);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
-        ctx.fillRect(x - 2 * sc, y - 21 * sc, 4 * sc, 5 * sc);
+        ctx.ellipse(0, 0, 10.5 * sc, 7 * sc, 0, Math.PI, 0);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
       }
-      this.drawSoldier(x, y, color, -1, 0, 1, 1);
+      this.drawSoldier(x, y, color, -1, Math.PI / 2, { skin: SKIN[idx % SKIN.length] });
     }
   }
 
@@ -434,98 +486,238 @@ export class RoyaleArena {
   private drawPlayers(s: RoyaleSnapshot, now: number) {
     const ctx = this.ctx;
     const entries = [...this.shown.entries()];
-    // mortos por baixo
-    for (const [, p] of entries) {
+    // mortos por baixo: corpo caído, desbotado
+    for (const [idx, p] of entries) {
       if (p.flags & ROYALE_FLAG.alive) continue;
-      const a = p.deadAt ? Math.max(0.25, 1 - (now - p.deadAt) / 3000) : 0.25;
+      const a = p.deadAt ? Math.max(0.3, 1 - (now - p.deadAt) / 3000) : 0.3;
+      ctx.save();
       ctx.globalAlpha = a;
-      ctx.strokeStyle = '#2a2a2a';
-      ctx.lineWidth = 2;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.ang + Math.PI / 2);
+      ctx.fillStyle = 'rgba(120,20,20,0.35)';
       ctx.beginPath();
-      ctx.moveTo(p.x - 4, p.y - 4);
-      ctx.lineTo(p.x + 4, p.y + 4);
-      ctx.moveTo(p.x + 4, p.y - 4);
-      ctx.lineTo(p.x - 4, p.y + 4);
-      ctx.stroke();
+      ctx.ellipse(1, 2, 7, 5, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = shade(this.roster[idx]?.color ?? '#888888', -0.45);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 6, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4b5a32';
+      ctx.beginPath();
+      ctx.arc(0, -6, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
     const alive = entries.filter(([, p]) => p.flags & ROYALE_FLAG.alive).sort((a, b) => a[1].y - b[1].y);
-    const showNames = new Set<number>(s.topKills.slice(0, 3));
-    if (s.alive <= 8) for (const [idx] of alive) showNames.add(idx);
     for (const [idx, p] of alive) {
       const color = this.roster[idx]?.color ?? '#fff';
-      const ang = Math.atan2(p.aimY - p.y, p.aimX - p.x);
-      this.drawSoldier(p.x, p.y, color, p.weapon, ang, p.flags & ROYALE_FLAG.storm ? 0.7 : 1, s.winner === idx ? 1.25 : 1);
+      this.drawSoldier(p.x, p.y, color, p.weapon, p.ang, {
+        alpha: p.flags & ROYALE_FLAG.storm ? 0.75 : 1,
+        scale: s.winner === idx ? 1.4 : 1.15,
+        walk: p.moving ? p.walk : 0,
+        skin: SKIN[idx % SKIN.length],
+        armor: p.shield > 0,
+        flash: now - p.shotAt < 70,
+        hit: now - p.hitAt < 120,
+      });
       if (p.hp < 100 || p.shield > 0) {
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(p.x - 8, p.y - 13, 16, 3);
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillRect(p.x - 9, p.y + 11, 18, 3.5);
         ctx.fillStyle = p.hp > 50 ? '#3ddc6b' : p.hp > 25 ? '#ffc83d' : '#ff4b55';
-        ctx.fillRect(p.x - 8, p.y - 13, (16 * p.hp) / 100, 3);
+        ctx.fillRect(p.x - 8.5, p.y + 11.5, (17 * p.hp) / 100, 2.5);
         if (p.shield > 0) {
           ctx.fillStyle = '#4aa8ff';
-          ctx.fillRect(p.x - 8, p.y - 15, (16 * p.shield) / 100, 2);
+          ctx.fillRect(p.x - 8.5, p.y + 14.5, (17 * p.shield) / 100, 1.5);
         }
       }
       if (p.flags & ROYALE_FLAG.healing) {
+        const bob = Math.sin(now / 150) * 1.5;
         ctx.fillStyle = '#3ddc6b';
-        ctx.fillRect(p.x + 7, p.y - 10, 2, 6);
-        ctx.fillRect(p.x + 5, p.y - 8, 6, 2);
+        ctx.fillRect(p.x + 9, p.y - 12 + bob, 2, 6);
+        ctx.fillRect(p.x + 7, p.y - 10 + bob, 6, 2);
       }
-      if (showNames.has(idx)) this.label(this.roster[idx]?.name ?? '', p.x, p.y - 22, p.kills, s.topKills[0] === idx);
     }
   }
 
-  /** Soldado visto de cima: corpo na cor da pessoa, capacete e a arma apontando. */
-  private drawSoldier(x: number, y: number, color: string, weapon: number, ang: number, alpha = 1, scale = 1) {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.ellipse(1, 2, 6, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    if (weapon >= 0) {
-      ctx.save();
-      ctx.rotate(ang);
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(2, -1.5, weapon === 3 ? 12 : weapon === 1 ? 7 : 9, 3);
-      ctx.fillStyle = ROYALE_WEAPONS[weapon].color;
-      ctx.fillRect(2, -1, 4, 2);
-      ctx.restore();
+  /** Nomes por cima de tudo (até da tempestade), sem se sobrepor. */
+  private drawNames(s: RoyaleSnapshot, serverNow: number) {
+    const tags: NameTag[] = [];
+    const top = new Set<number>(s.topKills.slice(0, 3));
+    const fewLeft = s.alive <= 8;
+    const z = Math.sqrt(this.cam.z);
+    const dropping = s.status === 'drop' && s.dropEndsAt;
+    for (const [idx, p] of this.shown) {
+      const r = this.roster[idx];
+      if (!r) continue;
+      let x = p.x;
+      let y = p.y - 12;
+      if (dropping) {
+        const start = s.dropEndsAt! - DROP_MS;
+        const jumpAt = start + (p.tx / W) * 2400;
+        if (serverNow < jumpAt) continue;
+        const k = Math.max(0, Math.min(1, (serverNow - jumpAt) / 3200));
+        const e = 1 - (1 - k) * (1 - k);
+        x = p.tx;
+        y = 34 + (p.ty - 34) * e - (k < 1 ? 24 * (1.6 - 0.6 * e) : 12);
+      } else if (!(p.flags & ROYALE_FLAG.alive)) continue;
+      const highlight = top.has(idx) || s.winner === idx;
+      if (this.names === 'top' ? !(highlight || fewLeft) : r.bot && !highlight && !fewLeft) continue;
+      tags.push({
+        x,
+        y: s.winner === idx ? y - 4 : y,
+        name: r.name,
+        color: r.color,
+        leader: s.topKills[0] === idx && p.kills > 0,
+        suffix: p.kills ? `${p.kills}💀` : undefined,
+        priority: s.winner === idx ? 1e6 : (highlight ? 1000 + p.kills * 10 : 0) + p.kills + (r.bot ? 0 : 5),
+      });
     }
-    ctx.fillStyle = '#111';
+    this.ctx.save();
+    // etiqueta com o mesmo tamanho na tela, mesmo com o zoom do final
+    drawNameTags(this.ctx, tags.map((t) => ({ ...t })), 8.5 / z);
+    this.ctx.restore();
+  }
+
+  /**
+   * Soldado visto de cima, apontando para `ang`: mochila, ombros com o colete
+   * na cor do chat, braços segurando a arma, capacete, passadas e clarão do tiro.
+   */
+  private drawSoldier(
+    x: number,
+    y: number,
+    color: string,
+    weapon: number,
+    ang: number,
+    o: { alpha?: number; scale?: number; walk?: number; skin?: string; armor?: boolean; flash?: boolean; hit?: boolean } = {},
+  ) {
+    const ctx = this.ctx;
+    const skin = o.skin ?? SKIN[0];
+    const dark = shade(color, -0.5);
+    ctx.save();
+    ctx.globalAlpha = o.alpha ?? 1;
+    ctx.translate(x, y);
+    ctx.scale(o.scale ?? 1, o.scale ?? 1);
+    // sombra
+    ctx.fillStyle = 'rgba(0,0,0,0.32)';
     ctx.beginPath();
-    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    ctx.ellipse(1.5, 2.5, 8, 6, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = color;
+    ctx.rotate(ang);
+    // pés (passada)
+    const step = o.walk ? Math.sin(o.walk) * 3 : 0;
+    ctx.fillStyle = '#26221c';
     ctx.beginPath();
-    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.ellipse(step, -3.2, 2.6, 1.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(-step, 3.2, 2.6, 1.8, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#3b4a2c';
+    // mochila
+    ctx.fillStyle = '#5b4a2c';
+    ctx.strokeStyle = '#1a140a';
+    ctx.lineWidth = 0.8;
     ctx.beginPath();
-    ctx.arc(0, -0.5, 3, 0, Math.PI * 2);
+    ctx.roundRect(-8.5, -4, 5, 8, 1.6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#7a6640';
+    ctx.fillRect(-7.8, -3, 1.4, 6);
+    // arma e braços
+    const len = weapon < 0 ? 0 : weapon === 3 ? 15 : weapon === 2 || weapon === 4 ? 12 : weapon === 1 ? 10 : 7;
+    const twoHands = weapon > 0;
+    if (weapon >= 0) {
+      ctx.fillStyle = '#16161a';
+      ctx.fillRect(2, 0.2, len, 2.6);
+      ctx.fillStyle = ROYALE_WEAPONS[weapon].color;
+      ctx.fillRect(3, 0.6, Math.min(5, len - 2), 1.8);
+      if (weapon === 3) {
+        ctx.fillStyle = '#16161a';
+        ctx.fillRect(6, -0.6, 3, 1);
+      }
+      if (o.flash) {
+        ctx.fillStyle = '#fff3b0';
+        ctx.beginPath();
+        ctx.moveTo(2 + len, 1.5);
+        ctx.lineTo(2 + len + 6, -1);
+        ctx.lineTo(2 + len + 3.5, 1.5);
+        ctx.lineTo(2 + len + 6, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#ffb02e';
+        ctx.beginPath();
+        ctx.arc(2 + len + 1.5, 1.5, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (weapon < 0) {
+      ctx.moveTo(0, -5);
+      ctx.lineTo(3.5, -6.2);
+      ctx.moveTo(0, 5);
+      ctx.lineTo(3.5, 6.2);
+    } else {
+      ctx.moveTo(0, 5);
+      ctx.lineTo(4, 2.2);
+      if (twoHands) {
+        ctx.moveTo(0, -5);
+        ctx.lineTo(Math.min(9, len - 1), 0.8);
+      } else {
+        ctx.moveTo(0, -5);
+        ctx.lineTo(4, 1);
+      }
+    }
+    ctx.stroke();
+    // corpo (ombros) com colete na cor da pessoa
+    ctx.fillStyle = o.hit ? '#ffffff' : color;
+    ctx.strokeStyle = '#0d0d10';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(-0.5, 0, 4.4, 6.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    if (!o.hit) {
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(0.6, -2.4, 2, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (o.armor) {
+      ctx.strokeStyle = '#4aa8ff';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.ellipse(-0.5, 0, 3.4, 5.4, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // mãos
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    if (weapon < 0) {
+      ctx.arc(4, -6.2, 1.5, 0, Math.PI * 2);
+      ctx.arc(4, 6.2, 1.5, 0, Math.PI * 2);
+    } else {
+      ctx.arc(4, 2.2, 1.5, 0, Math.PI * 2);
+      ctx.arc(twoHands ? Math.min(9, len - 1) : 4.5, twoHands ? 0.8 : 1, 1.5, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    // capacete
+    ctx.fillStyle = '#2f3a1f';
+    ctx.beginPath();
+    ctx.arc(0.3, 0, 3.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#56673a';
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.fillRect(-1.5, -2.5, 2, 1.5);
-    ctx.restore();
-  }
-
-  private label(name: string, x: number, y: number, kills: number, leader: boolean) {
-    const ctx = this.ctx;
-    const text = `${name.length > 14 ? `${name.slice(0, 13)}…` : name}${kills ? ` · ${kills}💀` : ''}`;
-    ctx.font = '800 10px Inter, sans-serif';
-    const w = ctx.measureText(text).width + 10;
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.beginPath();
-    ctx.roundRect(x - w / 2, y - 8, w, 13, 4);
+    ctx.arc(-0.8, -1.2, 1.1, 0, Math.PI * 2);
     ctx.fill();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = leader ? '#ffd23d' : '#fff';
-    ctx.fillText(text, x, y - 1.5);
-    ctx.textBaseline = 'alphabetic';
+    // óculos na frente do capacete
+    ctx.fillStyle = '#1b1b1b';
+    ctx.fillRect(2.4, -1.8, 1.3, 3.6);
+    ctx.restore();
   }
 
   private drawFx(now: number) {

@@ -12,6 +12,7 @@ import {
   type HeroClass,
 } from './sprites.ts';
 import type { Sfx } from './sfx.ts';
+import { drawNameTags, type NameMode, type NameTag } from './name-tags.ts';
 
 /**
  * Arena 2D do Boss coletivo, desenhada em <canvas>.
@@ -160,6 +161,7 @@ export class Arena {
   private bolts: { x: number; life: number; max: number; points: { x: number; y: number }[] }[] = [];
   private scheduled: { at: number; run: () => void }[] = [];
   private showFloor = true;
+  private names: NameMode = 'all';
   private backdrop = false;
   private backdropCache: { key: string; canvas: HTMLCanvasElement } | null = null;
   private res = 1;
@@ -189,6 +191,10 @@ export class Arena {
     this.canvas.width = Math.round(W * r);
     this.canvas.height = Math.round(H * r);
     this.ctx.imageSmoothingEnabled = false;
+  }
+
+  setNames(mode: NameMode) {
+    this.names = mode;
   }
 
   setFloor(show: boolean) {
@@ -1169,26 +1175,29 @@ export class Arena {
   }
 
   private drawNames(heroes: Hero[], now: number) {
-    const ctx = this.ctx;
-    const visible = heroes
-      .filter((h) => h.state === 'idle' && (h.nameUntil > now || h.name === this.topName))
+    const tags: NameTag[] = [];
+    const all = this.names === 'all';
+    const recent = heroes
+      .filter((h) => h.state !== 'enter' && (h.nameUntil > now || h.name === this.topName))
       .sort((a, b) => b.lastActive - a.lastActive)
       .slice(0, NAME_TAGS);
-    ctx.font = "700 13px Inter, system-ui, sans-serif";
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.lineJoin = 'round';
-    for (const h of visible) {
-      const label = h.name.length > 14 ? `${h.name.slice(0, 13)}…` : h.name;
-      const y = h.y - HERO_H * HERO_SCALE - (h.name === this.topName ? 14 : 4);
-      ctx.globalAlpha = Math.min(1, (h.nameUntil - now) / 400 + (h.name === this.topName ? 1 : 0));
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = 'rgba(0,0,0,0.9)';
-      ctx.strokeText(label, h.x, y);
-      ctx.fillStyle = shade(h.color, 0.35);
-      ctx.fillText(label, h.x, y);
+    const shown = all ? heroes.filter((h) => h.state !== 'enter') : recent;
+    const fresh = new Set(recent);
+    for (const h of shown) {
+      const top = h.name === this.topName;
+      const fade = all ? 1 : Math.min(1, (h.nameUntil - now) / 400 + (top ? 1 : 0));
+      tags.push({
+        x: h.x,
+        y: h.y - HERO_H * HERO_SCALE - (top ? 14 : 2),
+        name: h.name,
+        color: h.color,
+        leader: top,
+        crown: false,
+        priority: top ? 1e15 : h.lastActive,
+        alpha: Math.max(0, fade) * (all && !fresh.has(h) && !top ? 0.82 : 1),
+      });
     }
-    ctx.globalAlpha = 1;
+    drawNameTags(this.ctx, tags, 12);
   }
 
   private drawTexts() {

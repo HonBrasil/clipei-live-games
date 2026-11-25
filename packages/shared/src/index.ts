@@ -201,6 +201,8 @@ export interface LayoutSettings {
    * fullscreen: o minigame vira a tela principal, com cenário completo.
    */
   display: 'overlay' | 'fullscreen';
+  /** Nomes em cima dos personagens: de todo mundo do chat ou só dos destaques. */
+  names: 'all' | 'top';
 }
 
 export const ARENA_SIZE = { min: 40, max: 130, presets: [{ label: 'P', value: 55 }, { label: 'M', value: 75 }, { label: 'G', value: 100 }] };
@@ -223,7 +225,7 @@ export interface RoomSettings {
 export const DEFAULT_SETTINGS: RoomSettings = {
   volume: 60,
   autoSpawn: { enabled: false, intervalMin: 60, skin: 'random', warn: true, minChatters: 3 },
-  layout: { position: 'right', size: 75, hpBar: 'boss', showRanking: true, showFloor: true, display: 'overlay' },
+  layout: { position: 'right', size: 75, hpBar: 'boss', showRanking: true, showFloor: true, display: 'overlay', names: 'all' },
   support: {
     bits: { enabled: true, damagePerBit: 3 },
     subs: { enabled: true, damagePerSub: 250 },
@@ -273,6 +275,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
       showRanking: l.showRanking !== false,
       showFloor: l.showFloor !== false,
       display: l.display === 'fullscreen' ? 'fullscreen' : 'overlay',
+      names: l.names === 'top' ? 'top' : 'all',
     },
     support: {
       bits: { enabled: Boolean(sup.bits.enabled), damagePerBit: num(sup.bits.damagePerBit, 3, 1, 50) },
