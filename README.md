@@ -255,4 +255,4 @@ Cenários: Rua do Saloon, Pôr do sol e Cidade fantasma (completos no modo tela 
 ## Publicação
 
 - **Site (Vercel)** e **servidor do jogo (Railway)** publicam sozinhos a cada envio para a branch `main` do GitHub.
-- A Railway precisa do **Railway App** instalado no GitHub com acesso ao repositório `clipei-live-games`.
+- A Railway precisa do **Railway App** instalado no GitHub com acesso ao repositório `clipei-live-games` (instalado em 24/11/2026).
