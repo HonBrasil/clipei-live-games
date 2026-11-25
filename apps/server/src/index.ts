@@ -866,5 +866,10 @@ await app.listen({ port: config.port, host: '0.0.0.0' });
 const proto = config.https ? 'https' : 'http';
 console.log(`\n  🎮 Clipei Live Games — servidor em ${proto}://localhost:${config.port}`);
 console.log(`  Painel: ${config.webUrl}`);
-console.log(`  Twitch: ${twitchConfigured() ? 'configurada ✅' : 'faltando TWITCH_CLIENT_ID/SECRET no .env ⚠️'}\n`);
+console.log(`  Twitch: ${twitchConfigured() ? 'configurada ✅' : 'faltando TWITCH_CLIENT_ID/SECRET no .env ⚠️'}`);
+{
+  // só diz o que falta (nunca mostra os valores)
+  const missing = [!config.kick.clientId && 'KICK_CLIENT_ID', !config.kick.clientSecret && 'KICK_CLIENT_SECRET'].filter(Boolean);
+  console.log(`  Kick: ${missing.length ? `faltando ${missing.join(' e ')} (vazio) ⚠️` : `configurada ✅ (retorno: ${config.kick.redirectUri})`}\n`);
+}
 
