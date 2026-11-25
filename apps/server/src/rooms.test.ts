@@ -273,4 +273,30 @@ describe('Room', () => {
     expect(said.some((t) => t.includes('Próximo minigame'))).toBe(true);
     expect(msgs.some((m) => m.type === 'loop')).toBe(true);
   });
+
+  it('defesa da base: mod abre, chat vira torre, onda, votação e apoio', () => {
+    const { room, msgs, tickFor } = setup();
+    room.handleChat(chat('mod', '!defesa iniciar', 'mod'));
+    expect(room.activeGame()).toBe('defense');
+    room.handleChat(chat('ana', '!arqueiro'));
+    room.handleChat(chat('bia', '!canhao'));
+    room.handleChat(chat('mod', '!defesa começar', 'mod'));
+    expect(room.defense?.status).toBe('wave');
+    let i = 0;
+    while (room.defense?.status === 'wave' && i++ < 1200) tickFor(100);
+    expect(room.defense?.status).toBe('vote');
+    room.handleChat(chat('ana', '!fogo'));
+    room.handleSupport({ kind: 'sub', amount: 1, platform: 'twitch', user: { id: 'bia', name: 'bia', color: '#fff' } } as never);
+    i = 0;
+    while (room.defense?.status === 'vote' && i++ < 300) tickFor(100);
+    expect(room.defense?.status).toBe('wave');
+    room.stopDefense();
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('DEFESA DA BASE'))).toBe(true);
+    expect(said.some((t) => t.includes('Votem a melhoria'))).toBe(true);
+    expect(said.some((t) => t.includes('FOGO'))).toBe(true);
+    expect(said.some((t) => t.includes('HERÓI'))).toBe(true);
+    expect(msgs.some((m) => m.type === 'defense' && m.state.monsters.length > 0)).toBe(true);
+    expect(room.activeGame()).toBeNull();
+  });
 });

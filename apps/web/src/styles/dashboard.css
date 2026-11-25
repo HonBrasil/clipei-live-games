@@ -1546,3 +1546,73 @@ select.input {
   font-weight: 800;
   color: #fff;
 }
+/* ─── Defesa da Base ───────────────────────────────────── */
+.def-cls-list {
+  display: grid;
+  gap: 8px;
+}
+.def-cls-list > div {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid var(--c);
+}
+.def-cls-list span {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 20px;
+}
+.def-cls-list b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.def-cls-list small {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.def-base-bar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.def-base-bar i {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.def-base-bar em {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.def-votes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.def-votes span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c) 50%, transparent);
+  font-size: 13px;
+}
+.def-votes b {
+  color: var(--c);
+}

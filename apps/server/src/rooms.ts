@@ -14,6 +14,14 @@ import {
   parseDuelChatCommand,
   RoyaleGame,
   KiteGame,
+  DefenseGame,
+  parseDefenseChatCommand,
+  defenseHelpText,
+  defenseOpenAnnouncement,
+  defenseStartAnnouncement,
+  defenseVoteAnnouncement,
+  defenseUpgradeAnnouncement,
+  defenseResultAnnouncement,
   parseKiteChatCommand,
   PenaltyGame,
   parsePenaltyChatCommand,
@@ -76,6 +84,9 @@ import {
   type DuelStatus,
   type RoyaleConfig,
   type KiteConfig,
+  type DefenseConfig,
+  type DefenseSnapshot,
+  type DefenseStatus,
   type PenaltyConfig,
   type PenaltySnapshot,
   type PenaltyStatus,
@@ -120,6 +131,7 @@ export class Room {
   duel: DuelGame | null = null;
   royale: RoyaleGame | null = null;
   kite: KiteGame | null = null;
+  defense: DefenseGame | null = null;
   penalty: PenaltyGame | null = null;
   /** Pescaria: roda junto, a live inteira (pausa quando outro jogo começa). O servidor troca pela versão com progresso salvo. */
   fishing = new FishingGame(null);
@@ -156,6 +168,9 @@ export class Room {
   private royaleStatus: RoyaleStatus = 'idle';
   private lastRoyaleAt = 0;
   private kiteStatus: KiteStatus = 'idle';
+  private defenseStatus: DefenseStatus = 'idle';
+  private lastDefenseAt = 0;
+  private defenseDangerSaid = false;
   private penaltyStatus: PenaltyStatus = 'idle';
   private lastFishingAt = 0;
   private fishingPaused = false;
@@ -180,6 +195,13 @@ export class Room {
         const x = Math.random();
         if (pg.status === 'lobby') return x < 0.35 ? '!a' : x < 0.7 ? '!b' : 'chatter';
         return x < 0.2 ? '!esq' : x < 0.35 ? '!meio' : x < 0.55 ? '!dir' : 'chatter';
+      }
+      const dg = this.defense;
+      if (dg?.isActive) {
+        const x = Math.random();
+        if (dg.status === 'vote') return x < 0.2 ? '!fogo' : x < 0.35 ? '!gelo' : x < 0.5 ? '!muralha' : 'chatter';
+        if (dg.status === 'lobby') return x < 0.25 ? '!arqueiro' : x < 0.45 ? '!mago' : x < 0.65 ? '!canhao' : 'chatter';
+        return x < 0.15 ? '!atk' : x < 0.2 ? '!arqueiro' : 'chatter';
       }
       const kg = this.kite;
       if (kg?.isActive) {
@@ -217,18 +239,19 @@ export class Room {
   }
 
   /** Só um minigame por vez na tela. */
-  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | null {
+  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | null {
     if (this.game?.isRunning) return 'boss';
     if (this.race?.isActive) return 'race';
     if (this.duel?.isActive) return 'duel';
     if (this.royale?.isActive) return 'royale';
     if (this.kite?.isActive) return 'kite';
     if (this.penalty?.isActive) return 'penalty';
+    if (this.defense?.isActive) return 'defense';
     return null;
   }
 
   private busyText(busy: NonNullable<ReturnType<Room['activeGame']>>) {
-    const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando' }[busy];
+    const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando', defense: 'uma Defesa da Base rolando' }[busy];
     return `Tem ${what}. Um jogo por vez: espere terminar.`;
   }
 
@@ -271,6 +294,8 @@ export class Room {
         return this.startKite().ok;
       case 'penalty':
         return this.startPenalty().ok;
+      case 'defense':
+        return this.startDefense().ok;
     }
   }
 
@@ -363,6 +388,80 @@ export class Room {
   private broadcastFishing() {
     this.lastFishingAt = Date.now();
     this.broadcast({ type: 'fishing', state: this.fishing.snapshot(Date.now(), this.fishingPaused) });
+  }
+
+  // ─── Defesa da Base ────────────────────────────────────────
+
+  startDefense(patch?: Partial<DefenseConfig>) {
+    const busy = this.activeGame();
+    if (busy) return { ok: false as const, error: this.busyText(busy) };
+    if (patch) this.updateSettings({ defense: patch });
+    this.defense = new DefenseGame(this.settings.defense);
+    this.defense.support = this.settings.gameSupport.defense;
+    this.defense.open();
+    this.defenseStatus = 'lobby';
+    this.spawner.fightStarted();
+    this.hooks.fightStarted?.();
+    this.broadcast({ type: 'incoming', at: null, serverNow: Date.now() });
+    this.say(defenseOpenAnnouncement(this.defense.config));
+    this.broadcastDefense();
+    this.broadcastStatus();
+    return { ok: true as const, config: this.defense.config };
+  }
+
+  defenseGo() {
+    if (this.defense?.status !== 'lobby') return false;
+    this.defense.startNow();
+    this.afterDefenseUpdate();
+    return true;
+  }
+
+  stopDefense() {
+    if (!this.defense?.isActive) return false;
+    this.defense.stop();
+    this.afterDefenseUpdate();
+    return true;
+  }
+
+  defenseSnapshot(): DefenseSnapshot | null {
+    return this.defense && this.defense.status !== 'idle' ? this.defense.snapshot(Date.now(), true) : null;
+  }
+
+  private broadcastDefense() {
+    if (!this.defense) return;
+    this.lastDefenseAt = Date.now();
+    this.broadcast({ type: 'defense', state: this.defense.snapshot() });
+  }
+
+  private afterDefenseUpdate() {
+    const g = this.defense;
+    if (!g) return;
+    if (g.status === 'wave' && g.danger && !this.defenseDangerSaid) {
+      this.defenseDangerSaid = true;
+      this.say(`⚠️ A base está com ${Math.round((g.baseHp / g.baseMax) * 100)}% de vida! Tiro forte com !atk, AGORA!`, 'warning');
+    }
+    const prev = this.defenseStatus;
+    const next = g.status;
+    if (prev === next) return;
+    this.defenseStatus = next;
+    if (next === 'wave') this.defenseDangerSaid = false;
+    if (prev === 'lobby' && next === 'wave') this.say(defenseStartAnnouncement(g.size, g.config.waves));
+    if (prev === 'wave' && next === 'vote') this.say(defenseVoteAnnouncement(g.wave, g.config.waves, g.baseHp, g.baseMax));
+    if (prev === 'vote' && next === 'wave' && g.lastUpgrade) this.say(defenseUpgradeAnnouncement(g.lastUpgrade, g.wave));
+    if (next === 'finished' || next === 'stopped') {
+      if (next === 'finished' && g.result) {
+        this.say(defenseResultAnnouncement(g.result, g.wave, g.config.waves, g.kills, g.mvp(1)[0] ?? null), g.result === 'won' ? 'success' : 'warning');
+        if (g.result === 'won') this.clipVictory(`Defesa da Base · ${g.config.waves} ondas`);
+      } else if (prev === 'lobby' && g.humans === 0) {
+        this.say('🏰 Ninguém virou torre dessa vez. Fica para a próxima!', 'warning');
+      } else {
+        this.say('🏰 Defesa da Base encerrada pelo streamer.', 'warning');
+      }
+      this.spawner.fightEnded();
+      this.hooks.fightEnded?.();
+    }
+    this.broadcastDefense();
+    this.broadcastStatus();
   }
 
   // ─── Disputa de Pênaltis ───────────────────────────────────
@@ -798,6 +897,26 @@ export class Room {
       this.penalty.handle(event);
       return;
     }
+    const defCmd = parseDefenseChatCommand(event);
+    if (defCmd) {
+      if (defCmd.type === 'help') {
+        if (Date.now() - this.lastHelpAt > HELP_COOLDOWN_MS) {
+          this.lastHelpAt = Date.now();
+          this.say(defenseHelpText(this.defense?.status ?? 'idle'));
+        }
+      } else if (defCmd.type === 'start') {
+        if (this.entitled() && !this.activeGame()) this.startDefense();
+      } else if (defCmd.type === 'go') {
+        this.defenseGo();
+      } else {
+        this.stopDefense();
+      }
+      return;
+    }
+    if (this.defense?.isActive) {
+      this.defense.handle(event);
+      return;
+    }
     const kiteCmd = parseKiteChatCommand(event);
     if (kiteCmd) {
       if (kiteCmd.type === 'help') {
@@ -852,7 +971,7 @@ export class Room {
           this.say(bossHelpText(!!this.game?.isRunning));
         }
       } else if (cmd.type === 'start') {
-        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive && !this.royale?.isActive && !this.kite?.isActive && !this.penalty?.isActive) this.startQuick(cmd.skin);
+        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive && !this.royale?.isActive && !this.kite?.isActive && !this.penalty?.isActive && !this.defense?.isActive) this.startQuick(cmd.skin);
       } else if (cmd.type === 'stop') {
         this.stopBoss();
       }
@@ -877,6 +996,21 @@ export class Room {
       this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
       if (e.kind === 'points') this.hooks.redemption?.(e, true);
       this.broadcastPenalty();
+      return { applied: true, damage: 0 };
+    }
+    if (this.defense?.isActive) {
+      this.defense.support = this.settings.gameSupport.defense;
+      const res = this.defense.special(e);
+      if (!res.applied) {
+        if (e.kind === 'points') this.hooks.redemption?.(e, false);
+        const thanks = supportThanks(e);
+        if (thanks && e.kind !== 'points') this.say(thanks);
+        return { applied: false, damage: 0 };
+      }
+      const icon = e.kind === 'points' ? '🗼' : e.kind === 'bits' ? '☄️' : e.kind === 'raid' ? '⚔️' : '🦸';
+      this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
+      if (e.kind === 'points') this.hooks.redemption?.(e, true);
+      this.broadcastDefense();
       return { applied: true, damage: 0 };
     }
     if (this.kite?.isActive) {
@@ -1006,6 +1140,11 @@ export class Room {
       if (this.penalty.status !== this.penaltyStatus) this.afterPenaltyUpdate();
       else if (this.penalty.dirty && now - this.lastPenaltyAt >= RACE_BROADCAST_MS) this.broadcastPenalty();
     }
+    if (this.defense?.isActive) {
+      this.defense.update(now);
+      if (this.defense.status !== this.defenseStatus || (this.defense.danger && !this.defenseDangerSaid)) this.afterDefenseUpdate();
+      else if (now - this.lastDefenseAt >= RACE_BROADCAST_MS) this.broadcastDefense();
+    }
     if (this.kite?.isActive) {
       this.kite.update(now);
       if (this.kite.status !== this.kiteStatus) this.afterKiteUpdate();
@@ -1120,6 +1259,8 @@ export class Room {
     if (br) this.send(ws, { type: 'royale', state: br });
     const kite = this.kiteSnapshot();
     if (kite) this.send(ws, { type: 'kite', state: kite });
+    const def = this.defenseSnapshot();
+    if (def) this.send(ws, { type: 'defense', state: def });
     const pen = this.penaltySnapshot();
     if (pen) this.send(ws, { type: 'penalty', state: pen });
     if (this.settings.fishing.enabled) this.send(ws, { type: 'fishing', state: this.fishing.snapshot(Date.now(), this.fishingPaused) });

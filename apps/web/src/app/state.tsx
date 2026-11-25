@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { ClipRecord, DuelSnapshot, RoyaleSnapshot, KiteSnapshot, PenaltySnapshot, FishingSnapshot, LoopSnapshot, MeResponse, RaceSnapshot, RoomSettings, RoomStatus } from '@clipei/shared';
+import type { ClipRecord, DuelSnapshot, RoyaleSnapshot, KiteSnapshot, PenaltySnapshot, FishingSnapshot, LoopSnapshot, DefenseSnapshot, MeResponse, RaceSnapshot, RoomSettings, RoomStatus } from '@clipei/shared';
 import { connectRoom } from '../ws.ts';
 import { api, type BossInfo } from './api.ts';
 
@@ -27,6 +27,7 @@ interface AppState {
   penalty: PenaltySnapshot | null;
   fishing: FishingSnapshot | null;
   loop: LoopSnapshot | null;
+  defense: DefenseSnapshot | null;
   status: RoomStatus | null;
   logs: LogItem[];
   online: boolean;
@@ -53,6 +54,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [penalty, setPenalty] = useState<PenaltySnapshot | null>(null);
   const [fishing, setFishing] = useState<FishingSnapshot | null>(null);
   const [loop, setLoop] = useState<LoopSnapshot | null>(null);
+  const [defense, setDefense] = useState<DefenseSnapshot | null>(null);
   const [status, setStatus] = useState<RoomStatus | null>(null);
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [online, setOnline] = useState(false);
@@ -99,6 +101,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (msg.type === 'penalty') setPenalty({ ...msg.state, events: [] });
         if (msg.type === 'fishing') setFishing(msg.state);
         if (msg.type === 'loop') setLoop(msg.state);
+        if (msg.type === 'defense') setDefense((d) => ({ ...msg.state, roster: msg.state.roster ?? d?.roster ?? null, fx: [] }));
         if (msg.type === 'race') setRace((r) => ({ ...msg.state, roster: msg.state.roster ?? (r && r.rosterVersion === msg.state.rosterVersion ? r.roster : r?.roster) }));
         if (msg.type === 'room') {
           setStatus(msg.status);
@@ -137,8 +140,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setBoss = useCallback((b: Partial<BossInfo>) => setBossState((cur) => (cur ? { ...cur, ...b } : cur)), []);
 
   const value = useMemo(
-    () => ({ me, boss, race, duel, royale, kite, penalty, fishing, loop, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss }),
-    [me, boss, race, duel, royale, kite, penalty, fishing, loop, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss],
+    () => ({ me, boss, race, duel, royale, kite, penalty, fishing, loop, defense, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss }),
+    [me, boss, race, duel, royale, kite, penalty, fishing, loop, defense, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

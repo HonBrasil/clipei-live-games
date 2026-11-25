@@ -341,3 +341,15 @@ Para quando o streamer sai e deixa a live aberta: os minigames se revezam sozinh
 - O bot avisa o próximo jogo no chat e o OBS mostra a contagem no topo ("Próximo minigame · 🏁 Corrida · 0:42").
 - Se o streamer abrir um jogo na mão, o loop espera ele terminar. Com o loop ligado, o boss automático fica desativado (o boss entra no rodízio). A pescaria continua entre os jogos.
 - `!loop pular` (ou o botão no painel) abre o próximo sem esperar a pausa. `POST /api/loop/skip`.
+
+## Defesa da Base
+
+Tower defense cooperativo. **Minigames → Defesa da Base** ou `!defesa iniciar` (mods; `!defesa comecar` pula a espera, `!defesa parar` encerra).
+
+- Monstros saem de um portal à direita e andam pela estrada até o castelo, à esquerda. Cada pessoa vira uma torre ao lado da estrada: `!arqueiro` (rápido, longe), `!mago` (deixa lento, fura armadura) ou `!canhao` (explosão em área). Dá para entrar no meio da partida; com os lugares cheios, gente de verdade tira uma torre CPU.
+- As torres atiram sozinhas no monstro mais adiantado. `!atk` carrega um tiro forte (3x, recarga de 8 s).
+- Monstros: goblin (comum), lobo (rápido, em matilha), ogro (armadura: flecha e bala perdem 45%, magia não) e o Rei Ogro na última onda. Vida escala com a onda, a dificuldade e o número de torres.
+- Entre as ondas o chat vota: `!muralha` (conserta e aumenta a base), `!gelo` (monstros mais lentos, mago mais forte) ou `!fogo` (mais dano e queimadura). Melhorias acumulam.
+- Apoios editáveis: bits = meteoro (dano por bit), sub = herói na base, pontos = torre um nível acima, raid = onda de aliados.
+- Balanceamento simulado (`HP_MULT` e `TEAM_EXP` em `packages/games/src/defense.ts`): no normal o chat vence cerca de 2 de cada 3 partidas.
+- Entra no Modo Loop (vem desmarcado por padrão).

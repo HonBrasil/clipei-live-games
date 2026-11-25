@@ -134,8 +134,8 @@ export interface SupportSettings {
 
 // ─── Apoios por minigame (tudo editável pelo streamer) ───────
 
-export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'fishing';
-export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite', 'penalty', 'fishing'];
+export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'fishing' | 'defense';
+export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite', 'penalty', 'fishing', 'defense'];
 /** Presentes (gift) seguem a regra de sub. */
 export type SupportRuleKind = 'bits' | 'sub' | 'points' | 'raid';
 export const SUPPORT_RULE_KINDS: SupportRuleKind[] = ['bits', 'sub', 'points', 'raid'];
@@ -295,6 +295,28 @@ export const GAME_SUPPORT: Record<SupportGameId, Partial<Record<SupportRuleKind,
       ],
     },
   },
+  defense: {
+    bits: {
+      effect: 'Meteoro',
+      detail: 'Cai no meio do maior grupo de monstros.',
+      params: [{ key: 'power', label: 'Dano de', suffix: 'por bit', min: 1, max: 20, step: 1, def: 3 }],
+    },
+    sub: {
+      effect: 'Herói na base',
+      detail: 'Um herói com o nome de quem deu sub defende a base, alcançando o mapa todo.',
+      params: [{ key: 'seconds', label: 'Por', suffix: 's', min: 10, max: 120, step: 5, def: 30 }],
+    },
+    points: {
+      effect: 'Torre nível acima',
+      detail: 'A torre de quem resgatou sobe de nível (mais dano). Quem ainda não tem torre ganha uma.',
+      params: [{ key: 'maxLevel', label: 'Até o nível', min: 2, max: 5, step: 1, def: 3 }],
+    },
+    raid: {
+      effect: 'Onda de aliados',
+      detail: 'Soldados saem da base e atropelam os monstros pelo caminho.',
+      params: [{ key: 'dmg', label: 'Cada aliado causa', suffix: 'de dano', min: 20, max: 500, step: 10, def: 80 }],
+    },
+  },
 };
 
 export interface SupportRule {
@@ -441,6 +463,7 @@ export interface RoomSettings {
   royale: RoyaleConfig;
   kite: KiteConfig;
   penalty: PenaltyConfig;
+  defense: DefenseConfig;
   fishing: FishingConfig;
   /** Modo Loop: os minigames se revezam sozinhos (streamer ausente, live aberta). */
   loop: LoopConfig;
@@ -471,7 +494,9 @@ export const DEFAULT_SETTINGS: RoomSettings = {
     kite: defaultGameSupport('kite'),
     penalty: defaultGameSupport('penalty'),
     fishing: defaultGameSupport('fishing'),
+    defense: defaultGameSupport('defense'),
   },
+  defense: { joinSec: 60, waves: 8, voteSec: 15, maxPlayers: 60, fillBots: true, difficulty: 'normal', fullscreen: true },
   fishing: { enabled: false, cooldownSec: 60, corner: 'bl', announce: 'epico', hint: true, scene: 'transparent', rankPos: 'lake', rankTop: 3 },
   loop: { enabled: false, games: ['race', 'royale', 'kite', 'penalty', 'boss'], order: 'sequence', gapSec: 60, minChatters: 0, onlyLive: true, maxHours: 0, announce: true, teaser: true },
   penalty: {
@@ -541,6 +566,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     kite: normalizeKiteConfig({ ...(base.kite ?? {}), ...((p.kite ?? {}) as Partial<KiteConfig>) }),
     penalty: normalizePenaltyConfig(base.penalty, p.penalty as Partial<PenaltyConfig> | undefined),
     fishing: normalizeFishingConfig({ ...(base.fishing ?? {}), ...((p.fishing ?? {}) as Partial<FishingConfig>) }),
+    defense: normalizeDefenseConfig({ ...(base.defense ?? {}), ...((p.defense ?? {}) as Partial<DefenseConfig>) }),
     loop: normalizeLoopConfig({ ...(base.loop ?? {}), ...((p.loop ?? {}) as Partial<LoopConfig>) }),
     gameSupport: Object.fromEntries(
       SUPPORT_GAME_IDS.map((g) => [g, normalizeGameSupport(g, base.gameSupport?.[g], (p.gameSupport as Record<string, unknown> | undefined)?.[g])]),
@@ -560,7 +586,7 @@ export interface RoomStatus {
   /** Fontes do OBS conectadas agora (o painel não conta). */
   overlays: number;
   /** Minigame rolando agora na tela (só um por vez). */
-  game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | null;
+  game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | null;
   serverNow: number;
 }
 
@@ -576,6 +602,7 @@ export type ServerMessage =
   | { type: 'penalty'; state: PenaltySnapshot }
   | { type: 'fishing'; state: FishingSnapshot }
   | { type: 'loop'; state: LoopSnapshot }
+  | { type: 'defense'; state: DefenseSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -653,7 +680,7 @@ export interface SimulatorStatus {
 
 // ─── Catálogo da plataforma ─────────────────────────────────
 
-export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'fishing' | 'quiz' | 'teams' | 'wheel' | 'missions';
+export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'fishing' | 'quiz' | 'teams' | 'wheel' | 'missions';
 
 export interface GameInfo {
   id: GameId;
@@ -713,6 +740,14 @@ export const GAMES: GameInfo[] = [
     description: 'O chat se divide em dois times. Quem bate vota o canto, quem defende vota o pulo do goleiro. Cinco cobranças cada e morte súbita.',
     status: 'active',
     commands: ['!a', '!b', '!esq', '!meio', '!dir'],
+  },
+  {
+    id: 'defense',
+    name: 'Defesa da Base',
+    tagline: 'O chat inteiro contra as ondas',
+    description: 'Monstros chegam em ondas e cada pessoa vira uma torre: arqueiro, mago ou canhão. Entre as ondas o chat vota a melhoria. Se a base cair, acabou.',
+    status: 'active',
+    commands: ['!arqueiro', '!mago', '!canhao', '!atk', '!muralha', '!gelo', '!fogo'],
   },
   {
     id: 'fishing',
@@ -1629,8 +1664,8 @@ export interface FishingStats {
 // ─── Modo Loop ───────────────────────────────────────────────
 
 /** Minigames que podem entrar no rodízio (a pescaria roda junto, entre um e outro). */
-export type LoopGameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty';
-export const LOOP_GAMES: LoopGameId[] = ['boss', 'race', 'duel', 'royale', 'kite', 'penalty'];
+export type LoopGameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense';
+export const LOOP_GAMES: LoopGameId[] = ['boss', 'race', 'duel', 'royale', 'kite', 'penalty', 'defense'];
 export const LOOP_GAME_INFO: Record<LoopGameId, { name: string; emoji: string; join: string }> = {
   boss: { name: 'Boss coletivo', emoji: '👾', join: '!atk' },
   race: { name: 'Corrida', emoji: '🏁', join: '!correr' },
@@ -1638,6 +1673,7 @@ export const LOOP_GAME_INFO: Record<LoopGameId, { name: string; emoji: string; j
   royale: { name: 'Battle Royale', emoji: '🪂', join: '!entrar' },
   kite: { name: 'Pipa Combate', emoji: '🪁', join: '!pipa' },
   penalty: { name: 'Pênaltis', emoji: '⚽', join: '!a ou !b' },
+  defense: { name: 'Defesa da Base', emoji: '🏰', join: '!arqueiro, !mago ou !canhao' },
 };
 
 export interface LoopConfig {
@@ -1704,5 +1740,248 @@ export interface LoopSnapshot {
   /** Quando desliga sozinho (null = não desliga). */
   endsAt: number | null;
   teaser: boolean;
+  serverNow: number;
+}
+
+// ─── Defesa da Base ─────────────────────────────────────────
+
+/** Mapa lógico (o desenho escala). Monstros entram pela direita e andam até a base, na esquerda. */
+export const DEFENSE_W = 960;
+export const DEFENSE_H = 540;
+export const DEFENSE_BASE = { x: 74, y: 340 } as const;
+/** Caminho dos monstros: da entrada (fora da tela, à direita) até o portão da base. */
+export const DEFENSE_PATH: readonly (readonly [number, number])[] = [
+  [1000, 122],
+  [820, 122],
+  [770, 150],
+  [748, 230],
+  [730, 330],
+  [680, 392],
+  [540, 404],
+  [470, 360],
+  [448, 260],
+  [418, 176],
+  [360, 150],
+  [250, 150],
+  [196, 190],
+  [178, 280],
+  [150, 330],
+  [104, 340],
+];
+
+interface PathSeg {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  len: number;
+  start: number;
+}
+let pathCache: { segs: PathSeg[]; length: number } | null = null;
+function pathInfo() {
+  if (pathCache) return pathCache;
+  const segs: PathSeg[] = [];
+  let total = 0;
+  for (let i = 0; i < DEFENSE_PATH.length - 1; i++) {
+    const [ax, ay] = DEFENSE_PATH[i]!;
+    const [bx, by] = DEFENSE_PATH[i + 1]!;
+    const len = Math.hypot(bx - ax, by - ay);
+    segs.push({ ax, ay, bx, by, len, start: total });
+    total += len;
+  }
+  pathCache = { segs, length: total };
+  return pathCache;
+}
+
+/** Comprimento do caminho em px lógicos. */
+export function defensePathLength() {
+  return pathInfo().length;
+}
+
+/** Ponto do caminho no progresso p (0 = entrada, 1 = portão da base). */
+export function defensePoint(p: number): { x: number; y: number; a: number } {
+  const { segs, length } = pathInfo();
+  const d = Math.max(0, Math.min(1, p)) * length;
+  for (const s of segs) {
+    if (d <= s.start + s.len || s === segs[segs.length - 1]) {
+      const t = s.len ? Math.min(1, (d - s.start) / s.len) : 0;
+      return { x: s.ax + (s.bx - s.ax) * t, y: s.ay + (s.by - s.ay) * t, a: Math.atan2(s.by - s.ay, s.bx - s.ax) };
+    }
+  }
+  return { x: DEFENSE_BASE.x, y: DEFENSE_BASE.y, a: Math.PI };
+}
+
+function distToPath(x: number, y: number) {
+  let best = Infinity;
+  for (const s of pathInfo().segs) {
+    const dx = s.bx - s.ax;
+    const dy = s.by - s.ay;
+    const t = Math.max(0, Math.min(1, ((x - s.ax) * dx + (y - s.ay) * dy) / (dx * dx + dy * dy || 1)));
+    best = Math.min(best, Math.hypot(x - (s.ax + dx * t), y - (s.ay + dy * t)));
+  }
+  return best;
+}
+
+let slotCache: { x: number; y: number }[] | null = null;
+/**
+ * Lugares das torres, dos dois lados do caminho. A ordem espalha as primeiras torres pelo
+ * mapa inteiro (com pouca gente ainda dá para cobrir o caminho todo).
+ */
+export function defenseSlots(): { x: number; y: number }[] {
+  if (slotCache) return slotCache;
+  const raw: { x: number; y: number; p: number }[] = [];
+  const L = defensePathLength();
+  for (const off of [44, 82]) {
+    for (let d = 30; d < L - 40; d += 30) {
+      const p = d / L;
+      const pt = defensePoint(p);
+      for (const side of [-1, 1]) {
+        const x = Math.round(pt.x + Math.cos(pt.a + Math.PI / 2) * off * side);
+        const y = Math.round(pt.y + Math.sin(pt.a + Math.PI / 2) * off * side);
+        if (x < 30 || x > DEFENSE_W - 30 || y < 70 || y > DEFENSE_H - 70) continue;
+        if (Math.hypot(x - DEFENSE_BASE.x, y - DEFENSE_BASE.y) < 70) continue;
+        if (distToPath(x, y) < 34) continue;
+        if (raw.some((r) => Math.hypot(r.x - x, r.y - y) < 32)) continue;
+        raw.push({ x, y, p: p + (off > 60 ? 0.0001 : 0) });
+      }
+    }
+  }
+  // primeiro os lugares colados no caminho, espalhados; depois a segunda fileira
+  const near = raw.filter((r) => distToPath(r.x, r.y) < 60).sort((a, b) => a.p - b.p);
+  const far = raw.filter((r) => distToPath(r.x, r.y) >= 60).sort((a, b) => a.p - b.p);
+  const spread = (list: typeof raw) => {
+    const out: typeof raw = [];
+    const n = list.length;
+    let stride = Math.max(1, Math.round(n / 2.618));
+    while (n > 1 && gcd(stride, n) !== 1) stride++;
+    for (let i = 0; i < n; i++) out.push(list[(i * stride) % n]!);
+    return out;
+  };
+  slotCache = [...spread(near), ...spread(far)].map(({ x, y }) => ({ x, y }));
+  return slotCache;
+}
+function gcd(a: number, b: number): number {
+  return b ? gcd(b, a % b) : a;
+}
+
+export type DefenseClass = 'arqueiro' | 'mago' | 'canhao';
+export const DEFENSE_CLASS_IDS: DefenseClass[] = ['arqueiro', 'mago', 'canhao'];
+export const DEFENSE_CLASSES: Record<
+  DefenseClass,
+  { name: string; emoji: string; color: string; range: number; dmg: number; everyMs: number; splash: number; slow: number; desc: string }
+> = {
+  arqueiro: { name: 'Arqueiro', emoji: '🏹', color: '#3ddc6b', range: 175, dmg: 11, everyMs: 700, splash: 0, slow: 0, desc: 'Atira rápido e de longe. Bom contra lobos.' },
+  mago: { name: 'Mago', emoji: '🔮', color: '#b46bff', range: 150, dmg: 10, everyMs: 1000, splash: 0, slow: 0.4, desc: 'Magia atravessa armadura e deixa lento. Bom contra ogros.' },
+  canhao: { name: 'Canhão', emoji: '💣', color: '#ff8a3d', range: 125, dmg: 20, everyMs: 1700, splash: 48, slow: 0, desc: 'Explosão que pega o grupo todo. Bom contra goblins.' },
+};
+
+export type DefenseMonsterKind = 'goblin' | 'lobo' | 'ogro' | 'rei';
+export const DEFENSE_MONSTERS: Record<DefenseMonsterKind, { name: string; hp: number; speed: number; dmg: number; size: number; armor: number }> = {
+  goblin: { name: 'Goblin', hp: 42, speed: 40, dmg: 6, size: 11, armor: 0 },
+  lobo: { name: 'Lobo', hp: 24, speed: 78, dmg: 4, size: 10, armor: 0 },
+  ogro: { name: 'Ogro', hp: 150, speed: 25, dmg: 15, size: 16, armor: 0.45 },
+  rei: { name: 'Rei Ogro', hp: 1100, speed: 17, dmg: 45, size: 26, armor: 0.3 },
+};
+
+export type DefenseUpgrade = 'muralha' | 'gelo' | 'fogo';
+export const DEFENSE_UPGRADE_IDS: DefenseUpgrade[] = ['muralha', 'gelo', 'fogo'];
+export const DEFENSE_UPGRADES: Record<DefenseUpgrade, { name: string; emoji: string; desc: string; color: string }> = {
+  muralha: { name: 'Muralha', emoji: '🧱', desc: 'Conserta a base e aumenta a vida dela', color: '#c9a56a' },
+  gelo: { name: 'Gelo', emoji: '❄️', desc: 'Monstros andam mais devagar', color: '#7fd6ff' },
+  fogo: { name: 'Fogo', emoji: '🔥', desc: 'Torres causam mais dano e queimam', color: '#ff6a2d' },
+};
+
+export interface DefenseConfig {
+  /** Inscrições (!arqueiro, !mago, !canhao), em segundos. */
+  joinSec: number;
+  /** Ondas para vencer. */
+  waves: number;
+  /** Votação de melhoria entre as ondas. */
+  voteSec: number;
+  maxPlayers: number;
+  /** Completa com torres CPU até 6. */
+  fillBots: boolean;
+  difficulty: 'facil' | 'normal' | 'dificil';
+  /** Tela cheia mesmo com o overlay sobreposto. Desligado = janela. */
+  fullscreen: boolean;
+}
+
+export function normalizeDefenseConfig(c: Partial<DefenseConfig> | undefined): DefenseConfig {
+  const num = (v: unknown, def: number, min: number, max: number) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  return {
+    joinSec: num(c?.joinSec, 60, 15, 180),
+    waves: num(c?.waves, 8, 3, 15),
+    voteSec: num(c?.voteSec, 15, 8, 40),
+    maxPlayers: num(c?.maxPlayers, 60, 4, 200),
+    fillBots: c?.fillBots !== false,
+    difficulty: c?.difficulty === 'facil' || c?.difficulty === 'dificil' ? c.difficulty : 'normal',
+    fullscreen: c?.fullscreen !== false,
+  };
+}
+
+export type DefenseStatus = 'idle' | 'lobby' | 'wave' | 'vote' | 'finished' | 'stopped';
+
+export interface DefenseRosterEntry {
+  id: number;
+  name: string;
+  color: string;
+  bot: boolean;
+}
+
+/** [id da torre, lugar, classe (0 arqueiro, 1 mago, 2 canhão), nível, tiro forte (0 recarregando, 1 pronto, 2 carregado)] */
+export type DefenseTowerTuple = [number, number, number, number, number];
+/** [id, tipo (0 goblin, 1 lobo, 2 ogro, 3 rei), progresso, progresso/s, vida 0..1, lento (0/1), queimando (0/1)] */
+export type DefenseMonsterTuple = [number, number, number, number, number, number, number];
+
+export type DefenseFx =
+  | { id: number; kind: 'shot'; t: number; m: number; power: boolean }
+  | { id: number; kind: 'boom'; x: number; y: number; r: number }
+  | { id: number; kind: 'kill'; x: number; y: number; m: number; by: number }
+  | { id: number; kind: 'leak'; dmg: number }
+  | { id: number; kind: 'meteor'; x: number; y: number; r: number; name: string }
+  | { id: number; kind: 'hero'; name: string }
+  | { id: number; kind: 'heroShot'; m: number }
+  | { id: number; kind: 'allies'; name: string; n: number }
+  | { id: number; kind: 'level'; t: number; level: number; name: string }
+  | { id: number; kind: 'upgrade'; u: DefenseUpgrade }
+  | { id: number; kind: 'join'; t: number };
+
+export interface DefenseMvp {
+  name: string;
+  color: string;
+  cls: DefenseClass;
+  dmg: number;
+  kills: number;
+}
+
+export interface DefenseSnapshot {
+  status: DefenseStatus;
+  lobbyEndsAt: number | null;
+  /** fim da votação, ou início dos monstros da onda (contagem) */
+  phaseEndsAt: number | null;
+  wave: number;
+  waves: number;
+  baseHp: number;
+  baseMax: number;
+  /** Só vem quando muda (o overlay guarda a última). */
+  roster: DefenseRosterEntry[] | null;
+  towers: DefenseTowerTuple[];
+  monsters: DefenseMonsterTuple[];
+  /** aliados do raid: [id, progresso] (andam da base para a entrada) */
+  allies: [number, number][];
+  hero: { name: string; until: number } | null;
+  votes: Record<DefenseUpgrade, number>;
+  upgrades: Record<DefenseUpgrade, number>;
+  /** monstros que ainda faltam sair nesta onda */
+  pending: number;
+  kills: number;
+  humans: number;
+  result: 'won' | 'lost' | null;
+  mvp: DefenseMvp[];
+  fx: DefenseFx[];
+  fullscreen: boolean;
   serverNow: number;
 }

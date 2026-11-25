@@ -23,6 +23,7 @@ import { KitePage } from './pages/KitePage.tsx';
 import { PenaltyPage } from './pages/PenaltyPage.tsx';
 import { FishingPage } from './pages/FishingPage.tsx';
 import { LoopPage } from './pages/LoopPage.tsx';
+import { DefensePage } from './pages/DefensePage.tsx';
 import { PrivacyPage, TermsPage } from './pages/Legal.tsx';
 
 createRoot(document.getElementById('root')!).render(
@@ -56,6 +57,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="jogos/pipa" element={<KitePage />} />
           <Route path="jogos/penalty" element={<PenaltyPage />} />
           <Route path="jogos/penaltis" element={<PenaltyPage />} />
+          <Route path="jogos/defense" element={<DefensePage />} />
+          <Route path="jogos/defesa" element={<DefensePage />} />
           <Route path="jogos/fishing" element={<FishingPage />} />
           <Route path="jogos/pescaria" element={<FishingPage />} />
           <Route path="overlay" element={<OverlayPage />} />

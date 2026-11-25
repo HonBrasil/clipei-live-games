@@ -4,11 +4,20 @@ import { BOSS_SKIN_IDS, GAMES } from '@clipei/shared';
 import { BossThumb } from '../components/ui.tsx';
 import { useApp } from '../state.tsx';
 import { drawTrackThumb } from '../../race/race-arena.ts';
+import { drawDefenseThumb } from '../../defense/defense-arena.ts';
 
 function TrackArt() {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (ref.current) drawTrackThumb(ref.current, 'neon');
+  }, []);
+  return <canvas ref={ref} width={320} height={180} className="g-track" aria-hidden="true" />;
+}
+
+function DefenseArt() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (ref.current) drawDefenseThumb(ref.current);
   }, []);
   return <canvas ref={ref} width={320} height={180} className="g-track" aria-hidden="true" />;
 }
@@ -50,6 +59,8 @@ export function Games() {
                   </div>
                 ) : g.id === 'race' ? (
                   <TrackArt />
+                ) : g.id === 'defense' ? (
+                  <DefenseArt />
                 ) : g.id === 'fishing' ? (
                   <span className="g-duel" aria-hidden="true">
                     🎣<i>·</i>🐟<i>·</i>🏆

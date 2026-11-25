@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type KiteSnapshot, type PenaltySnapshot, type FishingSnapshot, type LoopSnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
+import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type KiteSnapshot, type PenaltySnapshot, type FishingSnapshot, type LoopSnapshot, type DefenseSnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
 import { Arena } from './arena/arena.ts';
 import { Sfx } from './arena/sfx.ts';
 import { RaceArena } from './race/race-arena.ts';
@@ -8,6 +8,7 @@ import { KiteArena } from './kite/kite-arena.ts';
 import { PenaltyArena } from './penalty/penalty-arena.ts';
 import { FishingWidget } from './fishing/fishing-widget.ts';
 import { LoopTeaser } from './loop/loop-teaser.ts';
+import { DefenseView } from './defense/defense-view.ts';
 
 /**
  * Overlay do OBS: tela 1920×1080 transparente com a arena (boss + heróis)
@@ -172,6 +173,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
         <div class="result-card" id="pen-result-card"></div>
       </div>
     </section>
+    <section class="zone royale-zone def-zone is-hidden" id="def-zone"></section>
     <aside class="fish-widget" id="fish-widget" hidden></aside>
     <aside class="fish-rank-widget" id="fish-rank" hidden></aside>
     <div class="loop-next" id="loop-next" hidden></div>
@@ -252,6 +254,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     penResultCard: $('pen-result-card'),
     penConfetti: $('pen-confetti'),
     kiteZone: $('kite-zone'),
+    defZone: $('def-zone'),
     kiteAlive: $('kite-alive'),
     kiteTime: $('kite-time'),
     kiteWind: $('kite-wind'),
@@ -294,6 +297,15 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   const penArena = new PenaltyArena($('pen-canvas') as HTMLCanvasElement, sfx);
   const fishWidget = new FishingWidget($('fish-widget'), $('fish-rank'), sfx);
   const loopTeaser = new LoopTeaser($('loop-next'));
+  const defView = new DefenseView(els.defZone, sfx, {
+    onShow: () => {
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.brZone, els.kiteZone, els.penZone]) z.classList.add('is-hidden');
+      if (els.waiting) els.waiting.hidden = true;
+    },
+    onFullscreen: () => updateResolution(),
+    confetti: (box) => confetti(box),
+    onIdle: () => {},
+  });
   let penFull = true;
   /** O Pipa Combate também pode ocupar a tela inteira com o overlay sobreposto. */
   let kiteFull = true;
@@ -320,6 +332,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     raceArena.setNames(next.names);
     brArena.setNames(next.names);
     kiteArena.setNames(next.names);
+    defView.setNames(next.names);
     // barra de vida: acima do boss (dentro da arena) ou no topo da tela
     if (next.hpBar === 'top') stage.appendChild(els.bossbar);
     else els.zone.appendChild(els.bossbar);
@@ -340,6 +353,8 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     penArena.setResolution(stageScale * (penFull || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
     penArena.setTransparent(!penFull && layout.display !== 'fullscreen');
     fishWidget.setResolution(stageScale * (window.devicePixelRatio || 1) * 1.25);
+    defView.arena.setResolution(stageScale * (defView.fullscreen || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
+    defView.arena.setTransparent(!defView.fullscreen && layout.display !== 'fullscreen');
   }
 
   // ─── Escala 1920×1080 → tamanho real (fonte do OBS ou container) ──
@@ -384,6 +399,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       els.raceZone.classList.add('is-hidden');
       els.duelZone.classList.add('is-hidden');
       els.brZone.classList.add('is-hidden');
+      els.defZone.classList.add('is-hidden');
       clearTimeout(resultTimer);
       els.result.classList.remove('is-visible');
       els.cta.hidden = false;
@@ -494,6 +510,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       els.bossbar.classList.add('is-hidden');
       els.duelZone.classList.add('is-hidden');
       els.brZone.classList.add('is-hidden');
+      els.defZone.classList.add('is-hidden');
     } else if (prev && (prev.status === 'running' || prev.status === 'lobby') && next.status === 'finished') {
       setTimeout(() => showRaceResult(next), 1200);
     } else if (next.status === 'stopped' || next.status === 'idle') {
@@ -598,6 +615,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       els.bossbar.classList.add('is-hidden');
       els.raceZone.classList.add('is-hidden');
       els.brZone.classList.add('is-hidden');
+      els.defZone.classList.add('is-hidden');
     } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
       setTimeout(() => showDuelResult(next), 1600);
     } else if (next.status === 'stopped' || next.status === 'idle') {
@@ -727,7 +745,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       clearTimeout(brResultTimer);
       els.brResult.classList.remove('is-visible');
       els.brZone.classList.remove('is-hidden');
-      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.kiteZone, els.penZone]) z.classList.add('is-hidden');
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.kiteZone, els.penZone, els.defZone]) z.classList.add('is-hidden');
     } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
       brBigText = next.winner === null ? 'NINGUÉM SOBREVIVEU' : 'ÚLTIMO DE PÉ!';
       brBigUntil = Date.now() + 2600;
@@ -866,7 +884,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       clearTimeout(penResultTimer);
       els.penResult.classList.remove('is-visible');
       els.penZone.classList.remove('is-hidden');
-      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.brZone, els.kiteZone]) z.classList.add('is-hidden');
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.brZone, els.kiteZone, els.defZone]) z.classList.add('is-hidden');
     } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
       window.setTimeout(() => showPenaltyResult(next), 2200);
     } else if (next.status === 'stopped' || next.status === 'idle') {
@@ -1035,7 +1053,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       clearTimeout(kiteResultTimer);
       els.kiteResult.classList.remove('is-visible');
       els.kiteZone.classList.remove('is-hidden');
-      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.brZone, els.penZone]) z.classList.add('is-hidden');
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.brZone, els.penZone, els.defZone]) z.classList.add('is-hidden');
     } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
       kiteBigText = next.winner === null ? 'CÉU LIMPO' : next.winReason === 'time' ? 'TEMPO!' : 'REI DO CÉU!';
       kiteBigUntil = Date.now() + 2600;
@@ -1193,6 +1211,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     renderPenalty,
     renderFishing: (s: FishingSnapshot) => fishWidget.setState(s),
     renderLoop: (s: LoopSnapshot) => loopTeaser.setState(s),
+    renderDefense: (s: DefenseSnapshot) => defView.setState(s),
     setOnline(online: boolean) {
       els.conn.hidden = online || !state;
     },
