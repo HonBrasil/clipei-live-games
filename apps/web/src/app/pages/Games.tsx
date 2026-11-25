@@ -39,6 +39,10 @@ export function Games() {
                   </div>
                 ) : g.id === 'race' ? (
                   <TrackArt />
+                ) : g.id === 'penalty' ? (
+                  <span className="g-duel" aria-hidden="true">
+                    ⚽<i>·</i>🥅<i>·</i>🧤
+                  </span>
                 ) : g.id === 'kite' ? (
                   <span className="g-duel" aria-hidden="true">
                     🪁<i>·</i>✂️<i>·</i>🙌

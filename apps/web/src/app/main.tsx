@@ -20,6 +20,7 @@ import { RacePage } from './pages/RacePage.tsx';
 import { DuelPage } from './pages/DuelPage.tsx';
 import { RoyalePage } from './pages/RoyalePage.tsx';
 import { KitePage } from './pages/KitePage.tsx';
+import { PenaltyPage } from './pages/PenaltyPage.tsx';
 import { PrivacyPage, TermsPage } from './pages/Legal.tsx';
 
 createRoot(document.getElementById('root')!).render(
@@ -50,6 +51,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="jogos/royale" element={<RoyalePage />} />
           <Route path="jogos/kite" element={<KitePage />} />
           <Route path="jogos/pipa" element={<KitePage />} />
+          <Route path="jogos/penalty" element={<PenaltyPage />} />
+          <Route path="jogos/penaltis" element={<PenaltyPage />} />
           <Route path="overlay" element={<OverlayPage />} />
           <Route path="conexoes" element={<Connections />} />
           <Route path="testar" element={<TestPage />} />

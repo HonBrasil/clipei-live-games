@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { ClipRecord, DuelSnapshot, RoyaleSnapshot, KiteSnapshot, MeResponse, RaceSnapshot, RoomSettings, RoomStatus } from '@clipei/shared';
+import type { ClipRecord, DuelSnapshot, RoyaleSnapshot, KiteSnapshot, PenaltySnapshot, MeResponse, RaceSnapshot, RoomSettings, RoomStatus } from '@clipei/shared';
 import { connectRoom } from '../ws.ts';
 import { api, type BossInfo } from './api.ts';
 
@@ -24,6 +24,7 @@ interface AppState {
   duel: DuelSnapshot | null;
   royale: RoyaleSnapshot | null;
   kite: KiteSnapshot | null;
+  penalty: PenaltySnapshot | null;
   status: RoomStatus | null;
   logs: LogItem[];
   online: boolean;
@@ -47,6 +48,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [duel, setDuel] = useState<DuelSnapshot | null>(null);
   const [royale, setRoyale] = useState<RoyaleSnapshot | null>(null);
   const [kite, setKite] = useState<KiteSnapshot | null>(null);
+  const [penalty, setPenalty] = useState<PenaltySnapshot | null>(null);
   const [status, setStatus] = useState<RoomStatus | null>(null);
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [online, setOnline] = useState(false);
@@ -90,6 +92,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (msg.type === 'duel') setDuel(msg.state);
         if (msg.type === 'royale') setRoyale((r) => ({ ...msg.state, roster: msg.state.roster ?? r?.roster, crates: undefined }));
         if (msg.type === 'kite') setKite((k) => ({ ...msg.state, roster: msg.state.roster ?? k?.roster, events: [] }));
+        if (msg.type === 'penalty') setPenalty({ ...msg.state, events: [] });
         if (msg.type === 'race') setRace((r) => ({ ...msg.state, roster: msg.state.roster ?? (r && r.rosterVersion === msg.state.rosterVersion ? r.roster : r?.roster) }));
         if (msg.type === 'room') {
           setStatus(msg.status);
@@ -128,8 +131,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setBoss = useCallback((b: Partial<BossInfo>) => setBossState((cur) => (cur ? { ...cur, ...b } : cur)), []);
 
   const value = useMemo(
-    () => ({ me, boss, race, duel, royale, kite, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss }),
-    [me, boss, race, duel, royale, kite, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss],
+    () => ({ me, boss, race, duel, royale, kite, penalty, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss }),
+    [me, boss, race, duel, royale, kite, penalty, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

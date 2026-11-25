@@ -5,4 +5,5 @@ export const BUSY_TEXT: Record<string, string> = {
   duel: 'Tem um duelo rolando.',
   royale: 'Tem um Battle Royale rolando.',
   kite: 'Tem um Pipa Combate no céu.',
+  penalty: 'Tem uma disputa de pênaltis rolando.',
 };

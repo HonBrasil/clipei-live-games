@@ -15,6 +15,12 @@ import {
   RoyaleGame,
   KiteGame,
   parseKiteChatCommand,
+  PenaltyGame,
+  parsePenaltyChatCommand,
+  penaltyHelpText,
+  penaltyOpenAnnouncement,
+  penaltyStartAnnouncement,
+  penaltyResultAnnouncement,
   kiteHelpText,
   kiteOpenAnnouncement,
   kiteStartAnnouncement,
@@ -63,6 +69,9 @@ import {
   type DuelStatus,
   type RoyaleConfig,
   type KiteConfig,
+  type PenaltyConfig,
+  type PenaltySnapshot,
+  type PenaltyStatus,
   type KiteSnapshot,
   type KiteStatus,
   type RoyaleSnapshot,
@@ -104,6 +113,7 @@ export class Room {
   duel: DuelGame | null = null;
   royale: RoyaleGame | null = null;
   kite: KiteGame | null = null;
+  penalty: PenaltyGame | null = null;
   lastConfig: BossConfig = { ...DEFAULT_CONFIG };
   hpMode: HpMode = 'auto';
   readonly sockets = new Set<WebSocket>();
@@ -134,6 +144,8 @@ export class Room {
   private royaleStatus: RoyaleStatus = 'idle';
   private lastRoyaleAt = 0;
   private kiteStatus: KiteStatus = 'idle';
+  private penaltyStatus: PenaltyStatus = 'idle';
+  private lastPenaltyAt = 0;
   private lastKiteAt = 0;
 
   constructor(
@@ -147,6 +159,12 @@ export class Room {
     this.spawner = new AutoSpawner(this.settings.autoSpawn);
     this.simulator = new ChatSimulator(channelId, (e) => this.handleChat(e));
     this.simulator.script = () => {
+      const pg = this.penalty;
+      if (pg?.isActive) {
+        const x = Math.random();
+        if (pg.status === 'lobby') return x < 0.35 ? '!a' : x < 0.7 ? '!b' : 'chatter';
+        return x < 0.2 ? '!esq' : x < 0.35 ? '!meio' : x < 0.55 ? '!dir' : 'chatter';
+      }
       const kg = this.kite;
       if (kg?.isActive) {
         const x = Math.random();
@@ -177,18 +195,85 @@ export class Room {
   }
 
   /** Só um minigame por vez na tela. */
-  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | 'kite' | null {
+  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | null {
     if (this.game?.isRunning) return 'boss';
     if (this.race?.isActive) return 'race';
     if (this.duel?.isActive) return 'duel';
     if (this.royale?.isActive) return 'royale';
     if (this.kite?.isActive) return 'kite';
+    if (this.penalty?.isActive) return 'penalty';
     return null;
   }
 
   private busyText(busy: NonNullable<ReturnType<Room['activeGame']>>) {
-    const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu' }[busy];
+    const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando' }[busy];
     return `Tem ${what}. Um jogo por vez: espere terminar.`;
+  }
+
+  // ─── Disputa de Pênaltis ───────────────────────────────────
+
+  startPenalty(patch?: Partial<PenaltyConfig>) {
+    const busy = this.activeGame();
+    if (busy) return { ok: false as const, error: this.busyText(busy) };
+    if (patch) this.updateSettings({ penalty: patch });
+    this.penalty = new PenaltyGame(this.settings.penalty);
+    this.penalty.open();
+    this.penaltyStatus = 'lobby';
+    this.spawner.fightStarted();
+    this.hooks.fightStarted?.();
+    this.broadcast({ type: 'incoming', at: null, serverNow: Date.now() });
+    this.say(penaltyOpenAnnouncement(this.penalty.config));
+    this.broadcastPenalty();
+    this.broadcastStatus();
+    return { ok: true as const, config: this.penalty.config };
+  }
+
+  penaltyGo() {
+    if (this.penalty?.status !== 'lobby') return false;
+    this.penalty.startNow();
+    this.afterPenaltyUpdate();
+    return true;
+  }
+
+  stopPenalty() {
+    if (!this.penalty?.isActive) return false;
+    this.penalty.stop();
+    this.afterPenaltyUpdate();
+    return true;
+  }
+
+  penaltySnapshot(): PenaltySnapshot | null {
+    return this.penalty && this.penalty.status !== 'idle' ? this.penalty.snapshot(Date.now(), true) : null;
+  }
+
+  private broadcastPenalty() {
+    if (!this.penalty) return;
+    this.lastPenaltyAt = Date.now();
+    this.broadcast({ type: 'penalty', state: this.penalty.snapshot() });
+  }
+
+  private afterPenaltyUpdate() {
+    const g = this.penalty;
+    if (!g) return;
+    const prev = this.penaltyStatus;
+    const next = g.status;
+    if (prev === next) return;
+    this.penaltyStatus = next;
+    if (prev === 'lobby' && next === 'vote') this.say(penaltyStartAnnouncement(g.config));
+    if (next === 'finished' || next === 'stopped') {
+      if (next === 'finished') {
+        this.say(penaltyResultAnnouncement(g.teamName(g.winner), g.scoreline, g.config, g.mvp), 'success');
+        if (g.winner !== null) this.clipVictory(`Pênaltis · ${g.teamName(g.winner)}`);
+      } else if (prev === 'lobby') {
+        this.say('⚽ Ninguém escolheu time dessa vez. Fica para a próxima!', 'warning');
+      } else {
+        this.say('⚽ Disputa de pênaltis encerrada pelo streamer.', 'warning');
+      }
+      this.spawner.fightEnded();
+      this.hooks.fightEnded?.();
+    }
+    this.broadcastPenalty();
+    this.broadcastStatus();
   }
 
   // ─── Pipa Combate ──────────────────────────────────────────
@@ -524,6 +609,24 @@ export class Room {
       }
       return;
     }
+    const penCmd = parsePenaltyChatCommand(event);
+    if (penCmd) {
+      if (penCmd.type === 'help') {
+        if (Date.now() - this.lastHelpAt > HELP_COOLDOWN_MS) {
+          this.lastHelpAt = Date.now();
+          this.say(penaltyHelpText(this.penalty?.status ?? 'idle', this.penalty?.config ?? this.settings.penalty));
+        }
+      } else if (penCmd.type === 'start') {
+        if (this.entitled() && !this.activeGame()) this.startPenalty();
+      } else {
+        this.stopPenalty();
+      }
+      return;
+    }
+    if (this.penalty?.isActive) {
+      this.penalty.handle(event);
+      return;
+    }
     const kiteCmd = parseKiteChatCommand(event);
     if (kiteCmd) {
       if (kiteCmd.type === 'help') {
@@ -578,7 +681,7 @@ export class Room {
           this.say(bossHelpText(!!this.game?.isRunning));
         }
       } else if (cmd.type === 'start') {
-        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive && !this.royale?.isActive && !this.kite?.isActive) this.startQuick(cmd.skin);
+        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive && !this.royale?.isActive && !this.kite?.isActive && !this.penalty?.isActive) this.startQuick(cmd.skin);
       } else if (cmd.type === 'stop') {
         this.stopBoss();
       }
@@ -590,6 +693,21 @@ export class Room {
 
   /** Bits, subs, presentes, pontos de canal e raids viram golpes especiais. */
   handleSupport(e: SupportEvent) {
+    if (this.penalty?.isActive) {
+      this.penalty.support = this.settings.gameSupport.penalty;
+      const res = this.penalty.special(e);
+      if (!res.applied) {
+        if (e.kind === 'points') this.hooks.redemption?.(e, false);
+        const thanks = supportThanks(e);
+        if (thanks && e.kind !== 'points') this.say(thanks);
+        return { applied: false, damage: 0 };
+      }
+      const icon = e.kind === 'points' ? '🧢' : e.kind === 'bits' ? '🎯' : e.kind === 'raid' ? '📣' : '🧤';
+      this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
+      if (e.kind === 'points') this.hooks.redemption?.(e, true);
+      this.broadcastPenalty();
+      return { applied: true, damage: 0 };
+    }
     if (this.kite?.isActive) {
       this.kite.support = this.settings.gameSupport.kite;
       const res = this.kite.special(e);
@@ -700,6 +818,11 @@ export class Room {
   /** Chamado a cada 100 ms. */
   tick() {
     const now = Date.now();
+    if (this.penalty?.isActive) {
+      this.penalty.update(now);
+      if (this.penalty.status !== this.penaltyStatus) this.afterPenaltyUpdate();
+      else if (this.penalty.dirty && now - this.lastPenaltyAt >= RACE_BROADCAST_MS) this.broadcastPenalty();
+    }
     if (this.kite?.isActive) {
       this.kite.update(now);
       if (this.kite.status !== this.kiteStatus) this.afterKiteUpdate();
@@ -806,6 +929,8 @@ export class Room {
     if (br) this.send(ws, { type: 'royale', state: br });
     const kite = this.kiteSnapshot();
     if (kite) this.send(ws, { type: 'kite', state: kite });
+    const pen = this.penaltySnapshot();
+    if (pen) this.send(ws, { type: 'penalty', state: pen });
     ws.on('close', () => {
       this.sockets.delete(ws);
       if (!this.panels.has(ws)) this.broadcastStatus();

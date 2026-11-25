@@ -1,10 +1,11 @@
-import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type KiteSnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
+import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type KiteSnapshot, type PenaltySnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
 import { Arena } from './arena/arena.ts';
 import { Sfx } from './arena/sfx.ts';
 import { RaceArena } from './race/race-arena.ts';
 import { DuelArena } from './duel/duel-arena.ts';
 import { RoyaleArena } from './royale/royale-arena.ts';
 import { KiteArena } from './kite/kite-arena.ts';
+import { PenaltyArena } from './penalty/penalty-arena.ts';
 
 /**
  * Overlay do OBS: tela 1920×1080 transparente com a arena (boss + heróis)
@@ -151,10 +152,28 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
         <div class="result-card" id="kite-result-card"></div>
       </div>
     </section>
+    <section class="zone royale-zone pen-zone is-hidden" id="pen-zone">
+      <canvas class="arena-canvas" id="pen-canvas"></canvas>
+      <div class="pen-board" id="pen-board"></div>
+      <div class="race-lobby br-lobby pen-lobby" id="pen-lobby" hidden>
+        <small>⚽ Disputa de Pênaltis</small>
+        <b>Escolha seu time</b>
+        <div class="pen-pick" id="pen-pick"></div>
+        <span><kbd class="sm">!entrar</kbd> cai no time com menos gente · começa em <em id="pen-lobby-time">0:45</em></span>
+      </div>
+      <div class="pen-vote" id="pen-vote" hidden></div>
+      <div class="pen-reveal" id="pen-reveal" hidden></div>
+      <div class="duel-big br-big pen-big" id="pen-big" hidden></div>
+      <div class="alerts" id="pen-alerts" aria-live="polite"></div>
+      <div class="result" id="pen-result">
+        <div class="confetti" id="pen-confetti"></div>
+        <div class="result-card" id="pen-result-card"></div>
+      </div>
+    </section>
     <div class="idle-screen" id="idle-screen" hidden>
       <img src="${logo}" alt="" />
       <b>Aguardando o próximo jogo</b>
-      <span>Fique de olho no chat: vem boss <kbd>!atk</kbd>, corrida <kbd>!correr</kbd> duelo <kbd>!duelo</kbd>, battle royale <kbd>!entrar</kbd> ou pipa <kbd>!pipa</kbd></span>
+      <span>Fique de olho no chat: vem boss <kbd>!atk</kbd>, corrida <kbd>!correr</kbd> duelo <kbd>!duelo</kbd>, battle royale <kbd>!entrar</kbd>, pipa <kbd>!pipa</kbd> ou pênaltis <kbd>!a</kbd>/<kbd>!b</kbd></span>
     </div>
     ${
       opts.preview
@@ -215,6 +234,18 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     duelResult: $('duel-result'),
     duelResultCard: $('duel-result-card'),
     duelConfetti: $('duel-confetti'),
+    penZone: $('pen-zone'),
+    penBoard: $('pen-board'),
+    penLobby: $('pen-lobby'),
+    penPick: $('pen-pick'),
+    penLobbyTime: $('pen-lobby-time'),
+    penVote: $('pen-vote'),
+    penReveal: $('pen-reveal'),
+    penBig: $('pen-big'),
+    penAlerts: $('pen-alerts'),
+    penResult: $('pen-result'),
+    penResultCard: $('pen-result-card'),
+    penConfetti: $('pen-confetti'),
     kiteZone: $('kite-zone'),
     kiteAlive: $('kite-alive'),
     kiteTime: $('kite-time'),
@@ -255,6 +286,8 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   const duelArena = new DuelArena($('duel-canvas') as HTMLCanvasElement, sfx);
   const brArena = new RoyaleArena($('br-canvas') as HTMLCanvasElement, sfx);
   const kiteArena = new KiteArena($('kite-canvas') as HTMLCanvasElement, sfx);
+  const penArena = new PenaltyArena($('pen-canvas') as HTMLCanvasElement, sfx);
+  let penFull = true;
   /** O Pipa Combate também pode ocupar a tela inteira com o overlay sobreposto. */
   let kiteFull = true;
   /** O Battle Royale pode ocupar a tela inteira mesmo com o overlay no modo sobreposto. */
@@ -297,6 +330,8 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     kiteArena.setResolution(stageScale * (kiteFull || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
     // janela por cima do jogo: céu transparente (só lajes, bonecos e pipas)
     kiteArena.setTransparent(!kiteFull && layout.display !== 'fullscreen');
+    penArena.setResolution(stageScale * (penFull || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
+    penArena.setTransparent(!penFull && layout.display !== 'fullscreen');
   }
 
   // ─── Escala 1920×1080 → tamanho real (fonte do OBS ou container) ──
@@ -684,7 +719,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       clearTimeout(brResultTimer);
       els.brResult.classList.remove('is-visible');
       els.brZone.classList.remove('is-hidden');
-      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.kiteZone]) z.classList.add('is-hidden');
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.kiteZone, els.penZone]) z.classList.add('is-hidden');
     } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
       brBigText = next.winner === null ? 'NINGUÉM SOBREVIVEU' : 'ÚLTIMO DE PÉ!';
       brBigUntil = Date.now() + 2600;
@@ -791,6 +826,183 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   void ROYALE_FLAG;
   void ROYALE_REGIONS;
 
+  // ─── Disputa de Pênaltis ────────────────────────────────────
+  let pen: PenaltySnapshot | null = null;
+  let penOffset = 0;
+  let penResultTimer: number | undefined;
+  let penBigUntil = 0;
+  let penBigText = '';
+  let penBigTone = 'fire';
+  /** duração da votação atual (para a barra de tempo) */
+  let penVoteTotal = 12_000;
+  let penVoteEnds = 0;
+  const OUTCOME: Record<string, [string, string]> = {
+    goal: ['GOOOL!', 'round'],
+    save: ['DEFENDEU!', 'fire'],
+    post: ['NA TRAVE!', 'fire'],
+    out: ['PRA FORA!', 'fire'],
+  };
+
+  function renderPenalty(next: PenaltySnapshot) {
+    const prev = pen;
+    pen = next;
+    penOffset = next.serverNow - Date.now();
+    if (penFull !== next.fullscreen) {
+      penFull = next.fullscreen;
+      updateResolution();
+    }
+    els.penZone.classList.toggle('force-full', next.fullscreen);
+    penArena.setState(next);
+    const active = !['idle', 'finished', 'stopped'].includes(next.status);
+    if (active) {
+      clearTimeout(penResultTimer);
+      els.penResult.classList.remove('is-visible');
+      els.penZone.classList.remove('is-hidden');
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.brZone, els.kiteZone]) z.classList.add('is-hidden');
+    } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
+      window.setTimeout(() => showPenaltyResult(next), 2200);
+    } else if (next.status === 'stopped' || next.status === 'idle') {
+      els.penZone.classList.add('is-hidden');
+    }
+    if (els.waiting) els.waiting.hidden = active || next.status === 'finished' || state?.status === 'running';
+
+    // resultado da cobrança: aparece quando a bola chega
+    if (prev?.status !== 'kick' && next.status === 'kick' && next.reveal) {
+      const [txt, tone] = OUTCOME[next.reveal.outcome];
+      window.setTimeout(() => {
+        penBigText = txt;
+        penBigTone = tone;
+        penBigUntil = Date.now() + 1900;
+      }, 1200);
+    }
+    if (prev?.status === 'lobby' && next.status === 'vote') {
+      penBigText = 'BOLA NO MEIO!';
+      penBigTone = 'round';
+      penBigUntil = Date.now() + 1600;
+    }
+    if (next.status === 'finished' && prev?.status !== 'finished' && next.winner !== null) {
+      penBigText = 'CAMPEÃO!';
+      penBigTone = 'round';
+      penBigUntil = Date.now() + 2200;
+    }
+
+    // placar
+    const [a, b] = next.teams;
+    const dots = (t: typeof a) => {
+      const n = Math.max(next.kicks, t.marks.length);
+      return Array.from({ length: Math.min(n, 10) }, (_, i) => {
+        const m = t.marks[i];
+        return `<i class="${m ? (m === 'goal' ? 'g' : 'x') : ''}"></i>`;
+      }).join('');
+    };
+    const buffs = (t: typeof a) => `${t.placed ? '<em title="chute colocado">🎯</em>' : ''}${t.wall ? '<em title="paredão">🧤</em>' : ''}`;
+    const round = next.status === 'lobby' ? 'Escolha de times' : next.suddenDeath ? 'Morte súbita' : `Cobrança ${Math.min(next.round, next.kicks)} de ${next.kicks}`;
+    els.penBoard.innerHTML = `
+      <div class="pb-team" style="--c:${esc(a.color)}"><b>${esc(a.name)}</b>${buffs(a)}<span class="pb-dots">${dots(a)}</span></div>
+      <div class="pb-score"><b>${a.score}</b><small>${esc(round)}</small><b>${b.score}</b></div>
+      <div class="pb-team r" style="--c:${esc(b.color)}"><span class="pb-dots">${dots(b)}</span>${buffs(b)}<b>${esc(b.name)}</b></div>`;
+
+    // escolha de times
+    els.penLobby.hidden = next.status !== 'lobby';
+    if (next.status === 'lobby')
+      els.penPick.innerHTML = [a, b]
+        .map((t, i) => `<div style="--c:${esc(t.color)}"><kbd>!${i ? 'b' : 'a'}</kbd><b>${esc(t.name)}</b><span>${nf.format(t.players)} ${t.players === 1 ? 'jogador' : 'jogadores'}</span></div>`)
+        .join('');
+
+    // votação
+    els.penVote.hidden = next.status !== 'vote';
+    if (next.status === 'vote' && next.phaseEndsAt && next.phaseEndsAt !== penVoteEnds) {
+      penVoteEnds = next.phaseEndsAt;
+      penVoteTotal = Math.max(4000, next.phaseEndsAt - next.serverNow);
+    }
+    if (next.status === 'vote') {
+      const kt = next.teams[next.kicking];
+      const dt = next.teams[1 - next.kicking];
+      els.penVote.innerHTML = `
+        <div class="pv-col" style="--c:${esc(kt.color)}"><small>⚽ ${esc(kt.name)} bate</small><b>Escolha o canto</b><span>${nf.format(next.votes.kick)} votos</span></div>
+        <div class="pv-mid"><div class="pv-keys"><kbd>!esq</kbd><kbd>!meio</kbd><kbd>!dir</kbd></div><div class="pv-bar"><i id="pen-bar"></i></div><small>lado da tela</small></div>
+        <div class="pv-col r" style="--c:${esc(dt.color)}"><small>🧤 ${esc(dt.name)} defende</small><b>Escolha o pulo</b><span>${nf.format(next.votes.keep)} votos</span></div>`;
+    }
+    // como cada torcida votou (depois do chute)
+    const r = next.reveal;
+    els.penReveal.hidden = !(r && (next.status === 'result' || next.status === 'finished'));
+    if (r) {
+      const pct = (v: [number, number, number]) => {
+        const sum = v[0] + v[1] + v[2] || 1;
+        return v.map((x) => Math.round((x / sum) * 100));
+      };
+      const kp = pct(r.kickVotes);
+      const dp = pct(r.keepVotes);
+      const arrows = ['⬅️', '⬆️', '➡️'];
+      const row = (label: string, color: string, p: number[], pick: number) =>
+        `<div style="--c:${esc(color)}"><b>${esc(label)}</b>${p.map((x, i) => `<span class="${i === pick ? 'on' : ''}">${arrows[i]} ${x}%</span>`).join('')}</div>`;
+      els.penReveal.innerHTML =
+        row(`${next.teams[next.kicking].name} chutou`, next.teams[next.kicking].color, kp, r.corner) +
+        row(`${next.teams[1 - next.kicking].name} pulou`, next.teams[1 - next.kicking].color, dp, r.dive);
+    }
+
+    // apoios
+    for (const e of next.events) {
+      if (e.kind !== 'item') continue;
+      const map: Record<string, [string, string, string]> = {
+        colocado: ['🎯', 'chute colocado', 'bits'],
+        paredao: ['🧤', 'paredão no gol', 'sub'],
+        capitao: ['🧢', 'voto de capitão', 'points'],
+        torcida: ['📣', 'pressão da torcida', 'sub'],
+      };
+      const [icon, text, tone] = map[e.label ?? ''] ?? ['🎁', e.label ?? '', 'points'];
+      const el = document.createElement('div');
+      el.className = `alert alert--${tone}`;
+      el.innerHTML = `<span class="a-ico">${icon}</span><b>${esc(e.name ?? '')}</b><span>${esc(text)}</span>`;
+      els.penAlerts.prepend(el);
+      while (els.penAlerts.children.length > 3) els.penAlerts.lastElementChild?.remove();
+      setTimeout(() => el.classList.add('is-out'), 4500);
+      setTimeout(() => el.remove(), 5000);
+    }
+    tickPenalty();
+  }
+
+  function showPenaltyResult(s: PenaltySnapshot) {
+    if (s.winner === null) return;
+    const w = s.teams[s.winner];
+    const [a, b] = s.teams;
+    els.penResultCard.innerHTML = `
+      <div class="r-title" style="color:${esc(w.color)}">${esc(w.name)} vence nos pênaltis!</div>
+      <div class="r-sub">${esc(a.name)} <b>${a.score}</b> x <b>${b.score}</b> ${esc(b.name)}${s.teams[0].marks.length > s.kicks ? ' · na morte súbita' : ''}</div>
+      ${s.mvp ? `<div class="r-sub">⭐ Craque da torcida: <b style="color:${esc(s.mvp.color)}">${esc(s.mvp.name)}</b></div>` : ''}`;
+    els.penResult.classList.add('is-visible');
+    confetti(els.penConfetti);
+    clearTimeout(penResultTimer);
+    penResultTimer = window.setTimeout(() => {
+      els.penResult.classList.remove('is-visible');
+      els.penZone.classList.add('is-hidden');
+    }, 9000);
+  }
+
+  function tickPenalty() {
+    if (!pen) return;
+    const now = Date.now() + penOffset;
+    const fmt = (ms: number) => {
+      const t = Math.max(0, Math.ceil(ms / 1000));
+      return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    };
+    if (pen.status === 'lobby' && pen.lobbyEndsAt) els.penLobbyTime.textContent = fmt(pen.lobbyEndsAt - now);
+    if (pen.status === 'vote' && pen.phaseEndsAt) {
+      const bar = document.getElementById('pen-bar');
+      if (bar) {
+        const left = Math.max(0, pen.phaseEndsAt - now);
+        bar.style.width = `${Math.min(100, (left / penVoteTotal) * 100)}%`;
+        bar.parentElement?.setAttribute('data-left', `${Math.ceil(left / 1000)}s`);
+      }
+    }
+    const showBig = Date.now() < penBigUntil;
+    els.penBig.hidden = !showBig;
+    if (showBig && els.penBig.textContent !== penBigText) {
+      els.penBig.textContent = penBigText;
+      els.penBig.className = `duel-big br-big pen-big ${penBigTone}`;
+    }
+  }
+
   // ─── Pipa Combate ───────────────────────────────────────────
   let kite: KiteSnapshot | null = null;
   let kiteOffset = 0;
@@ -815,7 +1027,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       clearTimeout(kiteResultTimer);
       els.kiteResult.classList.remove('is-visible');
       els.kiteZone.classList.remove('is-hidden');
-      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.brZone]) z.classList.add('is-hidden');
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone, els.brZone, els.penZone]) z.classList.add('is-hidden');
     } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
       kiteBigText = next.winner === null ? 'CÉU LIMPO' : next.winReason === 'time' ? 'TEMPO!' : 'REI DO CÉU!';
       kiteBigUntil = Date.now() + 2600;
@@ -957,8 +1169,9 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     tickDuel();
     tickRoyale();
     tickKite();
+    tickPenalty();
     // tela cheia sem jogo: tela de espera com a marca (o OBS não fica vazio)
-    const nothing = els.zone.classList.contains('is-hidden') && els.raceZone.classList.contains('is-hidden') && els.duelZone.classList.contains('is-hidden') && els.brZone.classList.contains('is-hidden') && els.kiteZone.classList.contains('is-hidden');
+    const nothing = els.zone.classList.contains('is-hidden') && els.raceZone.classList.contains('is-hidden') && els.duelZone.classList.contains('is-hidden') && els.brZone.classList.contains('is-hidden') && els.kiteZone.classList.contains('is-hidden') && els.penZone.classList.contains('is-hidden');
     els.idle.hidden = !(layout.display === 'fullscreen' && nothing);
     if (els.waiting && layout.display === 'fullscreen') els.waiting.hidden = true;
   }, 250);
@@ -969,6 +1182,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     renderDuel,
     renderRoyale,
     renderKite,
+    renderPenalty,
     setOnline(online: boolean) {
       els.conn.hidden = online || !state;
     },

@@ -199,4 +199,29 @@ describe('Room', () => {
     expect(said.some((t) => t.includes('REI DO CÉU') || t.includes('Céu limpo'))).toBe(true);
     expect(msgs.some((m) => m.type === 'kite' && m.state.events.some((e) => e.kind === 'aparar'))).toBe(true);
   });
+
+  it('pênaltis: mod abre, chat escolhe time e vota, alguém vence e o bot anuncia', () => {
+    const { room, msgs, tickFor } = setup();
+    room.handleChat(chat('mod', '!penaltis iniciar', 'mod'));
+    expect(room.activeGame()).toBe('penalty');
+    room.handleChat(chat('ana', '!a'));
+    room.handleChat(chat('bia', '!b'));
+    room.handleChat(chat('mod', '!pipa iniciar', 'mod'));
+    expect(room.kite).toBeNull();
+    tickFor(46_000);
+    expect(['vote', 'kick', 'result']).toContain(room.penalty?.status);
+    room.handleSupport({ kind: 'bits', amount: 100, platform: 'twitch', user: { id: 'ana', name: 'ana' } });
+    for (let i = 0; i < 300 && room.penalty?.status !== 'finished'; i++) {
+      room.handleChat(chat('ana', '!dir'));
+      room.handleChat(chat('bia', '!esq'));
+      tickFor(1000);
+    }
+    expect(room.penalty?.status).toBe('finished');
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('DISPUTA DE PÊNALTIS'))).toBe(true);
+    expect(said.some((t) => t.includes('Bola no meio'))).toBe(true);
+    expect(said.some((t) => t.includes('CHUTE COLOCADO'))).toBe(true);
+    expect(said.some((t) => t.includes('vence nos pênaltis'))).toBe(true);
+    expect(msgs.some((m) => m.type === 'penalty' && m.state.events.some((e) => e.kind === 'kick'))).toBe(true);
+  });
 });

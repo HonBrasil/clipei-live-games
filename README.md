@@ -304,3 +304,15 @@ Google Cloud: projeto com a **YouTube Data API v3** ativada, tela de consentimen
 - **Live e chat:** com o OBS aberto (ou jogo rolando), o servidor procura a live ativa a cada 2 min (`liveBroadcasts.list`, 1 de cota) e abre o chat por conexão contínua gRPC (`liveChatMessages.streamList`, 5 de cota por conexão; proto em `apps/server/src/youtube/stream_list.proto`). O histórico que vem na conexão é ignorado.
 - **Apoios:** Super Chat e Super Sticker viram "bits" pelo valor (1 bit ≈ US$ 0,01, câmbio aproximado em `youtube/events.ts`); membro novo e marco de meses viram sub; presentes de assinatura viram gift. Sem pontos de canal, raid e clip no YouTube.
 - **Cota:** 10.000 unidades/dia no projeto todo. Mensagens do bot custam 20: limite de 350 por dia e 1 a cada 6 s por canal (`YT_SEND_DAILY`, `YT_SEND_GAP_MS`). Cota esgotada aparece no card do YouTube em Conexões.
+
+## Disputa de Pênaltis
+
+Estádio visto de trás do cobrador. **Minigames → Pênaltis** ou `!penaltis iniciar` (mods).
+
+1. **Times:** o streamer define nome e cor dos dois times. O chat entra com `!a` ou `!b` (ou `!entrar`, que cai no time com menos gente). Quem votar sem time entra no menor. Time vazio vira CPU (opcional).
+2. **Cobranças:** a cada pênalti, as duas torcidas votam ao mesmo tempo numa janela (8 a 20 s): quem bate escolhe o canto, quem defende escolhe o pulo (`!esq`, `!meio`, `!dir`, lado da tela). A maioria decide; os percentuais só aparecem depois do chute. O cobrador roda entre os membros do time; o goleiro é o mesmo a partida toda.
+3. **Resultado:** goleiro no canto certo pega 62% (cantos) ou 72% (meio); fora do canto a bola ainda pode ir na trave ou para fora. 3 ou 5 cobranças para cada lado, decisão antecipada e morte súbita.
+4. **Fim:** placar, craque da torcida (quem mais acertou o voto no time campeão), anúncio do bot e clip.
+
+Apoios (editáveis na aba Apoios): bits = chute colocado, sub = paredão (o goleiro alcança o canto ao lado), pontos = voto de capitão (vale mais), raid = pressão da torcida para o time que está perdendo.
+Exibição: tela cheia (estádio completo) ou janela com fundo transparente (só o gol e os jogadores).

@@ -15,6 +15,7 @@ import {
   type DuelConfig,
   type RoyaleConfig,
   type KiteConfig,
+  type PenaltyConfig,
   type BossPresetKey,
   type MeResponse,
   type SimulatorStatus,
@@ -906,6 +907,7 @@ app.post<{ Body: Partial<Omit<BossConfig, 'skin'>> & { preset?: BossPresetKey | 
   if (room.duel?.isActive) return reply.code(409).send({ error: 'Tem um duelo rolando. Espere terminar para invocar o boss.' });
   if (room.royale?.isActive) return reply.code(409).send({ error: 'Tem um Battle Royale rolando. Espere terminar para invocar o boss.' });
   if (room.kite?.isActive) return reply.code(409).send({ error: 'Tem um Pipa Combate no céu. Espere terminar para invocar o boss.' });
+  if (room.penalty?.isActive) return reply.code(409).send({ error: 'Tem uma disputa de pênaltis rolando. Espere terminar para invocar o boss.' });
   const started = room.startBoss(cfg, hpMode);
   return { ok: true, config: started, hpMode };
 });
@@ -976,6 +978,18 @@ app.post<{ Body: Partial<KiteConfig> }>('/api/kite/start', async (req, reply) =>
 app.post('/api/kite/go', async (req) => ({ ok: currentRoom(req).kiteGo() }));
 
 app.post('/api/kite/stop', async (req) => ({ ok: currentRoom(req).stopKite() }));
+
+app.post<{ Body: Partial<PenaltyConfig> }>('/api/penalty/start', async (req, reply) => {
+  const room = currentRoom(req);
+  if (!room.entitled()) return reply.code(402).send({ error: 'Seu teste acabou. Assine um plano para voltar a jogar.' });
+  const res = room.startPenalty(req.body && Object.keys(req.body).length ? req.body : undefined);
+  if (!res.ok) return reply.code(409).send({ error: res.error });
+  return res;
+});
+
+app.post('/api/penalty/go', async (req) => ({ ok: currentRoom(req).penaltyGo() }));
+
+app.post('/api/penalty/stop', async (req) => ({ ok: currentRoom(req).stopPenalty() }));
 
 app.post('/api/race/go', async (req) => ({ ok: currentRoom(req).raceGo() }));
 

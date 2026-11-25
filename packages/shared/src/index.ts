@@ -134,8 +134,8 @@ export interface SupportSettings {
 
 // ─── Apoios por minigame (tudo editável pelo streamer) ───────
 
-export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite';
-export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite'];
+export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite' | 'penalty';
+export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite', 'penalty'];
 /** Presentes (gift) seguem a regra de sub. */
 export type SupportRuleKind = 'bits' | 'sub' | 'points' | 'raid';
 export const SUPPORT_RULE_KINDS: SupportRuleKind[] = ['bits', 'sub', 'points', 'raid'];
@@ -219,6 +219,24 @@ export const GAME_SUPPORT: Record<SupportGameId, Partial<Record<SupportRuleKind,
         { key: 'damage', label: 'de', suffix: 'de dano cada', min: 10, max: 100, step: 5, def: 35 },
       ],
     },
+  },
+  penalty: {
+    bits: {
+      effect: 'Chute colocado',
+      detail: 'No próximo pênalti do time de quem apoiou, o goleiro tem menos chance de defender.',
+      params: [{ key: 'reducePct', label: 'Defesa', suffix: '% mais difícil', min: 20, max: 100, step: 10, def: 60 }],
+    },
+    sub: {
+      effect: 'Paredão',
+      detail: 'Na próxima defesa do time de quem apoiou, o goleiro também alcança o canto ao lado do pulo.',
+      params: [{ key: 'reachPct', label: 'Chance de pegar o canto ao lado:', suffix: '%', min: 10, max: 80, step: 5, def: 35 }],
+    },
+    points: {
+      effect: 'Voto de capitão',
+      detail: 'O voto de quem resgatou vale mais na próxima decisão do time.',
+      params: [{ key: 'weight', label: 'Vale', suffix: 'votos', min: 2, max: 10, step: 1, def: 3 }],
+    },
+    raid: { effect: 'Pressão da torcida', detail: 'O time que está perdendo (ou um sorteado, se empatado) ganha um chute colocado.', params: [] },
   },
   kite: {
     bits: {
@@ -404,6 +422,7 @@ export interface RoomSettings {
   duel: DuelConfig;
   royale: RoyaleConfig;
   kite: KiteConfig;
+  penalty: PenaltyConfig;
   /** O que bits, subs, pontos e raids fazem em cada minigame (o boss usa `support`). */
   gameSupport: Record<SupportGameId, GameSupportConfig>;
 }
@@ -424,7 +443,22 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   duel: { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true, cheerSec: 15 },
   royale: { joinSec: 60, maxPlayers: 100, fillBots: true, fullscreen: true },
   kite: { joinSec: 60, durationSec: 180, maxPlayers: 40, fillBots: true, fullscreen: true },
-  gameSupport: { race: defaultGameSupport('race'), duel: defaultGameSupport('duel'), royale: defaultGameSupport('royale'), kite: defaultGameSupport('kite') },
+  gameSupport: {
+    race: defaultGameSupport('race'),
+    duel: defaultGameSupport('duel'),
+    royale: defaultGameSupport('royale'),
+    kite: defaultGameSupport('kite'),
+    penalty: defaultGameSupport('penalty'),
+  },
+  penalty: {
+    joinSec: 45,
+    voteSec: 12,
+    kicks: 5,
+    teamA: { name: 'Vermelho', color: '#ff2d3a' },
+    teamB: { name: 'Azul', color: '#2f7dff' },
+    fillBots: true,
+    fullscreen: true,
+  },
 };
 
 /** Mescla configurações parciais com validação dos limites. */
@@ -481,6 +515,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     duel: normalizeDuelConfig({ ...(base.duel ?? {}), ...((p.duel ?? {}) as Partial<DuelConfig>) }),
     royale: normalizeRoyaleConfig({ ...(base.royale ?? {}), ...((p.royale ?? {}) as Partial<RoyaleConfig>) }),
     kite: normalizeKiteConfig({ ...(base.kite ?? {}), ...((p.kite ?? {}) as Partial<KiteConfig>) }),
+    penalty: normalizePenaltyConfig(base.penalty, p.penalty as Partial<PenaltyConfig> | undefined),
     gameSupport: Object.fromEntries(
       SUPPORT_GAME_IDS.map((g) => [g, normalizeGameSupport(g, base.gameSupport?.[g], (p.gameSupport as Record<string, unknown> | undefined)?.[g])]),
     ) as Record<SupportGameId, GameSupportConfig>,
@@ -499,7 +534,7 @@ export interface RoomStatus {
   /** Fontes do OBS conectadas agora (o painel não conta). */
   overlays: number;
   /** Minigame rolando agora na tela (só um por vez). */
-  game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | null;
+  game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | null;
   serverNow: number;
 }
 
@@ -512,6 +547,7 @@ export type ServerMessage =
   | { type: 'duel'; state: DuelSnapshot }
   | { type: 'royale'; state: RoyaleSnapshot }
   | { type: 'kite'; state: KiteSnapshot }
+  | { type: 'penalty'; state: PenaltySnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -589,7 +625,7 @@ export interface SimulatorStatus {
 
 // ─── Catálogo da plataforma ─────────────────────────────────
 
-export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'quiz' | 'teams' | 'wheel' | 'missions';
+export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'quiz' | 'teams' | 'wheel' | 'missions';
 
 export interface GameInfo {
   id: GameId;
@@ -641,6 +677,14 @@ export const GAMES: GameInfo[] = [
     description: 'Cada pessoa solta uma pipa sobre o morro. Quando as linhas cruzam, é relo: puxe, dibique ou descarregue para cortar. Pipa voada, o chat apara.',
     status: 'active',
     commands: ['!pipa', '!dibicar', '!puxar', '!descarregar', '!aparar'],
+  },
+  {
+    id: 'penalty',
+    name: 'Disputa de Pênaltis',
+    tagline: 'Time contra time',
+    description: 'O chat se divide em dois times. Quem bate vota o canto, quem defende vota o pulo do goleiro. Cinco cobranças cada e morte súbita.',
+    status: 'active',
+    commands: ['!a', '!b', '!esq', '!meio', '!dir'],
   },
   {
     id: 'quiz',
@@ -1279,4 +1323,133 @@ export interface KiteSnapshot {
   topCuts: number[];
   /** quem mais aparou (qualquer pessoa do chat) */
   aparadores: { name: string; color: string; n: number }[];
+}
+
+// ─── Disputa de Pênaltis ─────────────────────────────────────
+
+export const PENALTY_COLORS = [
+  { color: '#ff2d3a', label: 'Vermelho' },
+  { color: '#2f7dff', label: 'Azul' },
+  { color: '#1fbf5b', label: 'Verde' },
+  { color: '#ffc83d', label: 'Amarelo' },
+  { color: '#8b5cff', label: 'Roxo' },
+  { color: '#ff7a1a', label: 'Laranja' },
+  { color: '#f2f2f2', label: 'Branco' },
+  { color: '#1d1d24', label: 'Preto' },
+] as const;
+
+export interface PenaltyTeamConfig {
+  name: string;
+  color: string;
+}
+
+export interface PenaltyConfig {
+  /** Escolha de times (!a / !b), em segundos. */
+  joinSec: number;
+  /** Janela de votação de cada cobrança, em segundos. */
+  voteSec: number;
+  /** Cobranças por time antes da morte súbita (3 ou 5). */
+  kicks: number;
+  teamA: PenaltyTeamConfig;
+  teamB: PenaltyTeamConfig;
+  /** Time vazio vira time da CPU (3 jogadores). */
+  fillBots: boolean;
+  /** Tela cheia (recomendado) mesmo com o overlay sobreposto. Desligado = janela. */
+  fullscreen: boolean;
+}
+
+export function normalizePenaltyConfig(base: Partial<PenaltyConfig> | undefined, patch?: Partial<PenaltyConfig>): PenaltyConfig {
+  const c = { ...(base ?? {}), ...(patch ?? {}) } as Partial<PenaltyConfig>;
+  const num = (v: unknown, def: number, min: number, max: number) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  const team = (b: Partial<PenaltyTeamConfig> | undefined, q: Partial<PenaltyTeamConfig> | undefined, def: PenaltyTeamConfig): PenaltyTeamConfig => {
+    const name = String(q?.name ?? b?.name ?? def.name).replace(/\s+/g, ' ').trim().slice(0, 18) || def.name;
+    const color = String(q?.color ?? b?.color ?? def.color);
+    return { name, color: /^#[0-9a-f]{6}$/i.test(color) ? color : def.color };
+  };
+  return {
+    joinSec: num(c.joinSec, 45, 15, 180),
+    voteSec: num(c.voteSec, 12, 6, 30),
+    kicks: num(c.kicks, 5, 3, 5) >= 4 ? 5 : 3,
+    teamA: team(base?.teamA, patch?.teamA, { name: 'Vermelho', color: '#ff2d3a' }),
+    teamB: team(base?.teamB, patch?.teamB, { name: 'Azul', color: '#2f7dff' }),
+    fillBots: c.fillBots !== false,
+    fullscreen: c.fullscreen !== false,
+  };
+}
+
+/**
+ * lobby = escolha de times · vote = votação da cobrança · kick = animação do chute ·
+ * result = mostra o resultado · finished / stopped.
+ */
+export type PenaltyStatus = 'idle' | 'lobby' | 'vote' | 'kick' | 'result' | 'finished' | 'stopped';
+/** 0 = esquerda · 1 = meio · 2 = direita (lado da tela) */
+export type PenaltyCorner = 0 | 1 | 2;
+export type PenaltyOutcome = 'goal' | 'save' | 'post' | 'out';
+
+export interface PenaltyTeamView {
+  name: string;
+  color: string;
+  players: number;
+  score: number;
+  /** cobranças já batidas, em ordem */
+  marks: PenaltyOutcome[];
+  /** próximo chute colocado / próxima defesa com paredão */
+  placed: boolean;
+  wall: boolean;
+}
+
+export interface PenaltyPerson {
+  name: string;
+  color: string;
+}
+
+export interface PenaltyReveal {
+  corner: PenaltyCorner;
+  /** 0 = rasteiro · 1 = alto */
+  height: 0 | 1;
+  dive: PenaltyCorner;
+  outcome: PenaltyOutcome;
+  /** votos [esq, meio, dir] de quem bateu e de quem defendeu */
+  kickVotes: [number, number, number];
+  keepVotes: [number, number, number];
+}
+
+export type PenaltyEventKind = 'join' | 'kick' | 'item' | 'win';
+
+export interface PenaltyEvent {
+  id: number;
+  kind: PenaltyEventKind;
+  team: 0 | 1 | -1;
+  name?: string;
+  color?: string;
+  outcome?: PenaltyOutcome;
+  /** apoio: 'colocado' | 'paredao' | 'capitao' | 'torcida' */
+  label?: string;
+}
+
+export interface PenaltySnapshot {
+  status: PenaltyStatus;
+  fullscreen: boolean;
+  serverNow: number;
+  lobbyEndsAt: number | null;
+  phaseEndsAt: number | null;
+  teams: [PenaltyTeamView, PenaltyTeamView];
+  kicks: number;
+  /** quem bate agora (0 = time A, 1 = time B) */
+  kicking: 0 | 1;
+  /** número da cobrança atual (1, 2, 3…) do time que bate */
+  round: number;
+  suddenDeath: boolean;
+  kicker: PenaltyPerson | null;
+  keepers: [PenaltyPerson | null, PenaltyPerson | null];
+  /** quantos votaram nesta cobrança (o canto só aparece na revelação) */
+  votes: { kick: number; keep: number };
+  reveal: PenaltyReveal | null;
+  winner: 0 | 1 | null;
+  /** quem mais acertou o voto no time vencedor */
+  mvp: PenaltyPerson | null;
+  events: PenaltyEvent[];
 }
