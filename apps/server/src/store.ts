@@ -27,6 +27,22 @@ export interface KickLink {
   rewardId?: string | null;
 }
 
+/** Canal do YouTube ligado a uma conta Clipei. */
+export interface YoutubeLink {
+  channelId: string;
+  name: string;
+  handle: string | null;
+  avatar?: string;
+  tokens: OAuthTokens;
+}
+
+/** Conta do bot no YouTube (um canal da Clipei, escreve em todos os chats). */
+export interface StoredYoutubeBot {
+  channelId: string;
+  name: string;
+  tokens: OAuthTokens;
+}
+
 /**
  * Conta de streamer na Clipei. O id é o id da Twitch (contas antigas e de quem
  * entra pela Twitch) ou "kick:<id>" para quem entra só pela Kick.
@@ -40,6 +56,7 @@ export interface StoredChannel {
   /** Tokens da Twitch (ausente em contas só da Kick). */
   tokens?: OAuthTokens;
   kick?: KickLink;
+  youtube?: YoutubeLink;
   connectedAt: number;
   settings?: RoomSettings;
   /** Recompensa de pontos criada pela Clipei no canal. */
@@ -60,6 +77,7 @@ export interface StoredBot {
 interface StoreShape {
   channels: Record<string, StoredChannel>;
   bot: StoredBot | null;
+  ytBot?: StoredYoutubeBot | null;
 }
 
 const FILE = resolve(config.dataDir, 'store.json');
@@ -83,6 +101,7 @@ export async function initStore() {
   const next: StoreShape = { channels: {}, bot: null };
   for (const r of rows) {
     if (r.key === 'bot') next.bot = r.value as StoredBot;
+    else if (r.key === 'ytbot') next.ytBot = r.value as StoredYoutubeBot;
     else if (r.key.startsWith('channel:')) next.channels[r.key.slice(8)] = r.value as StoredChannel;
     persisted.set(r.key, JSON.stringify(r.value));
   }
@@ -117,6 +136,7 @@ async function flush() {
   const current = new Map<string, string>();
   for (const [id, ch] of Object.entries(data.channels)) current.set(`channel:${id}`, JSON.stringify(ch));
   if (data.bot) current.set('bot', JSON.stringify(data.bot));
+  if (data.ytBot) current.set('ytbot', JSON.stringify(data.ytBot));
   const changed = [...current].filter(([k, json]) => persisted.get(k) !== json).map(([key, json]) => ({ key, json }));
   const removed = [...persisted.keys()].filter((k) => !current.has(k));
   if (!changed.length && !removed.length) return;
@@ -145,14 +165,17 @@ export const store = {
   getChannel: (id: string) => data.channels[id] ?? null,
   getChannelByKickId: (kickUserId: string) =>
     Object.values(data.channels).find((c) => c.kick?.userId === kickUserId) ?? null,
+  getChannelByYoutubeId: (ytChannelId: string) =>
+    Object.values(data.channels).find((c) => c.youtube?.channelId === ytChannelId) ?? null,
   getChannelByOverlayKey: (key: string) =>
     Object.values(data.channels).find((c) => c.overlayKey === key) ?? null,
   listChannels: () => Object.values(data.channels),
-  upsertChannel(input: Omit<StoredChannel, 'overlayKey' | 'connectedAt' | 'settings' | 'rewardId' | 'clips' | 'kick'>) {
+  upsertChannel(input: Omit<StoredChannel, 'overlayKey' | 'connectedAt' | 'settings' | 'rewardId' | 'clips' | 'kick' | 'youtube'>) {
     const existing = data.channels[input.id];
     data.channels[input.id] = {
       ...input,
       kick: existing?.kick,
+      youtube: existing?.youtube,
       settings: existing?.settings,
       rewardId: existing?.rewardId ?? null,
       clips: existing?.clips ?? [],
@@ -207,6 +230,49 @@ export const store = {
     ch.settings = settings;
     save();
   },
+  setYoutube(id: string, yt: YoutubeLink | undefined) {
+    const ch = data.channels[id];
+    if (!ch) return;
+    // um canal do YouTube só pode estar ligado a uma conta Clipei
+    for (const other of Object.values(data.channels)) if (other !== ch && yt && other.youtube?.channelId === yt.channelId) delete other.youtube;
+    ch.youtube = yt;
+    save();
+  },
+  updateYoutubeTokens(id: string, tokens: OAuthTokens) {
+    const ch = data.channels[id];
+    if (!ch?.youtube) return;
+    ch.youtube.tokens = tokens;
+    save();
+  },
+  /** Cria conta Clipei só com o YouTube (id "yt:<canal>"). */
+  createYoutubeAccount(yt: YoutubeLink) {
+    const id = `yt:${yt.channelId}`;
+    const existing = data.channels[id];
+    data.channels[id] = {
+      id,
+      login: (yt.handle ?? yt.name).replace(/^@/, '').toLowerCase(),
+      displayName: yt.name,
+      avatar: yt.avatar,
+      overlayKey: existing?.overlayKey ?? newOverlayKey(),
+      connectedAt: existing?.connectedAt ?? Date.now(),
+      settings: existing?.settings,
+      clips: existing?.clips ?? [],
+      subscription: existing?.subscription ?? newTrial(),
+      youtube: yt,
+    };
+    save();
+    return data.channels[id];
+  },
+  getYoutubeBot: () => data.ytBot ?? null,
+  setYoutubeBot(bot: StoredYoutubeBot | null) {
+    data.ytBot = bot;
+    save();
+  },
+  updateYoutubeBotTokens(tokens: OAuthTokens) {
+    if (!data.ytBot) return;
+    data.ytBot.tokens = tokens;
+    save();
+  },
   setKick(id: string, kick: KickLink | undefined) {
     const ch = data.channels[id];
     if (!ch) return;
@@ -224,6 +290,7 @@ export const store = {
     const into = data.channels[intoId];
     if (!from || !into || from === into) return into ?? null;
     into.kick = into.kick ?? from.kick;
+    into.youtube = into.youtube ?? from.youtube;
     into.settings = into.settings ?? from.settings;
     into.subscription = into.subscription ?? from.subscription;
     into.overlayKey = from.overlayKey;

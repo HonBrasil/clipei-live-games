@@ -293,3 +293,14 @@ Exibição: tela cheia (recomendado) ou janela, como no Battle Royale.
 
 Cada minigame tem a aba **Apoios** no painel: liga/desliga bits, subs (e presentes), pontos e raids, define mínimo de bits e de pessoas no raid e ajusta a força de cada efeito (segundos de foguete, % de mira, tamanho do colete, bombas, linha da pipa…). Vale na hora, até no meio da partida. O esquema fica em `GAME_SUPPORT` (`packages/shared`), e o painel desenha os campos a partir dele. O Boss continua com a aba Apoios própria (dano por bit, por sub, por pessoa do raid).
 A recompensa de pontos virou **"⚡ Apoio no Minigame"** (uma só para todos os jogos; o custo é editável em qualquer aba Apoios).
+
+
+## YouTube
+
+Google Cloud: projeto com a **YouTube Data API v3** ativada, tela de consentimento (Externo; em modo Teste só entram os e-mails cadastrados como usuários de teste) e um **ID do cliente OAuth (Aplicativo da Web)** com os retornos `https://clipei-live-games.vercel.app/api/auth/youtube/callback` e `http://localhost:3000/api/auth/youtube/callback`. Na Railway: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `GOOGLE_REDIRECT_URI`.
+
+- **Streamer:** Conexões → YouTube → Conectar (permissão `youtube.readonly`). Também dá para entrar só com o YouTube (conta `yt:<canal>`).
+- **Bot:** o admin conecta o canal do bot em Admin → Plataformas → YouTube → Conectar bot (permissão `youtube.force-ssl`).
+- **Live e chat:** com o OBS aberto (ou jogo rolando), o servidor procura a live ativa a cada 2 min (`liveBroadcasts.list`, 1 de cota) e abre o chat por conexão contínua gRPC (`liveChatMessages.streamList`, 5 de cota por conexão; proto em `apps/server/src/youtube/stream_list.proto`). O histórico que vem na conexão é ignorado.
+- **Apoios:** Super Chat e Super Sticker viram "bits" pelo valor (1 bit ≈ US$ 0,01, câmbio aproximado em `youtube/events.ts`); membro novo e marco de meses viram sub; presentes de assinatura viram gift. Sem pontos de canal, raid e clip no YouTube.
+- **Cota:** 10.000 unidades/dia no projeto todo. Mensagens do bot custam 20: limite de 350 por dia e 1 a cada 6 s por canal (`YT_SEND_DAILY`, `YT_SEND_GAP_MS`). Cota esgotada aparece no card do YouTube em Conexões.

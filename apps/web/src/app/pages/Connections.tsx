@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
 import { Card, Status, Switch } from '../components/ui.tsx';
@@ -69,14 +69,7 @@ export function Connections() {
         <Card title="Outras plataformas">
           <div className="conn-list">
             <KickRow />
-            <div className="conn soon">
-              <div className="conn-logo yt">▶</div>
-              <div className="conn-info">
-                <b>YouTube</b>
-                <span>Em preparação</span>
-              </div>
-              <span className="tag soon">Em breve</span>
-            </div>
+            <YoutubeRow />
           </div>
         </Card>
       </div>
@@ -162,6 +155,110 @@ function KickRow() {
           Faltam permissões da Kick. <a href="/api/auth/kick/login">Reconectar</a>
         </p>
       )}
+    </>
+  );
+}
+
+/** YouTube: conectar o canal, achar a live, status do chat e do bot. */
+function YoutubeRow() {
+  const { me, refresh, toast } = useApp();
+  const y = me?.youtube;
+  const [checking, setChecking] = useState(false);
+  // live no ar e chat ainda sem mensagem: atualiza a cada 5 s
+  const waiting = Boolean(y?.connected && y.chatConnected && !y.lastEventAt);
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(() => void refresh(), 5000);
+    return () => clearInterval(t);
+  }, [waiting, refresh]);
+  if (!me || !y) return null;
+
+  if (!y.configured) {
+    return (
+      <div className="conn soon">
+        <div className="conn-logo yt">▶</div>
+        <div className="conn-info">
+          <b>YouTube</b>
+          <span>Em preparação</span>
+        </div>
+        <span className="tag soon">Em breve</span>
+      </div>
+    );
+  }
+  if (!y.connected) {
+    return (
+      <div className="conn">
+        <div className="conn-logo yt">▶</div>
+        <div className="conn-info">
+          <b>YouTube</b>
+          <span>Entre com a conta Google do seu canal</span>
+        </div>
+        <a className="btn sm yt" href="/api/auth/youtube/login">
+          Conectar
+        </a>
+      </div>
+    );
+  }
+
+  const ago = y.lastEventAt ? Math.max(0, Math.round((Date.now() - y.lastEventAt) / 1000)) : null;
+  const agoText = ago === null ? '' : ago < 60 ? `há ${ago}s` : ago < 3600 ? `há ${Math.round(ago / 60)} min` : `há ${Math.round(ago / 3600)} h`;
+  const label = y.problem ? 'Com problema' : !y.live ? 'Fora do ar' : !y.chatConnected ? 'Conectando ao chat…' : ago !== null ? `Recebendo (${agoText})` : 'Mande uma mensagem no chat';
+  return (
+    <>
+      <div className="conn">
+        <div className="conn-logo yt">▶</div>
+        <div className="conn-info">
+          <b>YouTube</b>
+          <span>
+            {y.name}
+            {y.handle ? ` · ${y.handle}` : ''}
+            {y.live ? ' · ao vivo' : ''}
+          </span>
+        </div>
+        <Status tone={y.problem ? '' : y.live && y.chatConnected ? 'ok' : 'wait'}>{label}</Status>
+        <button
+          className="btn sm"
+          disabled={checking}
+          onClick={async () => {
+            setChecking(true);
+            try {
+              const r = await api<{ live: boolean; chatConnected: boolean; problem: string | null }>('/api/youtube/check', {});
+              if (r.problem) toast(r.problem, 'err');
+              else toast(r.live ? 'Live encontrada, chat conectado! ▶️' : 'Nenhuma live no ar agora neste canal.', r.live ? 'ok' : undefined);
+              await refresh();
+            } catch (err) {
+              toast((err as Error).message, 'err');
+            } finally {
+              setChecking(false);
+            }
+          }}
+        >
+          {checking ? 'Procurando…' : 'Procurar live'}
+        </button>
+        {me.primary !== 'youtube' && (
+          <button
+            className="btn sm"
+            onClick={async () => {
+              try {
+                await api('/api/auth/youtube/disconnect', {});
+                toast('YouTube desconectado.');
+                await refresh();
+              } catch (err) {
+                toast((err as Error).message, 'err');
+              }
+            }}
+          >
+            Desconectar
+          </button>
+        )}
+      </div>
+      {y.problem && <p className="chat-error">{y.problem}</p>}
+      <p className="muted foot-note">
+        Com o OBS aberto, a Clipei procura sua live sozinha a cada 2 minutos (ou clique em Procurar live).{' '}
+        {y.botConnected
+          ? `O bot fala no chat como ${y.botName}; deixe ele como moderador para não ser barrado por modo lento.`
+          : 'O bot do YouTube ainda não está ativo: os jogos funcionam, só sem os anúncios no chat.'}
+      </p>
     </>
   );
 }

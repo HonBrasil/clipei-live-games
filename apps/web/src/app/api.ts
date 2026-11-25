@@ -43,10 +43,14 @@ export const ERRORS: Record<string, string> = {
   'falha-twitch': 'A Twitch recusou a conexão. Confira se a URL de redirecionamento no console é igual à do .env.',
   'falha-kick': 'A Kick recusou a conexão. Confira a URL de redirecionamento do app da Kick.',
   'sem-permissao-bot': 'Só administradores da Clipei podem conectar a conta do bot.',
+  'youtube-nao-configurado': 'O YouTube ainda não está configurado no servidor (GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET).',
+  'falha-youtube': 'O YouTube recusou a conexão. Confira se a conta é usuária de teste do app e se ela tem um canal no YouTube.',
 };
 
 export const SUCCESS: Record<string, string> = {
   streamer: 'Canal conectado! 🎉',
   bot: 'Conta do bot conectada! 🤖',
+  youtube: 'YouTube conectado! ▶️',
+  'bot-youtube': 'Bot do YouTube conectado! 🤖',
   kick: 'Kick conectada! 🟢',
 };

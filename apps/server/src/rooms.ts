@@ -765,6 +765,11 @@ export class Room {
     return this.settings;
   }
 
+  /** OBS (overlays) conectados agora. */
+  get overlayCount() {
+    return [...this.sockets].filter((ws) => !this.panels.has(ws) && ws.readyState === 1).length;
+  }
+
   status(): RoomStatus {
     return {
       activeChatters: this.activity.count(),

@@ -35,7 +35,7 @@ export function supportLabel(e: SupportEvent) {
   const n = formatNumber(e.amount);
   switch (e.kind) {
     case 'bits':
-      return `${n} ${e.unit ?? 'bits'}`;
+      return e.label ?? `${n} ${e.unit ?? 'bits'}`;
     case 'sub':
       return e.amount > 1 ? `sub · ${n} meses` : 'novo sub';
     case 'gift':
@@ -54,7 +54,7 @@ export function supportAnnouncement(e: SupportEvent, damage: number, bossName: s
   const n = formatNumber(e.amount);
   switch (e.kind) {
     case 'bits':
-      return `💎 ${who} mandou ${n} ${e.unit ?? 'bits'}: chuva de cristais com ${d} de dano no ${bossName}!`;
+      return `💎 ${who} mandou ${e.label ?? `${n} ${e.unit ?? 'bits'}`}: chuva de cristais com ${d} de dano no ${bossName}!`;
     case 'sub':
       return e.amount > 1
         ? `⭐ ${who} renovou o sub (${n} meses): raio dourado de ${d} de dano!`

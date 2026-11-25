@@ -1114,3 +1114,8 @@ select.input {
   text-decoration: underline;
   cursor: pointer;
 }
+.btn.yt {
+  border: 0;
+  background: #ff0033;
+  color: #fff;
+}

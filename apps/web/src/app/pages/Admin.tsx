@@ -132,9 +132,23 @@ export function Admin() {
               <div className="conn-logo kick">K</div>
               <div className="conn-info">
                 <b>Kick</b>
-                <span>Pausada para o lançamento</span>
+                <span>KICK_CLIENT_ID / SECRET · o bot é o dono do app</span>
               </div>
               <Status tone={data?.platforms.kick ? 'ok' : ''}>{data?.platforms.kick ? 'Configurada' : 'Desligada'}</Status>
+            </div>
+            <div className="conn">
+              <div className="conn-logo yt">▶</div>
+              <div className="conn-info">
+                <b>YouTube</b>
+                <span>{me?.youtube.botConnected ? `Bot: ${me.youtube.botName}` : 'GOOGLE_CLIENT_ID / SECRET · conecte o canal do bot'}</span>
+              </div>
+              {data?.platforms.youtube ? (
+                <a className="btn sm" href="/api/auth/youtube/login?as=bot">
+                  {me?.youtube.botConnected ? 'Trocar bot' : 'Conectar bot'}
+                </a>
+              ) : (
+                <Status tone="">Desligado</Status>
+              )}
             </div>
           </div>
         </Card>

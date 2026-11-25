@@ -32,6 +32,11 @@ export const config = {
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
   },
+  google: {
+    clientId: env.GOOGLE_CLIENT_ID ?? '',
+    clientSecret: env.GOOGLE_CLIENT_SECRET ?? '',
+    redirectUri: env.GOOGLE_REDIRECT_URI ?? 'http://localhost:3000/api/auth/youtube/callback',
+  },
   kick: {
     clientId: env.KICK_CLIENT_ID ?? '',
     clientSecret: env.KICK_CLIENT_SECRET ?? '',

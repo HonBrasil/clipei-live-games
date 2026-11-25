@@ -5,10 +5,14 @@ import { Logo } from '../components/ui.tsx';
 export function Login() {
   // Kick aparece assim que o servidor tiver o app da Kick configurado
   const [kick, setKick] = useState(false);
+  const [youtube, setYoutube] = useState(false);
   useEffect(() => {
     fetch('/api/config')
       .then((r) => r.json())
-      .then((c: { platforms?: { kick?: boolean } }) => setKick(Boolean(c.platforms?.kick)))
+      .then((c: { platforms?: { kick?: boolean; youtube?: boolean } }) => {
+        setKick(Boolean(c.platforms?.kick));
+        setYoutube(Boolean(c.platforms?.youtube));
+      })
       .catch(() => {});
   }, []);
   return (
@@ -31,9 +35,15 @@ export function Login() {
             Kick · em breve
           </button>
         )}
-        <button className="btn lg block" disabled>
-          YouTube · em breve
-        </button>
+        {youtube ? (
+          <a className="btn yt lg block" href="/api/auth/youtube/login">
+            Entrar com YouTube
+          </a>
+        ) : (
+          <button className="btn lg block" disabled>
+            YouTube · em breve
+          </button>
+        )}
         <p className="login-alt">
           Quer só conhecer? <Link to="/app">Abrir o modo demo</Link>
         </p>

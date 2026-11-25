@@ -121,6 +121,8 @@ export interface SupportEvent {
   redemptionId?: string;
   /** moeda do apoio tipo "bits": Bits (Twitch) ou Kicks (Kick) */
   unit?: 'bits' | 'kicks';
+  /** como mostrar o apoio no chat, ex.: "Super Chat de R$ 10,00" (YouTube) */
+  label?: string;
 }
 
 export interface SupportSettings {
@@ -543,6 +545,20 @@ export interface MeResponse {
     problem: string | null;
     missingScopes: string[];
   };
+  youtube: {
+    configured: boolean;
+    connected: boolean;
+    name: string | null;
+    handle: string | null;
+    live: boolean;
+    /** chat da live conectado agora */
+    chatConnected: boolean;
+    lastEventAt: number | null;
+    problem: string | null;
+    /** bot do YouTube (conta da Clipei) conectado */
+    botConnected: boolean;
+    botName: string | null;
+  };
   /** Plataforma usada para entrar (conta só da Kick não tem Twitch). */
   primary: Platform | null;
   /** Administrador da Clipei (vê o painel /app/admin). */
@@ -790,7 +806,7 @@ export interface FightRecord {
 export interface AdminOverview {
   /** ADMIN_LOGINS não definido: qualquer conta vira admin (só em desenvolvimento). */
   openAdmin: boolean;
-  platforms: { twitch: boolean; kick: boolean };
+  platforms: { twitch: boolean; kick: boolean; youtube: boolean };
   bot: { connected: boolean; name: string | null; login: string | null; missingScopes: string[] };
   channels: {
     id: string;

@@ -63,6 +63,20 @@ import {
   verifyKickSignature,
 } from './kick/api.ts';
 import { mapKickEvent } from './kick/events.ts';
+import {
+  YT_BOT_SCOPES,
+  YT_STREAMER_SCOPES,
+  YoutubeApiError,
+  youtubeConfigured,
+  ytActiveBroadcast,
+  ytAuthorizeUrl,
+  ytEnsureFresh,
+  ytExchangeCode,
+  ytMe,
+  ytSendChat,
+} from './youtube/api.ts';
+import { YoutubeChatStream } from './youtube/chat.ts';
+import { mapYoutubeItem } from './youtube/events.ts';
 
 // dados do Supabase precisam estar em memória antes de qualquer rota ou sala
 await initStore();
@@ -200,6 +214,134 @@ async function syncReward(channelId: string) {
   }
 }
 
+// ─── YouTube: live ativa, chat contínuo e bot ────────────────
+
+interface YtWatch {
+  stream: YoutubeChatStream | null;
+  liveChatId: string | null;
+  live: boolean;
+  lastCheckAt: number;
+  lastEventAt: number | null;
+  problem: string | null;
+  checking: boolean;
+  lastSentAt: number;
+}
+const ytWatch = new Map<string, YtWatch>();
+const ytState = (id: string) => {
+  let w = ytWatch.get(id);
+  if (!w) ytWatch.set(id, (w = { stream: null, liveChatId: null, live: false, lastCheckAt: 0, lastEventAt: null, problem: null, checking: false, lastSentAt: 0 }));
+  return w;
+};
+/** Procurar a live custa 1 de cota: no máximo 1 vez a cada 2 min por canal (exceto ao conectar ou pelo botão). */
+const YT_CHECK_EVERY_MS = 120_000;
+/** Mensagens do bot custam 20 de cota cada: limite diário do projeto todo e intervalo por canal. */
+const YT_SEND_DAILY = 350;
+const YT_SEND_GAP_MS = 6000;
+let ytSent = { day: '', count: 0 };
+
+async function ytToken(channelId: string) {
+  const ch = store.getChannel(channelId);
+  if (!ch?.youtube) throw new Error('YouTube não conectado');
+  return (await ytEnsureFresh(ch.youtube.tokens, (t) => store.updateYoutubeTokens(channelId, t))).accessToken;
+}
+
+async function ytBotToken() {
+  const bot = store.getYoutubeBot();
+  if (!bot) throw new Error('Bot do YouTube não conectado');
+  return (await ytEnsureFresh(bot.tokens, (t) => store.updateYoutubeBotTokens(t))).accessToken;
+}
+
+function ytStopChat(channelId: string) {
+  const w = ytWatch.get(channelId);
+  w?.stream?.stop();
+  if (w) {
+    w.stream = null;
+    w.liveChatId = null;
+    w.live = false;
+  }
+}
+
+/** Procura a live ativa do canal e liga o chat dela. */
+async function ytCheck(channelId: string, force = false) {
+  const ch = store.getChannel(channelId);
+  if (!ch?.youtube || !youtubeConfigured()) return;
+  const w = ytState(channelId);
+  if (w.stream || w.checking || (!force && Date.now() - w.lastCheckAt < YT_CHECK_EVERY_MS)) return;
+  w.checking = true;
+  w.lastCheckAt = Date.now();
+  try {
+    const b = await ytActiveBroadcast(await ytToken(channelId));
+    w.live = Boolean(b);
+    w.problem = null;
+    if (!b) return;
+    w.liveChatId = b.liveChatId;
+    const stream = new YoutubeChatStream(b.liveChatId, {
+      token: () => ytToken(channelId),
+      onConnected: () => {
+        w.problem = null;
+        app.log.info({ channelId }, '[youtube] chat da live conectado');
+      },
+      onItem: (item) => {
+        w.lastEventAt = Date.now();
+        // a própria mensagem do bot volta pelo chat: ignora
+        if (item.authorDetails?.channelId && item.authorDetails.channelId === store.getYoutubeBot()?.channelId) return;
+        const mapped = mapYoutubeItem(item, ch.youtube!.channelId);
+        const room = rooms.byChannelId(channelId);
+        if (!mapped || !room) return;
+        if (mapped.kind === 'chat') room.handleChat(mapped.event);
+        else room.handleSupport(mapped.event);
+      },
+      onEnded: (reason) => {
+        app.log.info({ channelId, reason }, '[youtube] chat encerrado');
+        ytStopChat(channelId);
+      },
+      onError: (message) => {
+        w.problem = `Chat do YouTube: ${message.slice(0, 180)}`;
+        app.log.warn({ channelId, message }, '[youtube] erro no chat');
+      },
+    });
+    w.stream = stream;
+    stream.start();
+  } catch (err) {
+    const e = err as Error;
+    w.problem =
+      e instanceof YoutubeApiError && e.reason === 'quotaExceeded'
+        ? 'A cota diária do YouTube acabou. Volta a funcionar depois das 4h (horário de Brasília).'
+        : `Não deu para falar com o YouTube: ${e.message.slice(0, 160)}`;
+  } finally {
+    w.checking = false;
+  }
+}
+
+/** Mensagem do bot na live do YouTube (respeita a cota). */
+async function ytSay(channelId: string, text: string) {
+  const w = ytWatch.get(channelId);
+  if (!w?.liveChatId || !store.getYoutubeBot()) return;
+  const now = Date.now();
+  if (now - w.lastSentAt < YT_SEND_GAP_MS) return;
+  const day = new Date(now - 8 * 3600_000).toISOString().slice(0, 10); // a cota zera à meia-noite do Pacífico
+  if (ytSent.day !== day) ytSent = { day, count: 0 };
+  if (ytSent.count >= YT_SEND_DAILY) return;
+  w.lastSentAt = now;
+  ytSent.count++;
+  try {
+    await ytSendChat(await ytBotToken(), w.liveChatId, text);
+  } catch (err) {
+    if (err instanceof YoutubeApiError && err.reason === 'quotaExceeded') ytSent.count = YT_SEND_DAILY;
+    throw err;
+  }
+}
+
+// procura a live só de quem está com o OBS aberto (ou com jogo rolando): economiza cota
+setInterval(() => {
+  if (!youtubeConfigured()) return;
+  for (const ch of store.listChannels()) {
+    if (!ch.youtube) continue;
+    const room = rooms.byChannelId(ch.id);
+    if (room && (room.overlayCount > 0 || room.activeGame())) void ytCheck(ch.id);
+  }
+}, 30_000);
+
 /** Uma conexão EventSub por canal para bits, subs, pontos e raids. */
 const supportSockets = new Map<string, EventSubSocket>();
 
@@ -236,6 +378,7 @@ function roomFor(ch: StoredChannel): Room {
       if (kickSent.size > 200) kickSent.delete(kickSent.values().next().value!);
     });
   }
+  if (ch.youtube && youtubeConfigured()) senders.push((text) => ytSay(ch.id, text));
   room.sendChat = senders.length
     ? async (text) => {
         const results = await Promise.allSettled(senders.map((send) => send(text)));
@@ -248,7 +391,8 @@ function roomFor(ch: StoredChannel): Room {
     const c = cur();
     const twitch = c.tokens ? !twitchConfigured() || liveState.get(c.id) === true : false;
     const kick = c.kick ? !kickConfigured() || kickLive.get(c.kick.userId) === true : false;
-    return twitch || kick || (!c.tokens && !c.kick);
+    const youtube = c.youtube ? !youtubeConfigured() || ytWatch.get(c.id)?.live === true : false;
+    return twitch || kick || youtube || (!c.tokens && !c.kick && !c.youtube);
   };
   if (!room.clips.length && ch.clips?.length) room.clips = ch.clips;
   if (!room.history.length && ch.history?.length) room.history = ch.history;
@@ -335,6 +479,7 @@ function activateChannel(ch: StoredChannel, reconnected = false) {
   startSupportEvents(ch.id, reconnected);
   void syncReward(ch.id);
   if (ch.kick) void syncKick(ch.id);
+  if (ch.youtube) void ytCheck(ch.id, true);
 }
 
 for (const ch of store.listChannels()) activateChannel(ch);
@@ -413,7 +558,7 @@ app.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
         tokens,
       });
       // entrou antes só com a Kick: junta tudo na conta da Twitch
-      if (previous && previous.id.startsWith('kick:')) ch = store.mergeInto(previous.id, ch.id) ?? ch;
+      if (previous && (previous.id.startsWith('kick:') || previous.id.startsWith('yt:'))) ch = store.mergeInto(previous.id, ch.id) ?? ch;
       activateChannel(ch, true);
       reply.setCookie(SESSION_COOKIE, ch.id, { ...cookieOpts, maxAge: 60 * 60 * 24 * 30 });
       return back('conectado=streamer');
@@ -423,6 +568,83 @@ app.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
     }
   },
 );
+
+// ─── OAuth YouTube (Google) ──────────────────────────────────
+
+const YT_OAUTH_COOKIE = 'clipei_yt_oauth';
+
+app.get<{ Querystring: { as?: string } }>('/api/auth/youtube/login', async (req, reply) => {
+  if (!youtubeConfigured()) return reply.redirect(`${config.webUrl}/app?erro=youtube-nao-configurado`);
+  const role = req.query.as === 'bot' ? 'bot' : 'streamer';
+  if (role === 'bot' && !isAdmin(currentChannel(req))) return reply.redirect(`${config.webUrl}/app?erro=sem-permissao-bot`);
+  const state = randomBytes(16).toString('hex');
+  reply.setCookie(YT_OAUTH_COOKIE, JSON.stringify({ state, role }), { ...cookieOpts, maxAge: 600 });
+  return reply.redirect(ytAuthorizeUrl(state, role === 'bot' ? YT_BOT_SCOPES : YT_STREAMER_SCOPES));
+});
+
+app.get<{ Querystring: { code?: string; state?: string; error?: string } }>('/api/auth/youtube/callback', async (req, reply) => {
+  const back = (q: string) => reply.redirect(`${config.webUrl}/app?${q}`);
+  const raw = req.cookies[YT_OAUTH_COOKIE];
+  reply.clearCookie(YT_OAUTH_COOKIE, { path: '/' });
+  if (req.query.error) return back('erro=autorizacao-cancelada');
+  const unsigned = raw ? req.unsignCookie(raw) : null;
+  if (!unsigned?.valid || !unsigned.value) return back('erro=sessao-expirada');
+  const saved = JSON.parse(unsigned.value) as { state: string; role: 'bot' | 'streamer' };
+  if (!req.query.code || req.query.state !== saved.state) return back('erro=estado-invalido');
+
+  try {
+    const tokens = await ytExchangeCode(req.query.code);
+    const me = await ytMe(tokens.accessToken);
+
+    if (saved.role === 'bot') {
+      if (!isAdmin(currentChannel(req))) return back('erro=sem-permissao-bot');
+      store.setYoutubeBot({ channelId: me.id, name: me.title, tokens });
+      return back('conectado=bot-youtube');
+    }
+
+    const link = { channelId: me.id, name: me.title, handle: me.handle, avatar: me.avatar, tokens };
+    // logado: liga o YouTube na conta atual · YouTube já ligado: entra nela · senão: conta nova só do YouTube
+    const session = currentChannel(req);
+    let ch: StoredChannel;
+    if (session) {
+      store.setYoutube(session.id, link);
+      ch = store.getChannel(session.id)!;
+    } else {
+      const existing = store.getChannelByYoutubeId(me.id);
+      if (existing) {
+        store.setYoutube(existing.id, link);
+        ch = store.getChannel(existing.id)!;
+      } else ch = store.createYoutubeAccount(link);
+    }
+    ytStopChat(ch.id);
+    activateChannel(ch);
+    reply.setCookie(SESSION_COOKIE, ch.id, { ...cookieOpts, maxAge: 60 * 60 * 24 * 30 });
+    return back('conectado=youtube');
+  } catch (err) {
+    req.log.error(err);
+    return back('erro=falha-youtube');
+  }
+});
+
+app.post('/api/auth/youtube/disconnect', async (req, reply) => {
+  const ch = currentChannel(req);
+  if (!ch?.youtube) return reply.code(400).send({ error: 'YouTube não está conectado' });
+  if (ch.id.startsWith('yt:')) return reply.code(400).send({ error: 'Sua conta entrou pelo YouTube. Conecte a Twitch antes de desligar o YouTube.' });
+  ytStopChat(ch.id);
+  ytWatch.delete(ch.id);
+  store.setYoutube(ch.id, undefined);
+  roomFor(store.getChannel(ch.id)!);
+  return { ok: true };
+});
+
+/** Botão "Procurar live agora" no painel. */
+app.post('/api/youtube/check', async (req, reply) => {
+  const ch = currentChannel(req);
+  if (!ch?.youtube) return reply.code(400).send({ error: 'YouTube não está conectado' });
+  await ytCheck(ch.id, true);
+  const w = ytWatch.get(ch.id);
+  return { live: w?.live ?? false, chatConnected: Boolean(w?.stream), problem: w?.problem ?? null };
+});
 
 // ─── OAuth Kick (OAuth 2.1 + PKCE) ───────────────────────────
 
@@ -587,7 +809,23 @@ app.get('/api/me', async (req): Promise<MeResponse> => {
       problem: ch?.kick ? (kickProblem.get(ch.kick.userId) ?? null) : null,
       missingScopes: ch?.kick ? KICK_SCOPES.filter((sc) => !ch.kick!.tokens.scopes.includes(sc)) : [],
     },
-    primary: ch ? (ch.id.startsWith('kick:') ? 'kick' : 'twitch') : null,
+    youtube: (() => {
+      const w = ch ? ytWatch.get(ch.id) : undefined;
+      const ytBot = store.getYoutubeBot();
+      return {
+        configured: youtubeConfigured(),
+        connected: Boolean(ch?.youtube),
+        name: ch?.youtube?.name ?? null,
+        handle: ch?.youtube?.handle ?? null,
+        live: w?.live ?? false,
+        chatConnected: Boolean(w?.stream),
+        lastEventAt: w?.lastEventAt ?? null,
+        problem: w?.problem ?? null,
+        botConnected: Boolean(ytBot),
+        botName: ytBot?.name ?? null,
+      };
+    })(),
+    primary: ch ? (ch.id.startsWith('kick:') ? 'kick' : ch.id.startsWith('yt:') ? 'youtube' : 'twitch') : null,
     admin: isAdmin(ch),
     billing: ch ? billing.view(ch.id) : null,
     founderSlotsLeft: billing.founderSlotsLeft(),
@@ -759,7 +997,7 @@ app.get('/api/admin/overview', async (req, reply): Promise<AdminOverview | undef
   const bot = store.getBot();
   return {
     openAdmin: !config.twitch.botAdmins.length,
-    platforms: { twitch: twitchConfigured(), kick: kickConfigured() },
+    platforms: { twitch: twitchConfigured(), kick: kickConfigured(), youtube: youtubeConfigured() },
     bot: {
       connected: Boolean(bot),
       name: bot?.displayName ?? null,
@@ -791,7 +1029,7 @@ app.get('/api/admin/overview', async (req, reply): Promise<AdminOverview | undef
 app.get('/api/health', async () => ({ ok: true, eventsub: eventsub.connected, storage: config.supabase.url && config.supabase.secret ? 'supabase' : 'arquivo', twitch: twitchConfigured() }));
 
 /** O site (Vercel) pergunta aqui onde fica o WebSocket do jogo. */
-app.get('/api/config', async () => ({ wsUrl: config.publicWsUrl || null, platforms: { twitch: twitchConfigured(), kick: kickConfigured() } }));
+app.get('/api/config', async () => ({ wsUrl: config.publicWsUrl || null, platforms: { twitch: twitchConfigured(), kick: kickConfigured(), youtube: youtubeConfigured() } }));
 
 // ─── WebSocket do overlay ────────────────────────────────────
 
@@ -870,6 +1108,8 @@ console.log(`  Twitch: ${twitchConfigured() ? 'configurada ✅' : 'faltando TWIT
 {
   // só diz o que falta (nunca mostra os valores)
   const missing = [!config.kick.clientId && 'KICK_CLIENT_ID', !config.kick.clientSecret && 'KICK_CLIENT_SECRET'].filter(Boolean);
-  console.log(`  Kick: ${missing.length ? `faltando ${missing.join(' e ')} (vazio) ⚠️` : `configurada ✅ (retorno: ${config.kick.redirectUri})`}\n`);
+  console.log(`  Kick: ${missing.length ? `faltando ${missing.join(' e ')} (vazio) ⚠️` : `configurada ✅ (retorno: ${config.kick.redirectUri})`}`);
+  const gMissing = [!config.google.clientId && 'GOOGLE_CLIENT_ID', !config.google.clientSecret && 'GOOGLE_CLIENT_SECRET'].filter(Boolean);
+  console.log(`  YouTube: ${gMissing.length ? `faltando ${gMissing.join(' e ')} (vazio) ⚠️` : `configurado ✅ (retorno: ${config.google.redirectUri})`}\n`);
 }
 
