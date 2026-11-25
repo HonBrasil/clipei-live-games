@@ -1,4 +1,4 @@
-import { LOOP_GAME_INFO, parseCommand, type ChatEvent, type LoopBlock, type LoopConfig, type LoopGameId, type LoopSnapshot } from '@clipei/shared';
+import { LOOP_GAME_INFO, LOOP_TIMER_WARN_MS, parseCommand, type ChatEvent, type LoopBlock, type LoopConfig, type LoopGameId, type LoopSnapshot } from '@clipei/shared';
 
 /** Primeiro jogo depois de ligar o loop: não faz o streamer esperar a pausa inteira. */
 export const LOOP_FIRST_DELAY_MS = 15_000;
@@ -16,16 +16,18 @@ export interface LoopContext {
 }
 
 export type LoopAction =
-  | { type: 'scheduled'; game: LoopGameId; at: number; first: boolean }
+  | { type: 'scheduled'; game: LoopGameId; at: number; first: boolean; announce: boolean }
+  /** Temporizador: falta 1 minuto (avisar o chat). */
+  | { type: 'warn'; game: LoopGameId; at: number }
   | { type: 'start'; game: LoopGameId }
   | { type: 'expired' };
 
 /**
- * Rodízio de minigames para quando o streamer sai e deixa a live aberta.
- * Só decide QUAL jogo e QUANDO; quem abre o jogo é a sala.
- *  - espera o jogo da vez terminar, conta a pausa e agenda o próximo;
- *  - fica parado (sem agendar) se a live caiu, o OBS fechou ou o chat esvaziou;
- *  - desliga sozinho depois do tempo programado.
+ * Minigames automáticos. Só decide QUAL jogo e QUANDO; quem abre o jogo é a sala.
+ *  - Loop (streamer ausente): acabou um jogo, pausa curta, abre o próximo.
+ *  - Temporizador (streamer jogando): um minigame a cada X minutos, com aviso 1 min antes.
+ * Nos dois: a contagem recomeça quando um jogo termina (até os abertos na mão), espera
+ * se a live caiu, o OBS fechou ou o chat esvaziou, e desliga sozinho no tempo programado.
  */
 export class GameLoop {
   next: LoopGameId | null = null;
@@ -34,7 +36,11 @@ export class GameLoop {
   blocked: LoopBlock | null = null;
   rounds = 0;
   since: number | null = null;
+  warnAt: number | null = null;
   dirty = false;
+  private warned = false;
+  /** Temporizador venceu enquanto estava bloqueado: quando liberar, avisa e abre em 1 min. */
+  private overdue = false;
   private cursor = 0;
   private last: LoopGameId | null = null;
 
@@ -57,24 +63,27 @@ export class GameLoop {
     if (ctx.busy) {
       // jogo na tela: nada agendado; a pausa conta a partir do fim dele
       if (this.at !== null || this.blocked !== null) {
-        this.at = null;
-        this.next = null;
+        this.clearSchedule();
         this.blocked = null;
-        this.dirty = true;
       }
+      this.overdue = false;
       return null;
     }
     if (this.playing) {
       this.playing = null;
       this.dirty = true;
     }
+    const timer = cfg.mode === 'timer';
     const block = this.blockOf(ctx);
     if (block) {
-      if (block !== this.blocked || this.at !== null) {
+      if (block !== this.blocked) {
         this.blocked = block;
-        this.at = null;
-        this.next = null;
         this.dirty = true;
+      }
+      // no Temporizador a contagem segue; só cancela se já ia avisar/abrir
+      if (this.at !== null && (!timer || now >= this.at - LOOP_TIMER_WARN_MS)) {
+        if (timer) this.overdue = true;
+        this.clearSchedule();
       }
       return null;
     }
@@ -83,23 +92,45 @@ export class GameLoop {
       this.dirty = true;
     }
     if (this.at === null) {
-      const first = this.rounds === 0;
+      const first = this.rounds === 0 && !this.overdue;
       this.next = this.pick(cfg);
-      this.at = now + (first ? Math.min(LOOP_FIRST_DELAY_MS, cfg.gapSec * 1000) : cfg.gapSec * 1000);
+      const delay = timer
+        ? this.overdue
+          ? LOOP_TIMER_WARN_MS
+          : cfg.intervalMin * 60_000
+        : first
+          ? Math.min(LOOP_FIRST_DELAY_MS, cfg.gapSec * 1000)
+          : cfg.gapSec * 1000;
+      this.overdue = false;
+      this.at = now + delay;
+      this.warnAt = timer ? this.at - LOOP_TIMER_WARN_MS : now;
+      this.warned = !timer;
       this.dirty = true;
-      return { type: 'scheduled', game: this.next, at: this.at, first };
+      return { type: 'scheduled', game: this.next, at: this.at, first, announce: !timer };
+    }
+    if (!this.warned && this.warnAt !== null && now >= this.warnAt && this.next) {
+      this.warned = true;
+      this.dirty = true;
+      return { type: 'warn', game: this.next, at: this.at };
     }
     if (now >= this.at && this.next) {
       const game = this.next;
-      this.next = null;
-      this.at = null;
+      this.clearSchedule();
       this.playing = game;
       this.last = game;
       this.rounds++;
-      this.dirty = true;
       return { type: 'start', game };
     }
     return null;
+  }
+
+  /** Cancela o agendado (ex.: o streamer mudou o intervalo); o próximo tick agenda de novo. */
+  clearSchedule() {
+    this.next = null;
+    this.at = null;
+    this.warnAt = null;
+    this.warned = false;
+    this.dirty = true;
   }
 
   /** O jogo não abriu (ex.: outro começou no mesmo instante): tenta de novo daqui a pouco. */
@@ -108,6 +139,8 @@ export class GameLoop {
     this.playing = null;
     this.next = game;
     this.at = now + 10_000;
+    this.warnAt = now;
+    this.warned = true;
     this.dirty = true;
   }
 
@@ -116,6 +149,8 @@ export class GameLoop {
     if (!cfg.enabled || this.playing) return false;
     if (!this.next) this.next = this.pick(cfg);
     this.at = now;
+    this.warnAt = now;
+    this.warned = true;
     this.blocked = null;
     this.dirty = true;
     return true;
@@ -132,6 +167,8 @@ export class GameLoop {
       rounds: this.rounds,
       since: this.since,
       endsAt: cfg.enabled && this.since !== null && cfg.maxHours > 0 ? this.since + cfg.maxHours * 3_600_000 : null,
+      mode: cfg.mode,
+      warnAt: this.warnAt,
       teaser: cfg.teaser,
       serverNow: now,
     };
@@ -161,8 +198,8 @@ export class GameLoop {
 
   private reset() {
     this.since = null;
-    this.next = null;
-    this.at = null;
+    this.clearSchedule();
+    this.overdue = false;
     this.playing = null;
     this.blocked = null;
     this.rounds = 0;

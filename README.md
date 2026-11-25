@@ -330,9 +330,12 @@ Fica rodando a live inteira num canto do overlay, ao lado dos outros jogos (paus
 - O ranking da semana pode ficar junto do lago, escondido ou fixo em 8 pontos da tela (Top 3, 5 ou 10). O painel tem um mapa da tela do OBS: escolha "Ranking" ou "Lago" e clique no lugar.
 - Persistência em `clipei_kv` com a chave `fish:<channelId>`.
 
-## Modo Loop
+## Minigames automáticos (Temporizador e Modo Loop)
 
-Para quando o streamer sai e deixa a live aberta: os minigames se revezam sozinhos. **Modo Loop** no menu (ou `!loop ligar` pelos mods).
+**Automático** no menu (`/app/automatico`, ou `!loop ligar` pelos mods). Dois modos com a mesma lista de jogos:
+
+- **Temporizador** (streamer jogando): um minigame a cada X minutos (10 min a 1,5 h, ou outro valor de 5 a 720). A contagem começa no fim do último minigame, inclusive os abertos na mão, e continua mesmo com o chat parado. O chat e o OBS recebem o aviso 1 minuto antes. Se vencer com a live fora do ar ou o chat vazio, espera, e quando liberar avisa e abre 1 minuto depois. Substitui o antigo "boss automático": quem o tinha ligado migra sozinho para o Temporizador só com o Boss (`migrateAutoSpawn` em `rooms.ts`), e a aba Automático do Boss agora liga/desliga o Boss no Temporizador.
+- **Modo Loop** (streamer ausente): os minigames se revezam sozinhos.
 
 - Escolha os jogos do rodízio (boss, corrida, duelo, battle royale, pipa, pênaltis), em sequência (ordem com as setas) ou aleatório sem repetir o último.
 - Pausa entre jogos (30 s a 10 min), contada a partir do fim do jogo anterior; o primeiro abre 15 s depois de ligar.

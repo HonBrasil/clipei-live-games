@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
-import { BOSS_SKINS, type BossConfig } from '@clipei/shared';
+import { BOSS_SKINS, LOOP_GAME_INFO, type BossConfig } from '@clipei/shared';
 import { api, fmtCountdown, fmtDuration, nf } from '../api.ts';
 import { BossThumb, Card, Status } from '../components/ui.tsx';
 import { useApp, useTick } from '../state.tsx';
 
 export function Home() {
-  const { me, boss, status, logs, clockOffset, toast, setBoss } = useApp();
+  const { me, boss, status, loop, logs, clockOffset, toast, setBoss } = useApp();
   useTick(1000);
   if (!me) return null;
   const ch = me.channel;
@@ -31,9 +31,16 @@ export function Home() {
     }
   }
 
-  const auto = me.settings.autoSpawn;
-  const nextAuto =
-    !auto.enabled ? 'Desligado' : running ? 'Depois desta luta' : status?.nextAutoAt ? `em ${fmtCountdown(status.nextAutoAt - (Date.now() + clockOffset))}` : '—';
+  const auto = me.settings.loop;
+  const nextAuto = !auto.enabled
+    ? 'Desligado'
+    : status?.game
+      ? 'Depois deste jogo'
+      : loop?.next && loop.at
+        ? `${LOOP_GAME_INFO[loop.next].emoji} em ${fmtCountdown(loop.at - (Date.now() + clockOffset))}`
+        : loop?.blocked
+          ? 'Esperando'
+          : '—';
 
   return (
     <>
@@ -107,8 +114,8 @@ export function Home() {
           <Status tone={status?.live ? 'ok' : ''}>{nf.format(status?.activeChatters ?? 0)} ativos no chat</Status>
         </div>
         <div className="kpi">
-          <span>Boss automático</span>
-          <b>{auto.enabled ? 'Ligado' : 'Desligado'}</b>
+          <span>Minigame automático</span>
+          <b>{auto.enabled ? (auto.mode === 'timer' ? 'Temporizador' : 'Modo Loop') : 'Desligado'}</b>
           <Status tone={auto.enabled ? 'ok' : ''}>{nextAuto}</Status>
         </div>
       </div>

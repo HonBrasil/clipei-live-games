@@ -1616,3 +1616,52 @@ select.input {
 .def-votes b {
   color: var(--c);
 }
+.auto-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.auto-modes button {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.auto-modes button:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.auto-modes button.on {
+  border-color: var(--red, #ff1f2d);
+  background: rgba(255, 31, 45, 0.1);
+  box-shadow: 0 0 0 1px var(--red, #ff1f2d) inset;
+}
+.auto-modes button:focus-visible {
+  outline: 2px solid var(--red, #ff1f2d);
+  outline-offset: 2px;
+}
+.auto-modes span {
+  font-size: 22px;
+}
+.auto-modes b {
+  font-size: 15px;
+}
+.auto-modes small {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.35;
+}
+@media (max-width: 560px) {
+  .auto-modes {
+    grid-template-columns: 1fr;
+  }
+}

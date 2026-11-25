@@ -29,7 +29,12 @@ export class LoopTeaser {
     const s = this.state;
     const el = this.root.querySelector<HTMLElement>('.ln-time');
     if (!s?.at || !el) return;
-    const left = Math.max(0, Math.ceil((s.at - (Date.now() + this.offset)) / 1000));
+    const now = Date.now() + this.offset;
+    // Temporizador: só aparece no último minuto
+    const before = s.warnAt !== null && now < s.warnAt;
+    this.root.hidden = before;
+    if (before) return;
+    const left = Math.max(0, Math.ceil((s.at - now) / 1000));
     el.textContent = left > 0 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'agora!';
     this.root.classList.toggle('is-soon', left <= 10);
   }

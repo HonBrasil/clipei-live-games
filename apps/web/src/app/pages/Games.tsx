@@ -40,8 +40,14 @@ export function Games() {
           🔁
         </span>
         <span>
-          <b>Modo Loop {loopOn ? 'ligado' : ''}</b>
-          <small>{loopOn ? 'Os minigames estão se revezando sozinhos.' : 'Vai sair e deixar a live aberta? Deixe os minigames rodando sozinhos em rodízio.'}</small>
+          <b>Minigames automáticos {loopOn ? (me?.settings.loop.mode === 'timer' ? '· Temporizador ligado' : '· Modo Loop ligado') : ''}</b>
+          <small>
+            {loopOn
+              ? me?.settings.loop.mode === 'timer'
+                ? `Um minigame a cada ${me.settings.loop.intervalMin} min.`
+                : 'Os minigames estão se revezando sozinhos.'
+              : 'Um minigame de tempos em tempos, ou em rodízio quando você sai da live. Você escolhe o tempo e os jogos.'}
+          </small>
         </span>
         <em>{loopOn ? 'Ver' : 'Configurar'} →</em>
       </Link>

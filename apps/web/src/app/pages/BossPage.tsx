@@ -10,6 +10,7 @@ import {
   type BossSkinId,
   type SupportSettings,
 } from '@clipei/shared';
+import { LOOP_BLOCK_TEXT, LOOP_GAME_INFO } from '@clipei/shared';
 import { api, fmtCountdown, nf } from '../api.ts';
 import { BossThumb, Card, Check, Options, Switch } from '../components/ui.tsx';
 import { useApp, useTick } from '../state.tsx';
@@ -208,93 +209,50 @@ function MatchTab() {
 // ─── Automático ──────────────────────────────────────────────
 
 function AutoTab() {
-  const { me, status, boss, saveSettings, clockOffset } = useApp();
+  const { me, loop, status, saveSettings, clockOffset } = useApp();
   useTick(1000);
-  const a = me!.settings.autoSpawn;
-  const preset = (AUTO_SPAWN_INTERVALS as readonly number[]).includes(a.intervalMin);
-  const [custom, setCustom] = useState(!preset);
-  const running = boss?.state?.status === 'running';
-
-  let statusText = 'Desligado. Ligue para o boss aparecer sozinho durante a live.';
-  let tone = '';
-  if (a.enabled) {
-    if (running) statusText = 'Luta em andamento. A contagem recomeça quando ela acabar.';
-    else if (!status?.live) {
-      statusText = 'Esperando sua live entrar no ar.';
-      tone = 'wait';
-    } else if (status.nextAutoAt) {
-      statusText = `Próximo boss em ${fmtCountdown(status.nextAutoAt - (Date.now() + clockOffset))}`;
-      tone = a.minChatters > 0 && status.activeChatters < a.minChatters ? 'wait' : 'ok';
-      if (tone === 'wait') statusText += ` · precisa de ${a.minChatters} pessoas ativas (agora: ${status.activeChatters})`;
-    }
+  const cfg = me!.settings.loop;
+  const bossIn = cfg.games.includes('boss');
+  const on = cfg.enabled && bossIn;
+  const now = Date.now() + clockOffset;
+  let statusText = 'O boss não está nos minigames automáticos.';
+  if (on) {
+    if (status?.game) statusText = 'Tem um minigame rolando. A contagem recomeça quando ele acabar.';
+    else if (loop?.next && loop.at) statusText = `Próximo minigame automático: ${LOOP_GAME_INFO[loop.next].name} em ${fmtCountdown(loop.at - now)}`;
+    else if (loop?.blocked) statusText = LOOP_BLOCK_TEXT[loop.blocked];
   }
-
   return (
     <div className="narrow">
       <Card
         title="Boss automático"
-        subtitle="O boss aparece sozinho de tempo em tempo"
-        right={<Switch label="Ligar boss automático" checked={a.enabled} onChange={(v) => saveSettings({ autoSpawn: { enabled: v } })} />}
-      >
-        <div className={`auto-status ${tone}`}>{statusText}</div>
-        <div className="field">
-          <span className="field-label">A cada</span>
-          <Options
-            tight
-            name="interval"
-            value={custom ? -1 : a.intervalMin}
-            onChange={(v) => {
-              if (v === -1) setCustom(true);
-              else {
-                setCustom(false);
-                saveSettings({ autoSpawn: { intervalMin: v } });
-              }
-            }}
-            options={[...AUTO_SPAWN_INTERVALS.map((m) => ({ value: m as number, label: m < 60 ? `${m} min` : `${m / 60} h` })), { value: -1, label: 'Outro' }]}
+        subtitle="Agora faz parte dos minigames automáticos, junto com os outros jogos"
+        right={
+          <Switch
+            label="Boss nos minigames automáticos"
+            checked={on}
+            onChange={(v) =>
+              saveSettings({
+                loop: v
+                  ? { enabled: true, mode: cfg.enabled ? cfg.mode : 'timer', games: bossIn ? cfg.games : [...cfg.games, 'boss'] }
+                  : { games: cfg.games.filter((g) => g !== 'boss') },
+              })
+            }
           />
-          {custom && (
-            <div className="inline-input">
-              <input
-                className="input"
-                type="number"
-                min={5}
-                max={720}
-                step={5}
-                defaultValue={a.intervalMin}
-                onBlur={(e) => saveSettings({ autoSpawn: { intervalMin: Math.min(720, Math.max(5, Number(e.target.value) || 60)) } })}
-              />
-              <span>minutos (de 5 a 720)</span>
-            </div>
-          )}
+        }
+      >
+        <div className={`auto-status ${on ? 'ok' : ''}`}>{statusText}</div>
+        <p className="muted">
+          {on
+            ? cfg.mode === 'timer'
+              ? `Temporizador: um minigame a cada ${cfg.intervalMin} min${cfg.games.length > 1 ? `, revezando entre ${cfg.games.length} jogos` : ''}.`
+              : 'Modo Loop: os minigames se revezam sem parar.'
+            : 'Ligue para o boss aparecer de tempos em tempos (Temporizador). Dá para escolher o intervalo, qual boss e misturar com os outros minigames.'}
+        </p>
+        <div className="actions">
+          <Link className="btn" to="/app/automatico">
+            ⏰ Ajustar tempo e jogos
+          </Link>
         </div>
-        <div className="field">
-          <label htmlFor="auto-skin">Qual boss</label>
-          <select id="auto-skin" className="input" value={a.skin} onChange={(e) => saveSettings({ autoSpawn: { skin: e.target.value } })}>
-            <option value="random">🎲 Surpresa (um diferente a cada vez)</option>
-            {BOSS_SKIN_IDS.map((id) => (
-              <option key={id} value={id}>
-                {BOSS_SKINS[id].name}: {BOSS_SKINS[id].title}
-              </option>
-            ))}
-          </select>
-        </div>
-        <Check checked={a.warn} onChange={(v) => saveSettings({ autoSpawn: { warn: v } })}>
-          Avisar no chat e no overlay 1 minuto antes
-        </Check>
-        <Check checked={a.minChatters > 0} onChange={(v) => saveSettings({ autoSpawn: { minChatters: v ? 3 : 0 } })}>
-          Só invocar com pelo menos{' '}
-          <input
-            className="input mini"
-            type="number"
-            min={1}
-            max={1000}
-            defaultValue={Math.max(1, a.minChatters)}
-            onBlur={(e) => saveSettings({ autoSpawn: { minChatters: Number(e.target.value) || 1 } })}
-            aria-label="Mínimo de pessoas ativas"
-          />{' '}
-          pessoas ativas no chat
-        </Check>
-        <p className="muted">Usa as regras da aba Partida. A contagem recomeça depois de cada luta, e o boss só aparece com a live no ar.</p>
       </Card>
     </div>
   );

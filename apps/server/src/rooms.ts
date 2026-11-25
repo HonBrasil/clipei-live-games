@@ -125,6 +125,33 @@ const RACE_BROADCAST_MS = 200;
  * conectados (OBS, prévia do painel), o simulador, a atividade do chat,
  * as configurações e o agendador do boss automático.
  */
+/**
+ * O "boss automático" virou o Temporizador dos minigames automáticos.
+ * Quem tinha o boss automático ligado (e nunca mexeu no Modo Loop) passa a ter o
+ * Temporizador ligado só com o Boss, no mesmo intervalo, boss e mínimo de chat.
+ */
+export function migrateAutoSpawn(s: RoomSettings, saved: unknown): RoomSettings {
+  const raw = (saved ?? {}) as { loop?: unknown; autoSpawn?: { enabled?: boolean } };
+  if (raw.loop !== undefined || !raw.autoSpawn?.enabled) return s;
+  const a = s.autoSpawn;
+  return {
+    ...s,
+    autoSpawn: { ...a, enabled: false },
+    loop: {
+      ...s.loop,
+      enabled: true,
+      mode: 'timer',
+      intervalMin: a.intervalMin,
+      bossSkin: a.skin,
+      games: ['boss'],
+      minChatters: a.minChatters,
+      onlyLive: true,
+      announce: a.warn,
+      teaser: a.warn,
+    },
+  };
+}
+
 export class Room {
   game: BossGame | null = null;
   race: RaceGame | null = null;
@@ -186,7 +213,7 @@ export class Room {
     public demo: boolean,
     settings: RoomSettings = DEFAULT_SETTINGS,
   ) {
-    this.settings = mergeSettings(DEFAULT_SETTINGS, settings);
+    this.settings = migrateAutoSpawn(mergeSettings(DEFAULT_SETTINGS, settings), settings);
     this.spawner = new AutoSpawner(this.settings.autoSpawn);
     this.simulator = new ChatSimulator(channelId, (e) => this.handleChat(e));
     this.simulator.script = () => {
@@ -271,6 +298,8 @@ export class Room {
       this.updateSettings({ loop: { enabled: false } });
       this.say('🔁 Modo Loop desligado: acabou o tempo programado pelo streamer.');
     } else if (action?.type === 'scheduled') {
+      if (cfg.announce && action.announce) this.say(loopNextAnnouncement(action.game, action.at - now));
+    } else if (action?.type === 'warn') {
       if (cfg.announce) this.say(loopNextAnnouncement(action.game, action.at - now));
     } else if (action?.type === 'start') {
       if (!this.loopStart(action.game)) this.loop.failed(now, action.game);
@@ -282,7 +311,7 @@ export class Room {
     if (this.activeGame()) return false;
     switch (game) {
       case 'boss':
-        this.startQuick('random');
+        this.startQuick(this.settings.loop.bossSkin);
         return true;
       case 'race':
         return this.startRace().ok;
@@ -1206,7 +1235,12 @@ export class Room {
   updateSettings(patch: unknown) {
     this.settings = mergeSettings(this.settings, patch);
     this.spawner.configure(this.settings.autoSpawn);
-    if (patch && typeof patch === 'object' && 'loop' in patch) this.loop.dirty = true;
+    if (patch && typeof patch === 'object' && 'loop' in patch) {
+      const lp = (patch as { loop?: Record<string, unknown> }).loop ?? {};
+      // mudou o ritmo: agenda de novo com o valor novo
+      if (['mode', 'intervalMin', 'gapSec', 'games', 'order'].some((k) => k in lp)) this.loop.clearSchedule();
+      this.loop.dirty = true;
+    }
     if (patch && typeof patch === 'object' && 'fishing' in patch) {
       // posição, fundo e ranking mudam na hora no OBS
       this.fishing.config = this.settings.fishing;

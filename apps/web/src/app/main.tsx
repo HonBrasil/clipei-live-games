@@ -47,6 +47,7 @@ createRoot(document.getElementById('root')!).render(
           <Route index element={<Home />} />
           <Route path="jogos" element={<Games />} />
           <Route path="loop" element={<LoopPage />} />
+          <Route path="automatico" element={<LoopPage />} />
           <Route path="jogos/boss" element={<BossPage />} />
           <Route path="jogos/race" element={<RacePage />} />
           <Route path="jogos/corrida" element={<RacePage />} />

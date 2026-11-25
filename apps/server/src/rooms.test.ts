@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatEvent, ServerMessage } from '@clipei/shared';
-import { Room } from './rooms.ts';
+import { DEFAULT_SETTINGS, mergeSettings, type ChatEvent, type ServerMessage } from '@clipei/shared';
+import { migrateAutoSpawn, Room } from './rooms.ts';
 
 function chat(userId: string, text: string, role: 'viewer' | 'mod' = 'viewer'): ChatEvent {
   return {
@@ -298,5 +298,27 @@ describe('Room', () => {
     expect(said.some((t) => t.includes('HERÓI'))).toBe(true);
     expect(msgs.some((m) => m.type === 'defense' && m.state.monsters.length > 0)).toBe(true);
     expect(room.activeGame()).toBeNull();
+  });
+
+  it('temporizador: boss automático antigo migra e o minigame abre no intervalo com aviso', () => {
+    const migrated = migrateAutoSpawn(mergeSettings(DEFAULT_SETTINGS, { autoSpawn: { enabled: true, intervalMin: 45, minChatters: 2 } }), {
+      autoSpawn: { enabled: true, intervalMin: 45, minChatters: 2 },
+    });
+    expect(migrated.autoSpawn.enabled).toBe(false);
+    expect(migrated.loop).toMatchObject({ enabled: true, mode: 'timer', intervalMin: 45, games: ['boss'], minChatters: 2 });
+    expect(migrateAutoSpawn(migrated, { autoSpawn: { enabled: true }, loop: {} }).loop).toBe(migrated.loop);
+
+    const { room, msgs, tickFor } = setup();
+    Object.defineProperty(room, 'overlayCount', { get: () => 1 });
+    room.updateSettings({ loop: { enabled: true, mode: 'timer', intervalMin: 5, games: ['race'] } });
+    tickFor(2000);
+    expect(room.loopSnapshot()).toMatchObject({ mode: 'timer', next: 'race' });
+    const toasts = () => msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(toasts().some((t) => t.includes('Próximo minigame'))).toBe(false);
+    tickFor(4 * 60_000);
+    expect(toasts().some((t) => t.includes('Próximo minigame'))).toBe(true);
+    expect(room.activeGame()).toBeNull();
+    tickFor(60_000);
+    expect(room.activeGame()).toBe('race');
   });
 });

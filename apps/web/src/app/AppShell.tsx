@@ -9,7 +9,7 @@ import { useApp } from './state.tsx';
 const NAV = [
   { to: '/app', label: 'Início', icon: 'home', end: true },
   { to: '/app/jogos', label: 'Minigames', icon: 'games' },
-  { to: '/app/loop', label: 'Modo Loop', icon: 'loop' },
+  { to: '/app/loop', label: 'Automático', icon: 'loop' },
   { to: '/app/overlay', label: 'Overlay (OBS)', icon: 'overlay' },
   { to: '/app/conexoes', label: 'Conexões', icon: 'link' },
   { to: '/app/testar', label: 'Testar', icon: 'test' },

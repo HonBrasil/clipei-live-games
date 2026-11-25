@@ -16,7 +16,7 @@ describe('GameLoop', () => {
   it('agenda o primeiro jogo rápido, abre na hora e espera o jogo acabar para contar a pausa', () => {
     const l = new GameLoop();
     const a = l.tick(0, ctx());
-    expect(a).toEqual({ type: 'scheduled', game: 'race', at: LOOP_FIRST_DELAY_MS, first: true });
+    expect(a).toEqual({ type: 'scheduled', game: 'race', at: LOOP_FIRST_DELAY_MS, first: true, announce: true });
     expect(l.tick(LOOP_FIRST_DELAY_MS - 1, ctx())).toBeNull();
     expect(l.tick(LOOP_FIRST_DELAY_MS, ctx())).toEqual({ type: 'start', game: 'race' });
     // corrida na tela: nada agendado
@@ -71,5 +71,27 @@ describe('GameLoop', () => {
 
   it('normaliza a lista de jogos mantendo a ordem do streamer', () => {
     expect(normalizeLoopConfig({ games: ['kite', 'xx' as never, 'race', 'kite'], gapSec: 5 })).toMatchObject({ games: ['kite', 'race'], gapSec: 20 });
+  });
+
+  it('temporizador: um jogo a cada X min, aviso 1 min antes, contagem segue com chat parado', () => {
+    const l = new GameLoop();
+    const c = ctx({}, { mode: 'timer', intervalMin: 10 });
+    expect(l.tick(0, c)).toMatchObject({ type: 'scheduled', game: 'race', at: 600_000, announce: false });
+    expect(l.snapshot(0, c.cfg).warnAt).toBe(540_000);
+    // chat vazio no meio: a contagem não zera
+    expect(l.tick(200_000, ctx({ chatters: 0 }, { mode: 'timer', intervalMin: 10, minChatters: 2 }))).toBeNull();
+    expect(l.at).toBe(600_000);
+    expect(l.tick(539_000, c)).toBeNull();
+    expect(l.tick(540_000, c)).toEqual({ type: 'warn', game: 'race', at: 600_000 });
+    expect(l.tick(600_000, c)).toEqual({ type: 'start', game: 'race' });
+    // terminou: conta de novo o intervalo inteiro
+    l.tick(700_000, ctx({ busy: true }, { mode: 'timer', intervalMin: 10 }));
+    expect(l.tick(800_000, c)).toMatchObject({ type: 'scheduled', game: 'kite', at: 1_400_000 });
+    // venceu com a live fora do ar: quando voltar, avisa e abre em 1 min
+    const off = ctx({ live: false }, { mode: 'timer', intervalMin: 10 });
+    expect(l.tick(1_400_000, off)).toBeNull();
+    expect(l.at).toBeNull();
+    expect(l.tick(2_000_000, c)).toMatchObject({ type: 'scheduled', at: 2_060_000 });
+    expect(l.tick(2_000_100, c)).toMatchObject({ type: 'warn' });
   });
 });

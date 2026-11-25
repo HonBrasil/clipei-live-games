@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LOOP_BLOCK_TEXT, LOOP_GAME_INFO, LOOP_GAMES, type LoopConfig, type LoopGameId } from '@clipei/shared';
+import { BOSS_SKINS, BOSS_SKIN_IDS, LOOP_BLOCK_TEXT, LOOP_GAME_INFO, LOOP_GAMES, LOOP_TIMER_INTERVALS, type LoopConfig, type LoopGameId } from '@clipei/shared';
 import { api, nf } from '../api.ts';
 import { Card, Check, Options, Switch } from '../components/ui.tsx';
 import { useApp } from '../state.tsx';
@@ -48,15 +48,22 @@ export function LoopPage() {
   const now = useNow(!!loop?.at) + clockOffset;
   const playing = status?.game ?? null;
 
+  const timer = cfg.mode === 'timer';
   let headline = 'Desligado';
-  let detail = 'Ligue para os minigames se revezarem sozinhos.';
+  let detail = 'Escolha o modo e ligue: os minigames abrem sozinhos.';
   if (cfg.enabled) {
     if (playing) {
       headline = `Rolando: ${LOOP_GAME_INFO[playing as LoopGameId]?.name ?? 'minigame'}`;
-      detail = loop?.playing ? 'Aberto pelo loop. Quando acabar, começa a pausa.' : 'Você abriu esse. O loop espera ele terminar.';
+      detail = loop?.playing
+        ? `Aberto automaticamente. Quando acabar, ${timer ? 'a contagem recomeça' : 'começa a pausa'}.`
+        : `Você abriu esse. ${timer ? 'A contagem recomeça quando ele terminar.' : 'O loop espera ele terminar.'}`;
     } else if (loop?.next && loop.at) {
       headline = `${LOOP_GAME_INFO[loop.next].emoji} ${LOOP_GAME_INFO[loop.next].name} em ${clock(loop.at - now)}`;
-      detail = 'Próximo do rodízio.';
+      detail = timer
+        ? loop.warnAt && now < loop.warnAt
+          ? 'O chat e o OBS recebem o aviso 1 minuto antes.'
+          : 'Aviso no chat e no OBS: falta menos de 1 minuto!'
+        : 'Próximo do rodízio.';
     } else if (loop?.blocked) {
       headline = 'Esperando';
       detail = LOOP_BLOCK_TEXT[loop.blocked];
@@ -80,12 +87,12 @@ export function LoopPage() {
       <section className="hero">
         <div>
           <p className="crumbs">
-            <Link to="/app/jogos">Minigames</Link> / Modo Loop
+            <Link to="/app/jogos">Minigames</Link> / Automático
           </p>
           <h1>
-            Modo <span>Loop</span>
+            Minigames <span>automáticos</span>
           </h1>
-          <p>Vai sair e deixar a live aberta? Os minigames se revezam sozinhos: abre um, espera terminar, faz uma pausa e chama o próximo. A pescaria segue rodando entre um e outro.</p>
+          <p>Os minigames abrem sozinhos: de tempos em tempos enquanto você joga, ou em rodízio contínuo quando você sai e deixa a live aberta. A pescaria segue rodando entre um e outro.</p>
         </div>
         <div className="hero-live loop-hero">
           <span className={`pill ${cfg.enabled ? 'live' : ''}`}>{cfg.enabled ? (loop?.blocked && !playing ? 'Esperando' : 'Ligado') : 'Desligado'}</span>
@@ -103,10 +110,22 @@ export function LoopPage() {
 
       <div className="grid">
         <div className="col">
-          <Card title="Rodízio automático" right={<Switch label="Modo Loop ligado" checked={cfg.enabled} onChange={(v) => set({ enabled: v })} />}>
-            <p className="muted" style={{ marginTop: 0 }}>
+          <Card title="Minigames automáticos" right={<Switch label="Minigames automáticos ligados" checked={cfg.enabled} onChange={(v) => set({ enabled: v })} />}>
+            <div className="auto-modes" role="radiogroup" aria-label="Modo">
+              <button role="radio" aria-checked={timer} className={timer ? 'on' : ''} onClick={() => set({ mode: 'timer' })}>
+                <span aria-hidden="true">⏰</span>
+                <b>Temporizador</b>
+                <small>Um minigame de tempos em tempos, enquanto você joga.</small>
+              </button>
+              <button role="radio" aria-checked={!timer} className={!timer ? 'on' : ''} onClick={() => set({ mode: 'loop' })}>
+                <span aria-hidden="true">🔁</span>
+                <b>Modo Loop</b>
+                <small>Rodízio contínuo, para quando você sai e deixa a live aberta.</small>
+              </button>
+            </div>
+            <p className="muted">
               {cfg.enabled
-                ? 'Ligado. Pode sair tranquilo: o loop pausa sozinho se a live cair, o OBS fechar ou o chat esvaziar, e volta quando tudo voltar.'
+                ? 'Ligado. Espera sozinho se a live cair, o OBS fechar ou o chat esvaziar, e volta quando tudo voltar.'
                 : 'Desligado. Seus mods também ligam pelo chat com !loop ligar.'}
             </p>
             {cfg.enabled && (
@@ -118,7 +137,7 @@ export function LoopPage() {
             )}
           </Card>
 
-          <Card title="Jogos do rodízio" subtitle={cfg.order === 'sequence' ? 'Marque os jogos e arrume a ordem com as setas' : 'Marque os jogos: o loop sorteia sem repetir o último'}>
+          <Card title={timer ? 'Quais minigames aparecem' : 'Jogos do rodízio'} subtitle={cfg.order === 'sequence' ? 'Marque os jogos e arrume a ordem com as setas' : 'Marque os jogos: o loop sorteia sem repetir o último'}>
             <div className="field">
               <Options
                 tight
@@ -132,22 +151,39 @@ export function LoopPage() {
               />
             </div>
             <GameList cfg={cfg} set={set} next={cfg.enabled ? (loop?.next ?? null) : null} />
+            {cfg.games.includes('boss') && (
+              <div className="field" style={{ marginTop: 12 }}>
+                <label htmlFor="loop-skin">Qual boss aparece na vez do Boss</label>
+                <select id="loop-skin" className="input" value={cfg.bossSkin} onChange={(e) => set({ bossSkin: e.target.value as LoopConfig['bossSkin'] })}>
+                  <option value="random">🎲 Surpresa (um diferente a cada vez)</option>
+                  {BOSS_SKIN_IDS.map((id) => (
+                    <option key={id} value={id}>
+                      {BOSS_SKINS[id].name}: {BOSS_SKINS[id].title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </Card>
         </div>
 
         <div className="col">
           <Card title="Tempo">
-            <div className="field">
-              <span className="field-label">Pausa entre um jogo e outro</span>
-              <Options
-                tight
-                name="lgap"
-                value={cfg.gapSec}
-                onChange={(v) => set({ gapSec: v })}
-                options={[30, 60, 120, 300, 600].map((v) => ({ value: v, label: v < 60 ? `${v}s` : `${v / 60} min` }))}
-              />
-              <small className="muted">Dá tempo de ver o resultado, conversar no chat e pescar um pouco.</small>
-            </div>
+            {timer ? (
+              <IntervalField cfg={cfg} set={set} />
+            ) : (
+              <div className="field">
+                <span className="field-label">Pausa entre um jogo e outro</span>
+                <Options
+                  tight
+                  name="lgap"
+                  value={cfg.gapSec}
+                  onChange={(v) => set({ gapSec: v })}
+                  options={[30, 60, 120, 300, 600].map((v) => ({ value: v, label: v < 60 ? `${v}s` : `${v / 60} min` }))}
+                />
+                <small className="muted">Dá tempo de ver o resultado, conversar no chat e pescar um pouco.</small>
+              </div>
+            )}
             <div className="field">
               <span className="field-label">Desligar sozinho depois de</span>
               <Options
@@ -170,20 +206,20 @@ export function LoopPage() {
                 onChange={(v) => set({ minChatters: v })}
                 options={[0, 1, 3, 5, 10].map((v) => ({ value: v, label: v ? `${v}+` : 'Sempre' }))}
               />
-              <small className="muted">Chat parado? O loop espera em vez de abrir jogo para ninguém.</small>
+              <small className="muted">Chat parado? Espera em vez de abrir jogo para ninguém.</small>
             </div>
             <Check checked={cfg.onlyLive} onChange={(v) => set({ onlyLive: v })}>
               Só com a live no ar
             </Check>
-            <p className="muted foot-note">Com o OBS fechado (overlay desconectado) o loop sempre espera.</p>
+            <p className="muted foot-note">Com o OBS fechado (overlay desconectado) sempre espera.</p>
           </Card>
 
           <Card title="Avisos">
             <Check checked={cfg.announce} onChange={(v) => set({ announce: v })}>
-              Bot avisa no chat qual é o próximo jogo
+              Bot avisa no chat qual é o próximo jogo{timer ? ' (1 minuto antes)' : ''}
             </Check>
             <Check checked={cfg.teaser} onChange={(v) => set({ teaser: v })}>
-              Mostrar no OBS a contagem para o próximo jogo
+              Mostrar no OBS a contagem para o próximo jogo{timer ? ' (no último minuto)' : ''}
             </Check>
             <div className="loop-teaser-preview" aria-hidden="true">
               <span>🔁 Próximo minigame</span>
@@ -197,18 +233,56 @@ export function LoopPage() {
               <div className="cmd">
                 <kbd>!loop ligar</kbd>
                 <p>
-                  Liga o rodízio (<kbd>!loop desligar</kbd> desliga).
+                  Liga os minigames automáticos no modo escolhido aqui (<kbd>!loop desligar</kbd> desliga).
                 </p>
               </div>
               <div className="cmd">
                 <kbd>!loop pular</kbd>
-                <p>Abre o próximo jogo sem esperar a pausa.</p>
+                <p>Abre o próximo jogo agora, sem esperar.</p>
               </div>
             </div>
           </Card>
         </div>
       </div>
     </>
+  );
+}
+
+function IntervalField({ cfg, set }: { cfg: LoopConfig; set: (p: Partial<LoopConfig>) => void }) {
+  const preset = (LOOP_TIMER_INTERVALS as readonly number[]).includes(cfg.intervalMin);
+  const [custom, setCustom] = useState(!preset);
+  return (
+    <div className="field">
+      <span className="field-label">Um minigame a cada</span>
+      <Options
+        tight
+        name="linterval"
+        value={custom ? -1 : cfg.intervalMin}
+        onChange={(v) => {
+          if (v === -1) setCustom(true);
+          else {
+            setCustom(false);
+            set({ intervalMin: v });
+          }
+        }}
+        options={[...LOOP_TIMER_INTERVALS.map((m) => ({ value: m as number, label: m < 60 ? `${m} min` : `${m / 60} h`.replace('.5', ',5') })), { value: -1, label: 'Outro' }]}
+      />
+      {custom && (
+        <div className="inline-input">
+          <input
+            className="input"
+            type="number"
+            min={5}
+            max={720}
+            step={5}
+            defaultValue={cfg.intervalMin}
+            onBlur={(e) => set({ intervalMin: Math.min(720, Math.max(5, Number(e.target.value) || 30)) })}
+          />
+          <span>minutos (de 5 a 720)</span>
+        </div>
+      )}
+      <small className="muted">Conta a partir do fim do último minigame, até os que você abre na mão.</small>
+    </div>
   );
 }
 

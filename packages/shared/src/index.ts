@@ -498,7 +498,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   },
   defense: { joinSec: 60, waves: 8, voteSec: 15, maxPlayers: 60, fillBots: true, difficulty: 'normal', fullscreen: true },
   fishing: { enabled: false, cooldownSec: 60, corner: 'bl', announce: 'epico', hint: true, scene: 'transparent', rankPos: 'lake', rankTop: 3 },
-  loop: { enabled: false, games: ['race', 'royale', 'kite', 'penalty', 'boss'], order: 'sequence', gapSec: 60, minChatters: 0, onlyLive: true, maxHours: 0, announce: true, teaser: true },
+  loop: { enabled: false, mode: 'loop', intervalMin: 30, bossSkin: 'random', games: ['race', 'royale', 'kite', 'penalty', 'boss'], order: 'sequence', gapSec: 60, minChatters: 0, onlyLive: true, maxHours: 0, announce: true, teaser: true },
   penalty: {
     joinSec: 45,
     voteSec: 12,
@@ -1678,6 +1678,15 @@ export const LOOP_GAME_INFO: Record<LoopGameId, { name: string; emoji: string; j
 
 export interface LoopConfig {
   enabled: boolean;
+  /**
+   * loop = rodízio contínuo (streamer ausente): acabou um, pausa curta, abre o próximo.
+   * timer = de tempos em tempos (streamer jogando): um minigame a cada X minutos.
+   */
+  mode: 'loop' | 'timer';
+  /** Temporizador: minutos entre o fim de um minigame e o próximo. */
+  intervalMin: number;
+  /** Qual boss aparece quando é a vez do Boss coletivo. */
+  bossSkin: BossSkinId | 'random';
   /** Jogos do rodízio, na ordem em que entram (modo sequência). */
   games: LoopGameId[];
   order: 'sequence' | 'random';
@@ -1695,6 +1704,10 @@ export interface LoopConfig {
   teaser: boolean;
 }
 
+/** Aviso antes do minigame no Temporizador (chat e OBS). */
+export const LOOP_TIMER_WARN_MS = 60_000;
+export const LOOP_TIMER_INTERVALS = [10, 15, 20, 30, 45, 60, 90] as const;
+
 export function normalizeLoopConfig(c: Partial<LoopConfig> | undefined): LoopConfig {
   const num = (v: unknown, d: number, min: number, max: number) => {
     const n = Math.round(Number(v));
@@ -1704,6 +1717,9 @@ export function normalizeLoopConfig(c: Partial<LoopConfig> | undefined): LoopCon
   const games: LoopGameId[] = Array.isArray(c?.games) ? [...new Set(c!.games!)].filter((g) => LOOP_GAMES.includes(g)) : ['race', 'royale', 'kite', 'penalty', 'boss'];
   return {
     enabled: c?.enabled === true,
+    mode: c?.mode === 'timer' ? 'timer' : 'loop',
+    intervalMin: num(c?.intervalMin, 30, 5, 720),
+    bossSkin: c?.bossSkin === 'random' || isBossSkin(c?.bossSkin) ? (c!.bossSkin as BossSkinId | 'random') : 'random',
     games,
     order: c?.order === 'random' ? 'random' : 'sequence',
     gapSec: num(c?.gapSec, 60, 20, 1800),
@@ -1739,6 +1755,9 @@ export interface LoopSnapshot {
   since: number | null;
   /** Quando desliga sozinho (null = não desliga). */
   endsAt: number | null;
+  mode: LoopConfig['mode'];
+  /** A partir de quando avisar (chat e OBS). No Temporizador é 1 min antes; no Loop, na hora em que agenda. */
+  warnAt: number | null;
   teaser: boolean;
   serverNow: number;
 }
