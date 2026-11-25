@@ -375,7 +375,16 @@ function roomFor(ch: StoredChannel): Room {
   if (bot && ch.tokens && twitchConfigured()) senders.push((text) => sendChatMessage(ch.id, bot.id, text, botToken));
   if (ch.kick && kickConfigured()) {
     senders.push(async (text) => {
-      const r = await kickSendChat(await kickToken(ch.id), text);
+      const kickId = cur().kick?.userId ?? '';
+      let r: Awaited<ReturnType<typeof kickSendChat>>;
+      try {
+        r = await kickSendChat(await kickToken(ch.id), text);
+        if (kickProblem.get(kickId)?.startsWith('O bot não conseguiu')) kickProblem.delete(kickId);
+      } catch (err) {
+        // aparece no card da Kick em Conexões, com o motivo que a Kick deu
+        kickProblem.set(kickId, `O bot não conseguiu falar no chat da Kick: ${(err as Error).message.slice(0, 220)}`);
+        throw new Error(`Kick: ${(err as Error).message}`);
+      }
       if (r?.data?.message_id) kickSent.add(r.data.message_id);
       kickSent.add(`text:${text}`);
       if (kickSent.size > 200) kickSent.delete(kickSent.values().next().value!);
@@ -385,7 +394,7 @@ function roomFor(ch: StoredChannel): Room {
   room.sendChat = senders.length
     ? async (text) => {
         const results = await Promise.allSettled(senders.map((send) => send(text)));
-        for (const r of results) if (r.status === 'rejected') app.log.warn({ err: r.reason }, 'falha ao enviar no chat');
+        for (const r of results) if (r.status === 'rejected') app.log.warn({ err: r.reason }, `falha ao enviar no chat: ${String((r.reason as Error)?.message ?? r.reason).slice(0, 300)}`);
       }
     : null;
 
