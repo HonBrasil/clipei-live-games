@@ -329,3 +329,15 @@ Fica rodando a live inteira num canto do overlay, ao lado dos outros jogos (paus
 - Fundo transparente por padrão (só a água por cima do jogo) ou cenário completo (cartão com céu e mata).
 - O ranking da semana pode ficar junto do lago, escondido ou fixo em 8 pontos da tela (Top 3, 5 ou 10). O painel tem um mapa da tela do OBS: escolha "Ranking" ou "Lago" e clique no lugar.
 - Persistência em `clipei_kv` com a chave `fish:<channelId>`.
+
+## Modo Loop
+
+Para quando o streamer sai e deixa a live aberta: os minigames se revezam sozinhos. **Modo Loop** no menu (ou `!loop ligar` pelos mods).
+
+- Escolha os jogos do rodízio (boss, corrida, duelo, battle royale, pipa, pênaltis), em sequência (ordem com as setas) ou aleatório sem repetir o último.
+- Pausa entre jogos (30 s a 10 min), contada a partir do fim do jogo anterior; o primeiro abre 15 s depois de ligar.
+- Só roda com a live no ar (opcional), com o OBS conectado e com um mínimo de pessoas falando no chat; quando alguma condição falha, espera e volta sozinho.
+- Desliga sozinho depois de 1, 2, 4 ou 8 horas (opcional).
+- O bot avisa o próximo jogo no chat e o OBS mostra a contagem no topo ("Próximo minigame · 🏁 Corrida · 0:42").
+- Se o streamer abrir um jogo na mão, o loop espera ele terminar. Com o loop ligado, o boss automático fica desativado (o boss entra no rodízio). A pescaria continua entre os jogos.
+- `!loop pular` (ou o botão no painel) abre o próximo sem esperar a pausa. `POST /api/loop/skip`.

@@ -442,6 +442,8 @@ export interface RoomSettings {
   kite: KiteConfig;
   penalty: PenaltyConfig;
   fishing: FishingConfig;
+  /** Modo Loop: os minigames se revezam sozinhos (streamer ausente, live aberta). */
+  loop: LoopConfig;
   /** O que bits, subs, pontos e raids fazem em cada minigame (o boss usa `support`). */
   gameSupport: Record<SupportGameId, GameSupportConfig>;
 }
@@ -471,6 +473,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
     fishing: defaultGameSupport('fishing'),
   },
   fishing: { enabled: false, cooldownSec: 60, corner: 'bl', announce: 'epico', hint: true, scene: 'transparent', rankPos: 'lake', rankTop: 3 },
+  loop: { enabled: false, games: ['race', 'royale', 'kite', 'penalty', 'boss'], order: 'sequence', gapSec: 60, minChatters: 0, onlyLive: true, maxHours: 0, announce: true, teaser: true },
   penalty: {
     joinSec: 45,
     voteSec: 12,
@@ -538,6 +541,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     kite: normalizeKiteConfig({ ...(base.kite ?? {}), ...((p.kite ?? {}) as Partial<KiteConfig>) }),
     penalty: normalizePenaltyConfig(base.penalty, p.penalty as Partial<PenaltyConfig> | undefined),
     fishing: normalizeFishingConfig({ ...(base.fishing ?? {}), ...((p.fishing ?? {}) as Partial<FishingConfig>) }),
+    loop: normalizeLoopConfig({ ...(base.loop ?? {}), ...((p.loop ?? {}) as Partial<LoopConfig>) }),
     gameSupport: Object.fromEntries(
       SUPPORT_GAME_IDS.map((g) => [g, normalizeGameSupport(g, base.gameSupport?.[g], (p.gameSupport as Record<string, unknown> | undefined)?.[g])]),
     ) as Record<SupportGameId, GameSupportConfig>,
@@ -571,6 +575,7 @@ export type ServerMessage =
   | { type: 'kite'; state: KiteSnapshot }
   | { type: 'penalty'; state: PenaltySnapshot }
   | { type: 'fishing'; state: FishingSnapshot }
+  | { type: 'loop'; state: LoopSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -1619,4 +1624,85 @@ export interface FishingStats {
   /** quantas vezes cada espécie já saiu no canal */
   species: Record<string, number>;
   biggest: { name: string; fish: FishId; kg: number } | null;
+}
+
+// ─── Modo Loop ───────────────────────────────────────────────
+
+/** Minigames que podem entrar no rodízio (a pescaria roda junto, entre um e outro). */
+export type LoopGameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty';
+export const LOOP_GAMES: LoopGameId[] = ['boss', 'race', 'duel', 'royale', 'kite', 'penalty'];
+export const LOOP_GAME_INFO: Record<LoopGameId, { name: string; emoji: string; join: string }> = {
+  boss: { name: 'Boss coletivo', emoji: '👾', join: '!atk' },
+  race: { name: 'Corrida', emoji: '🏁', join: '!correr' },
+  duel: { name: 'Duelo', emoji: '🤠', join: '!duelo' },
+  royale: { name: 'Battle Royale', emoji: '🪂', join: '!entrar' },
+  kite: { name: 'Pipa Combate', emoji: '🪁', join: '!pipa' },
+  penalty: { name: 'Pênaltis', emoji: '⚽', join: '!a ou !b' },
+};
+
+export interface LoopConfig {
+  enabled: boolean;
+  /** Jogos do rodízio, na ordem em que entram (modo sequência). */
+  games: LoopGameId[];
+  order: 'sequence' | 'random';
+  /** Pausa entre o fim de um jogo e a abertura do próximo. */
+  gapSec: number;
+  /** Só abre jogo se pelo menos tantas pessoas falaram no chat nos últimos 10 min (0 = sempre). */
+  minChatters: number;
+  /** Só roda com a live no ar. */
+  onlyLive: boolean;
+  /** Desliga sozinho depois de tantas horas (0 = nunca). */
+  maxHours: number;
+  /** O bot avisa no chat qual é o próximo jogo. */
+  announce: boolean;
+  /** Mostra no OBS a contagem para o próximo jogo. */
+  teaser: boolean;
+}
+
+export function normalizeLoopConfig(c: Partial<LoopConfig> | undefined): LoopConfig {
+  const num = (v: unknown, d: number, min: number, max: number) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : d;
+  };
+  // mantém a ordem escolhida pelo streamer, sem repetir e só com jogos conhecidos
+  const games: LoopGameId[] = Array.isArray(c?.games) ? [...new Set(c!.games!)].filter((g) => LOOP_GAMES.includes(g)) : ['race', 'royale', 'kite', 'penalty', 'boss'];
+  return {
+    enabled: c?.enabled === true,
+    games,
+    order: c?.order === 'random' ? 'random' : 'sequence',
+    gapSec: num(c?.gapSec, 60, 20, 1800),
+    minChatters: num(c?.minChatters, 0, 0, 100),
+    onlyLive: c?.onlyLive !== false,
+    maxHours: num(c?.maxHours, 0, 0, 24),
+    announce: c?.announce !== false,
+    teaser: c?.teaser !== false,
+  };
+}
+
+/** Por que o loop não está abrindo jogo agora. */
+export type LoopBlock = 'plan' | 'offline' | 'obs' | 'chat' | 'empty';
+export const LOOP_BLOCK_TEXT: Record<LoopBlock, string> = {
+  plan: 'Seu plano não está ativo.',
+  offline: 'Esperando a live ficar no ar.',
+  obs: 'Esperando o OBS abrir o overlay.',
+  chat: 'Esperando o chat movimentar.',
+  empty: 'Escolha pelo menos um jogo.',
+};
+
+export interface LoopSnapshot {
+  enabled: boolean;
+  /** Próximo jogo e quando abre (null = nada agendado: jogo rolando ou loop esperando). */
+  next: LoopGameId | null;
+  at: number | null;
+  /** Jogo que o loop abriu e ainda está na tela. */
+  playing: LoopGameId | null;
+  blocked: LoopBlock | null;
+  /** Jogos abertos pelo loop desde que foi ligado. */
+  rounds: number;
+  /** Ligado desde (para o desligamento automático). */
+  since: number | null;
+  /** Quando desliga sozinho (null = não desliga). */
+  endsAt: number | null;
+  teaser: boolean;
+  serverNow: number;
 }

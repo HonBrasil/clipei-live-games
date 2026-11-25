@@ -22,6 +22,7 @@ import { RoyalePage } from './pages/RoyalePage.tsx';
 import { KitePage } from './pages/KitePage.tsx';
 import { PenaltyPage } from './pages/PenaltyPage.tsx';
 import { FishingPage } from './pages/FishingPage.tsx';
+import { LoopPage } from './pages/LoopPage.tsx';
 import { PrivacyPage, TermsPage } from './pages/Legal.tsx';
 
 createRoot(document.getElementById('root')!).render(
@@ -44,6 +45,7 @@ createRoot(document.getElementById('root')!).render(
         >
           <Route index element={<Home />} />
           <Route path="jogos" element={<Games />} />
+          <Route path="loop" element={<LoopPage />} />
           <Route path="jogos/boss" element={<BossPage />} />
           <Route path="jogos/race" element={<RacePage />} />
           <Route path="jogos/corrida" element={<RacePage />} />

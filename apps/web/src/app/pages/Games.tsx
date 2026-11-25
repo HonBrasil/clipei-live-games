@@ -14,7 +14,8 @@ function TrackArt() {
 }
 
 export function Games() {
-  const { status } = useApp();
+  const { status, me } = useApp();
+  const loopOn = !!me?.settings.loop.enabled;
   return (
     <>
       <section className="hero">
@@ -25,6 +26,16 @@ export function Games() {
           <p>Todos usam a mesma URL no OBS. Quando um jogo novo chegar, ele aparece aqui pronto para usar.</p>
         </div>
       </section>
+      <Link to="/app/loop" className={`loop-banner ${loopOn ? 'is-on' : ''}`}>
+        <span className="loop-banner-icon" aria-hidden="true">
+          🔁
+        </span>
+        <span>
+          <b>Modo Loop {loopOn ? 'ligado' : ''}</b>
+          <small>{loopOn ? 'Os minigames estão se revezando sozinhos.' : 'Vai sair e deixar a live aberta? Deixe os minigames rodando sozinhos em rodízio.'}</small>
+        </span>
+        <em>{loopOn ? 'Ver' : 'Configurar'} →</em>
+      </Link>
       <div className="games-grid">
         {GAMES.filter((g) => g.status === 'active').map((g) => {
           const active = g.status === 'active';

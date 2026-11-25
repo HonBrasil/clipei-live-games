@@ -11,3 +11,4 @@ export * from './royale.ts';
 export * from './kite.ts';
 export * from './penalty.ts';
 export * from './fishing.ts';
+export * from './loop.ts';

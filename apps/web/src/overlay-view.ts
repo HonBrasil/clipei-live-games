@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type KiteSnapshot, type PenaltySnapshot, type FishingSnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
+import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type KiteSnapshot, type PenaltySnapshot, type FishingSnapshot, type LoopSnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
 import { Arena } from './arena/arena.ts';
 import { Sfx } from './arena/sfx.ts';
 import { RaceArena } from './race/race-arena.ts';
@@ -7,6 +7,7 @@ import { RoyaleArena } from './royale/royale-arena.ts';
 import { KiteArena } from './kite/kite-arena.ts';
 import { PenaltyArena } from './penalty/penalty-arena.ts';
 import { FishingWidget } from './fishing/fishing-widget.ts';
+import { LoopTeaser } from './loop/loop-teaser.ts';
 
 /**
  * Overlay do OBS: tela 1920×1080 transparente com a arena (boss + heróis)
@@ -173,6 +174,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     </section>
     <aside class="fish-widget" id="fish-widget" hidden></aside>
     <aside class="fish-rank-widget" id="fish-rank" hidden></aside>
+    <div class="loop-next" id="loop-next" hidden></div>
     <div class="idle-screen" id="idle-screen" hidden>
       <img src="${logo}" alt="" />
       <b>Aguardando o próximo jogo</b>
@@ -291,6 +293,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   const kiteArena = new KiteArena($('kite-canvas') as HTMLCanvasElement, sfx);
   const penArena = new PenaltyArena($('pen-canvas') as HTMLCanvasElement, sfx);
   const fishWidget = new FishingWidget($('fish-widget'), $('fish-rank'), sfx);
+  const loopTeaser = new LoopTeaser($('loop-next'));
   let penFull = true;
   /** O Pipa Combate também pode ocupar a tela inteira com o overlay sobreposto. */
   let kiteFull = true;
@@ -1189,6 +1192,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     renderKite,
     renderPenalty,
     renderFishing: (s: FishingSnapshot) => fishWidget.setState(s),
+    renderLoop: (s: LoopSnapshot) => loopTeaser.setState(s),
     setOnline(online: boolean) {
       els.conn.hidden = online || !state;
     },

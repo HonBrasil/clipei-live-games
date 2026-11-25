@@ -20,6 +20,9 @@ import {
   FishingGame,
   parseFishingChatCommand,
   fishingCatchAnnouncement,
+  GameLoop,
+  loopNextAnnouncement,
+  parseLoopChatCommand,
   penaltyHelpText,
   penaltyOpenAnnouncement,
   penaltyStartAnnouncement,
@@ -61,6 +64,7 @@ import {
   type ClipRecord,
   type FightRecord,
   type RoomSettings,
+  type LoopGameId,
   type SupportEvent,
   type RoomStatus,
   type ServerMessage,
@@ -120,6 +124,8 @@ export class Room {
   /** Pescaria: roda junto, a live inteira (pausa quando outro jogo começa). O servidor troca pela versão com progresso salvo. */
   fishing = new FishingGame(null);
   fishingBound = false;
+  /** Modo Loop: rodízio automático de minigames. */
+  readonly loop = new GameLoop();
   lastConfig: BossConfig = { ...DEFAULT_CONFIG };
   hpMode: HpMode = 'auto';
   readonly sockets = new Set<WebSocket>();
@@ -224,6 +230,64 @@ export class Room {
   private busyText(busy: NonNullable<ReturnType<Room['activeGame']>>) {
     const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando' }[busy];
     return `Tem ${what}. Um jogo por vez: espere terminar.`;
+  }
+
+  // ─── Modo Loop ─────────────────────────────────────────────
+
+  private tickLoop(now: number) {
+    const cfg = this.settings.loop;
+    const action = this.loop.tick(now, {
+      cfg,
+      busy: this.activeGame() !== null,
+      entitled: this.entitled(),
+      live: this.isLive(),
+      overlays: this.overlayCount,
+      chatters: this.activity.count(),
+    });
+    if (action?.type === 'expired') {
+      this.updateSettings({ loop: { enabled: false } });
+      this.say('🔁 Modo Loop desligado: acabou o tempo programado pelo streamer.');
+    } else if (action?.type === 'scheduled') {
+      if (cfg.announce) this.say(loopNextAnnouncement(action.game, action.at - now));
+    } else if (action?.type === 'start') {
+      if (!this.loopStart(action.game)) this.loop.failed(now, action.game);
+    }
+    if (this.loop.dirty) this.broadcastLoop();
+  }
+
+  private loopStart(game: LoopGameId): boolean {
+    if (this.activeGame()) return false;
+    switch (game) {
+      case 'boss':
+        this.startQuick('random');
+        return true;
+      case 'race':
+        return this.startRace().ok;
+      case 'duel':
+        return this.startDuel().ok;
+      case 'royale':
+        return this.startRoyale().ok;
+      case 'kite':
+        return this.startKite().ok;
+      case 'penalty':
+        return this.startPenalty().ok;
+    }
+  }
+
+  /** Abre o próximo jogo do rodízio sem esperar a pausa. */
+  loopSkip() {
+    if (this.activeGame()) return false;
+    const ok = this.loop.skip(Date.now(), this.settings.loop);
+    if (ok) this.tickLoop(Date.now());
+    return ok;
+  }
+
+  loopSnapshot() {
+    return this.loop.snapshot(Date.now(), this.settings.loop);
+  }
+
+  private broadcastLoop() {
+    this.broadcast({ type: 'loop', state: this.loopSnapshot() });
   }
 
   // ─── Pescaria da Live ──────────────────────────────────────
@@ -672,6 +736,21 @@ export class Room {
   handleChat(event: ChatEvent) {
     this.activity.record(`${event.platform}:${event.user.id}`);
 
+    const loopCmd = parseLoopChatCommand(event);
+    if (loopCmd) {
+      if (loopCmd.type === 'skip') {
+        if (!this.settings.loop.enabled) this.say('🔁 O Modo Loop está desligado. Use !loop ligar.');
+        else if (!this.loopSkip()) this.say('🔁 Tem um jogo rolando: o próximo abre quando ele terminar.');
+      } else {
+        const on = loopCmd.type === 'on';
+        if (on !== this.settings.loop.enabled) {
+          this.updateSettings({ loop: { enabled: on } });
+          this.say(on ? '🔁 Modo Loop ligado! Os minigames vão se revezar sozinhos.' : '🔁 Modo Loop desligado.');
+        }
+      }
+      return;
+    }
+
     const raceCmd = parseRaceChatCommand(event);
     if (raceCmd) {
       if (raceCmd.type === 'help') {
@@ -953,12 +1032,14 @@ export class Room {
     if (now - this.lastSpawnCheck >= 1000) {
       this.lastSpawnCheck = now;
       this.checkAutoSpawn();
+      this.tickLoop(now);
     }
     if (now - this.lastStatusAt >= STATUS_EVERY_MS && this.sockets.size) this.broadcastStatus();
   }
 
   private checkAutoSpawn() {
-    if (!this.entitled()) return;
+    // com o Modo Loop ligado, o boss entra no rodízio em vez de vir sozinho
+    if (!this.entitled() || this.settings.loop.enabled) return;
     const signal = this.spawner.tick({
       running: this.activeGame() !== null,
       activeChatters: this.activity.count(),
@@ -986,6 +1067,7 @@ export class Room {
   updateSettings(patch: unknown) {
     this.settings = mergeSettings(this.settings, patch);
     this.spawner.configure(this.settings.autoSpawn);
+    if (patch && typeof patch === 'object' && 'loop' in patch) this.loop.dirty = true;
     if (patch && typeof patch === 'object' && 'fishing' in patch) {
       // posição, fundo e ranking mudam na hora no OBS
       this.fishing.config = this.settings.fishing;
@@ -1006,7 +1088,7 @@ export class Room {
     return {
       activeChatters: this.activity.count(),
       autoHp: this.autoHp(),
-      nextAutoAt: this.spawner.nextAt,
+      nextAutoAt: this.settings.loop.enabled ? null : this.spawner.nextAt,
       live: this.isLive(),
       overlays: [...this.sockets].filter((ws) => !this.panels.has(ws) && ws.readyState === 1).length,
       game: this.activeGame(),
@@ -1041,6 +1123,7 @@ export class Room {
     const pen = this.penaltySnapshot();
     if (pen) this.send(ws, { type: 'penalty', state: pen });
     if (this.settings.fishing.enabled) this.send(ws, { type: 'fishing', state: this.fishing.snapshot(Date.now(), this.fishingPaused) });
+    this.send(ws, { type: 'loop', state: this.loopSnapshot() });
     ws.on('close', () => {
       this.sockets.delete(ws);
       if (!this.panels.has(ws)) this.broadcastStatus();

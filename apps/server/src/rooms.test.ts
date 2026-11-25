@@ -248,4 +248,29 @@ describe('Room', () => {
     const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
     expect(said.some((t) => t.includes('CARDUME'))).toBe(true);
   });
+
+  it('modo loop: espera o OBS, abre os jogos em rodízio e mod pula a espera', () => {
+    const { room, msgs, tickFor } = setup();
+    let obs = 0;
+    Object.defineProperty(room, 'overlayCount', { get: () => obs });
+    room.handleChat(chat('mod', '!loop ligar', 'mod'));
+    room.updateSettings({ loop: { games: ['race', 'kite'], gapSec: 30 } });
+    tickFor(2000);
+    expect(room.loopSnapshot()).toMatchObject({ enabled: true, blocked: 'obs', next: null });
+    obs = 1;
+    tickFor(2000);
+    expect(room.loopSnapshot().next).toBe('race');
+    tickFor(16_000);
+    expect(room.activeGame()).toBe('race');
+    room.stopRace();
+    tickFor(2000);
+    expect(room.loopSnapshot().next).toBe('kite');
+    room.handleChat(chat('mod', '!loop pular', 'mod'));
+    tickFor(1500);
+    expect(room.activeGame()).toBe('kite');
+    expect(room.loopSnapshot().rounds).toBe(2);
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('Próximo minigame'))).toBe(true);
+    expect(msgs.some((m) => m.type === 'loop')).toBe(true);
+  });
 });

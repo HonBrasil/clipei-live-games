@@ -1008,6 +1008,13 @@ app.post('/api/fishing/shoal', async (req, reply) => {
   return { ok: true };
 });
 
+app.post('/api/loop/skip', async (req, reply) => {
+  const room = currentRoom(req);
+  if (!room.getSettings().loop.enabled) return reply.code(400).send({ error: 'Ligue o Modo Loop primeiro.' });
+  if (!room.loopSkip()) return reply.code(409).send({ error: 'Tem um jogo rolando: o próximo abre quando ele terminar.' });
+  return { ok: true };
+});
+
 app.get('/api/fishing/stats', async (req) => currentRoom(req).fishingStats());
 
 app.post('/api/penalty/stop', async (req) => ({ ok: currentRoom(req).stopPenalty() }));
