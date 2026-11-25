@@ -162,7 +162,11 @@ export function Landing() {
       <footer className="l-foot">
         <Logo className="l-foot-logo" />
         <span>Clipei Live Games · minigames para lives</span>
-        <Link to="/entrar">Entrar</Link>
+        <nav className="l-foot-links" aria-label="Institucional">
+          <Link to="/privacidade">Privacidade</Link>
+          <Link to="/termos">Termos</Link>
+          <Link to="/entrar">Entrar</Link>
+        </nav>
       </footer>
     </div>
   );

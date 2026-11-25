@@ -1037,9 +1037,101 @@ button.pill {
 .l-foot-logo {
   height: 36px;
 }
-.l-foot a {
+.l-foot-links {
+  display: flex;
+  gap: 18px;
   margin-left: auto;
+}
+.l-foot-links a {
+  color: var(--text-3);
+  font-size: 13px;
+}
+.l-foot-links a:hover {
+  color: var(--text);
+}
+.login-legal {
+  margin: 14px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+  text-align: center;
+}
+.login-legal a {
   color: var(--text-2);
+  text-decoration: underline;
+}
+
+/* ─── Privacidade e Termos ───────────────────────────────── */
+.legal {
+  min-height: 100vh;
+  background: var(--bg, #050505);
+  color: var(--text);
+}
+.legal-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 22px var(--pad, 20px);
+  border-bottom: 1px solid var(--border);
+}
+.legal-logo {
+  height: 34px;
+}
+.legal-top nav {
+  display: flex;
+  gap: 18px;
+  margin-left: auto;
+  font-size: 14px;
+}
+.legal-top nav a {
+  color: var(--text-2);
+}
+.legal-body {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 36px var(--pad, 20px) 64px;
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+.legal-body h1 {
+  margin: 0 0 6px;
+  font: italic 900 clamp(30px, 5vw, 42px) var(--font-display);
+  color: var(--text);
+}
+.legal-body h2 {
+  margin: 34px 0 8px;
+  font: italic 800 22px var(--font-display);
+  color: var(--text);
+}
+.legal-body h3 {
+  margin: 18px 0 6px;
+  font-size: 16px;
+  color: var(--text);
+}
+.legal-body p,
+.legal-body ul {
+  margin: 0 0 12px;
+}
+.legal-body ul {
+  padding-left: 22px;
+}
+.legal-body li {
+  margin-bottom: 6px;
+}
+.legal-body b {
+  color: var(--text);
+}
+.legal-body a {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: var(--red, #ff1f2d);
+  text-underline-offset: 3px;
+}
+.legal-meta {
+  color: var(--text-3);
+  font-size: 13px;
 }
 
 .tip {

@@ -769,6 +769,24 @@ await app.register(async (kickRoutes) => {
   });
 });
 
+/** Excluir a conta: apaga canal, conexões, configurações, clips e histórico (LGPD / política de privacidade). */
+app.post<{ Body: { confirm?: string } }>('/api/account/delete', async (req, reply) => {
+  const ch = currentChannel(req);
+  if (!ch) return reply.code(401).send({ error: 'Entre na sua conta' });
+  if (req.body?.confirm !== 'EXCLUIR') return reply.code(400).send({ error: 'Confirmação inválida' });
+  ytStopChat(ch.id);
+  ytWatch.delete(ch.id);
+  supportSockets.get(ch.id)?.stop();
+  supportSockets.delete(ch.id);
+  if (ch.tokens) eventsub.unlisten(ch.id);
+  const room = rooms.byChannelId(ch.id);
+  if (room) for (const ws of room.sockets) ws.close(4001, 'account deleted');
+  store.removeChannel(ch.id);
+  reply.clearCookie(SESSION_COOKIE, { path: '/' });
+  req.log.info({ channelId: ch.id }, 'conta excluída pelo usuário');
+  return { ok: true };
+});
+
 app.post('/api/auth/logout', async (_req, reply) => {
   reply.clearCookie(SESSION_COOKIE, { path: '/' });
   return { ok: true };

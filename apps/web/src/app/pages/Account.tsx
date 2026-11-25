@@ -25,12 +25,12 @@ export function Account() {
               {ch.avatar && <img src={ch.avatar} alt="" />}
               <div>
                 <b>{ch.displayName}</b>
-                <span>twitch.tv/{ch.login}</span>
+                <span>{me.primary === 'kick' ? `kick.com/${ch.login}` : me.primary === 'youtube' ? `YouTube · ${ch.displayName}` : `twitch.tv/${ch.login}`}</span>
               </div>
             </div>
             <dl className="facts">
               <dt>Plataforma de login</dt>
-              <dd>{me.primary === 'kick' ? 'Kick' : 'Twitch'}</dd>
+              <dd>{me.primary === 'kick' ? 'Kick' : me.primary === 'youtube' ? 'YouTube' : 'Twitch'}</dd>
               <dt>Plano</dt>
               <dd>
                 {me.billing?.status === 'active'
@@ -72,6 +72,26 @@ export function Account() {
             <Link className="btn twitch" to="/entrar">
               Entrar
             </Link>
+          </Card>
+        )}
+        {ch && (
+          <Card title="Seus dados" subtitle="Privacidade e exclusão">
+            <p className="muted">
+              Veja o que guardamos na <Link to="/privacidade">Política de Privacidade</Link>. Para tirar o acesso da Clipei a uma plataforma, desconecte em{' '}
+              <Link to="/app/conexoes">Conexões</Link>.
+            </p>
+            <button
+              className="btn danger"
+              style={{ marginTop: 12 }}
+              onClick={async () => {
+                const typed = window.prompt('Isso apaga sua conta na Clipei: conexões, configurações, clips, histórico e assinatura. Não dá para desfazer.\n\nDigite EXCLUIR para confirmar:');
+                if (typed?.trim().toUpperCase() !== 'EXCLUIR') return;
+                await api('/api/account/delete', { confirm: 'EXCLUIR' });
+                location.href = '/';
+              }}
+            >
+              Excluir minha conta
+            </button>
           </Card>
         )}
       </div>

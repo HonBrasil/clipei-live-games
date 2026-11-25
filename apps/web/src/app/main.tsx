@@ -20,6 +20,7 @@ import { RacePage } from './pages/RacePage.tsx';
 import { DuelPage } from './pages/DuelPage.tsx';
 import { RoyalePage } from './pages/RoyalePage.tsx';
 import { KitePage } from './pages/KitePage.tsx';
+import { PrivacyPage, TermsPage } from './pages/Legal.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -27,6 +28,10 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/entrar" element={<Login />} />
+        <Route path="/privacidade" element={<PrivacyPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/termos" element={<TermsPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route
           path="/app"
           element={

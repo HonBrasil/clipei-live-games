@@ -47,6 +47,9 @@ export function Login() {
         <p className="login-alt">
           Quer só conhecer? <Link to="/app">Abrir o modo demo</Link>
         </p>
+        <p className="login-legal">
+          Ao entrar, você concorda com os <Link to="/termos">Termos</Link> e a <Link to="/privacidade">Política de Privacidade</Link>.
+        </p>
       </div>
     </div>
   );
