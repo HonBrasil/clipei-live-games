@@ -370,6 +370,11 @@ select {
   background: #9146ff;
   color: #fff;
 }
+.btn.kick {
+  border: 0;
+  background: #53fc18;
+  color: #0b0b0b;
+}
 .btn.danger {
   border-color: rgba(255, 77, 109, 0.5);
   color: #ffc2ce;

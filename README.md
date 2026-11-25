@@ -45,9 +45,11 @@ A Kick entrega chat, subs, presentes, Kicks e resgates por **webhook**, então e
 5. **No painel da Clipei**, em Conexões → Kick → Conectar, entre com a **sua** conta de streamer.
 6. Mande uma mensagem no seu chat da Kick: o status muda para **"Recebendo (há Xs)"**.
 
-Na Kick, o bot responde no chat pelo app da Clipei (`type: bot`). Kicks viram a chuva de cristais (3 de dano por Kick, mesma regra dos Bits). Subs, renovações e presentes viram raios. A recompensa "⚔️ Golpe Especial no Boss" é criada no canal quando os pontos estão ligados. A Kick não tem raid nem API de clip, então esses dois recursos são só da Twitch. Quem usa Twitch e Kick ao mesmo tempo joga a mesma luta com os dois chats.
+Na Kick, o bot responde no chat pelo app da Clipei (`type: bot`). Kicks viram a chuva de cristais (3 de dano por Kick, mesma regra dos Bits). Subs, renovações e presentes viram raios. A recompensa "⚡ Apoio no Minigame" é criada no canal quando os pontos estão ligados. A Kick não tem raid nem API de clip, então esses dois recursos são só da Twitch. Quem usa Twitch e Kick ao mesmo tempo joga a mesma luta com os dois chats.
 
 Todo webhook é conferido pela assinatura RSA-SHA256 da Kick e entregas repetidas são ignoradas.
+
+**Em produção:** no app da Kick (criado logado na conta do bot), a URL de redirecionamento é `https://clipei-live-games.vercel.app/api/auth/kick/callback` e o webhook vai direto para o servidor do jogo: `https://servidor-do-jogo-production.up.railway.app/api/webhooks/kick`. Na Railway: `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` e `KICK_REDIRECT_URI`. Com o app configurado, o botão "Entrar com Kick" aparece sozinho na tela de login.
 
 ## Colocando no OBS
 

@@ -791,7 +791,7 @@ app.get('/api/admin/overview', async (req, reply): Promise<AdminOverview | undef
 app.get('/api/health', async () => ({ ok: true, eventsub: eventsub.connected, storage: config.supabase.url && config.supabase.secret ? 'supabase' : 'arquivo', twitch: twitchConfigured() }));
 
 /** O site (Vercel) pergunta aqui onde fica o WebSocket do jogo. */
-app.get('/api/config', async () => ({ wsUrl: config.publicWsUrl || null }));
+app.get('/api/config', async () => ({ wsUrl: config.publicWsUrl || null, platforms: { twitch: twitchConfigured(), kick: kickConfigured() } }));
 
 // ─── WebSocket do overlay ────────────────────────────────────
 
