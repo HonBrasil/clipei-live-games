@@ -154,4 +154,24 @@ describe('Room', () => {
     expect(said.some((t) => t.includes('venceu'))).toBe(true);
     expect(msgs.some((m) => m.type === 'duel' && m.state.events.some((e) => e.kind === 'shot'))).toBe(true);
   });
+
+  it('battle royale: mod abre, chat embarca, caem, alguém vence; raid vira bombardeio', () => {
+    const { room, msgs, tickFor } = setup();
+    room.handleChat(chat('mod', '!royale iniciar', 'mod'));
+    expect(room.activeGame()).toBe('royale');
+    room.handleChat(chat('ana', '!cair cidade'));
+    room.handleChat(chat('bia', '!entrar'));
+    room.handleChat(chat('mod', '!corrida iniciar', 'mod'));
+    expect(room.race).toBeNull();
+    tickFor(68_000);
+    expect(room.royale?.status).toBe('play');
+    room.handleSupport({ kind: 'raid', amount: 30, platform: 'twitch', user: { id: 'r', name: 'Raider' } });
+    for (let i = 0; i < 400 && room.royale?.status === 'play'; i++) tickFor(1000);
+    expect(room.royale?.status).toBe('finished');
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('BATTLE ROYALE'))).toBe(true);
+    expect(said.some((t) => t.includes('Saltaram 10'))).toBe(true);
+    expect(said.some((t) => t.includes('BOMBARDEIO'))).toBe(true);
+    expect(said.some((t) => t.includes('ÚLTIMO DE PÉ') || t.includes('Ninguém sobreviveu'))).toBe(true);
+  });
 });

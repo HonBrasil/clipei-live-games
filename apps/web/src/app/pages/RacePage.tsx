@@ -143,7 +143,7 @@ function RaceTab() {
           <Check checked={cfg.fillBots} onChange={(v) => set({ fillBots: v })}>
             Completar com pilotos da Clipei (CPU) quando tiver menos de 4
           </Check>
-          {busy && <p className="chat-error">{busy === 'boss' ? 'Tem um boss na arena.' : 'Tem um duelo rolando.'} Um jogo por vez: espere terminar para abrir a corrida.</p>}
+          {busy && <p className="chat-error">{busy === 'boss' ? 'Tem um boss na arena.' : busy === 'royale' ? 'Tem um Battle Royale rolando.' : 'Tem um duelo rolando.'} Um jogo por vez: espere terminar para abrir a corrida.</p>}
           <div className="actions">
             <button className="btn primary lg" disabled={active || !!busy} onClick={open}>
               🏁 Abrir corrida

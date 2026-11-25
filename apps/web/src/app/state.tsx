@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { ClipRecord, DuelSnapshot, MeResponse, RaceSnapshot, RoomSettings, RoomStatus } from '@clipei/shared';
+import type { ClipRecord, DuelSnapshot, RoyaleSnapshot, MeResponse, RaceSnapshot, RoomSettings, RoomStatus } from '@clipei/shared';
 import { connectRoom } from '../ws.ts';
 import { api, type BossInfo } from './api.ts';
 
@@ -22,6 +22,7 @@ interface AppState {
   /** Corrida atual (com nomes e cores já mesclados). */
   race: RaceSnapshot | null;
   duel: DuelSnapshot | null;
+  royale: RoyaleSnapshot | null;
   status: RoomStatus | null;
   logs: LogItem[];
   online: boolean;
@@ -43,6 +44,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [boss, setBossState] = useState<BossInfo | null>(null);
   const [race, setRace] = useState<RaceSnapshot | null>(null);
   const [duel, setDuel] = useState<DuelSnapshot | null>(null);
+  const [royale, setRoyale] = useState<RoyaleSnapshot | null>(null);
   const [status, setStatus] = useState<RoomStatus | null>(null);
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [online, setOnline] = useState(false);
@@ -84,6 +86,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (msg.type === 'boss') setBossState((b) => (b ? { ...b, state: msg.state } : b));
         // as posições chegam sem nomes; guarda o último roster recebido
         if (msg.type === 'duel') setDuel(msg.state);
+        if (msg.type === 'royale') setRoyale((r) => ({ ...msg.state, roster: msg.state.roster ?? r?.roster, crates: undefined }));
         if (msg.type === 'race') setRace((r) => ({ ...msg.state, roster: msg.state.roster ?? (r && r.rosterVersion === msg.state.rosterVersion ? r.roster : r?.roster) }));
         if (msg.type === 'room') {
           setStatus(msg.status);
@@ -122,8 +125,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setBoss = useCallback((b: Partial<BossInfo>) => setBossState((cur) => (cur ? { ...cur, ...b } : cur)), []);
 
   const value = useMemo(
-    () => ({ me, boss, race, duel, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss }),
-    [me, boss, race, duel, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss],
+    () => ({ me, boss, race, duel, royale, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss }),
+    [me, boss, race, duel, royale, status, logs, online, loadError, clockOffset, refresh, saveSettings, toast, toasts, setBoss],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

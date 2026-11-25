@@ -256,3 +256,16 @@ Cenários: Rua do Saloon, Pôr do sol e Cidade fantasma (completos no modo tela 
 
 - **Site (Vercel)** e **servidor do jogo (Railway)** publicam sozinhos a cada envio para a branch `main` do GitHub.
 - A Railway precisa do **Railway App** instalado no GitHub com acesso ao repositório `clipei-live-games` (instalado em 24/11/2026).
+
+## Battle Royale
+
+Mapa visto de cima (cidade, porto, fazenda, floresta e rio). **Minigames → Battle Royale** ou `!royale iniciar` (mods; também `!br`).
+
+1. **Embarque** (30 a 120 s): `!entrar` ou `!cair cidade|floresta|porto|fazenda`. A cidade tem mais caixas, mas atrai mais gente. Menos de 10? Entram soldados CPU (opcional).
+2. **Salto:** o avião cruza o mapa e cada um abre o paraquedas na cor do chat sobre o ponto de pouso.
+3. **Valendo:** 10 s de pouso sem tiros (saque). Depois cada soldado anda, saqueia e atira sozinho (o atraso da live não deixa pilotar). Armas por raridade: pistola, escopeta, fuzil, sniper e lendária.
+4. **Tempestade** em fases, cada vez menor e mais forte. **Caixa lendária** a cada ~25 s, no lugar votado por quem já morreu ou só assiste (`!caixa <lugar>`). Vivos usam `!curar`.
+5. **Último de pé** vence: zoom nos últimos vivos, anúncio do bot, pódio de abates e clip.
+
+Apoios: pontos = curativo extra, bits = colete nível 3, sub = caixa de suprimentos do lado de quem apoiou, raid = bombardeio.
+Exibição: **tela cheia (recomendado)** mesmo com o overlay no modo sobreposto, ou **janela** no tamanho/posição do overlay. Partidas de ~2 a 3 min depois do salto, de 10 a 100 jogadores.

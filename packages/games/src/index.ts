@@ -7,3 +7,4 @@ export * from './scheduler.ts';
 export * from './support.ts';
 export * from './race.ts';
 export * from './duel.ts';
+export * from './royale.ts';

@@ -12,6 +12,12 @@ import {
   RaceGame,
   DuelGame,
   parseDuelChatCommand,
+  RoyaleGame,
+  parseRoyaleChatCommand,
+  royaleHelpText,
+  royaleOpenAnnouncement,
+  royaleStartAnnouncement,
+  royaleResultAnnouncement,
   duelHelpText,
   duelOpenAnnouncement,
   duelStartAnnouncement,
@@ -49,6 +55,10 @@ import {
   type DuelConfig,
   type DuelSnapshot,
   type DuelStatus,
+  type RoyaleConfig,
+  type RoyaleSnapshot,
+  type RoyaleStatus,
+  ROYALE_REGION_IDS,
 } from '@clipei/shared';
 import { ChatSimulator } from './simulator.ts';
 
@@ -83,6 +93,7 @@ export class Room {
   game: BossGame | null = null;
   race: RaceGame | null = null;
   duel: DuelGame | null = null;
+  royale: RoyaleGame | null = null;
   lastConfig: BossConfig = { ...DEFAULT_CONFIG };
   hpMode: HpMode = 'auto';
   readonly sockets = new Set<WebSocket>();
@@ -110,6 +121,8 @@ export class Room {
   private lastRaceAt = 0;
   private raceStatus: RaceStatus = 'idle';
   private duelStatus: DuelStatus = 'idle';
+  private royaleStatus: RoyaleStatus = 'idle';
+  private lastRoyaleAt = 0;
 
   constructor(
     public key: string,
@@ -122,6 +135,14 @@ export class Room {
     this.spawner = new AutoSpawner(this.settings.autoSpawn);
     this.simulator = new ChatSimulator(channelId, (e) => this.handleChat(e));
     this.simulator.script = () => {
+      const br = this.royale;
+      if (br?.isActive) {
+        const x = Math.random();
+        const place = ROYALE_REGION_IDS[Math.floor(Math.random() * ROYALE_REGION_IDS.length)];
+        if (br.status === 'lobby') return x < 0.5 ? `!cair ${place}` : x < 0.8 ? '!entrar' : 'chatter';
+        if (br.status === 'play') return x < 0.35 ? `!caixa ${place}` : x < 0.5 ? '!curar' : 'chatter';
+        return 'chatter';
+      }
       const d = this.duel;
       if (d?.isActive) {
         const x = Math.random();
@@ -137,11 +158,78 @@ export class Room {
   }
 
   /** Só um minigame por vez na tela. */
-  activeGame(): 'boss' | 'race' | 'duel' | null {
+  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | null {
     if (this.game?.isRunning) return 'boss';
     if (this.race?.isActive) return 'race';
     if (this.duel?.isActive) return 'duel';
+    if (this.royale?.isActive) return 'royale';
     return null;
+  }
+
+  // ─── Battle Royale ─────────────────────────────────────────
+
+  startRoyale(patch?: Partial<RoyaleConfig>) {
+    const busy = this.activeGame();
+    if (busy) return { ok: false as const, error: `Tem ${busy === 'boss' ? 'um boss na arena' : busy === 'race' ? 'uma corrida rolando' : 'um duelo rolando'}. Um jogo por vez: espere terminar.` };
+    if (patch) this.updateSettings({ royale: patch });
+    this.royale = new RoyaleGame(this.settings.royale);
+    this.royale.open();
+    this.royaleStatus = 'lobby';
+    this.spawner.fightStarted();
+    this.hooks.fightStarted?.();
+    this.broadcast({ type: 'incoming', at: null, serverNow: Date.now() });
+    this.say(royaleOpenAnnouncement(this.royale.config));
+    this.broadcastRoyale();
+    this.broadcastStatus();
+    return { ok: true as const, config: this.royale.config };
+  }
+
+  royaleGo() {
+    if (this.royale?.status !== 'lobby') return false;
+    this.royale.startNow();
+    this.afterRoyaleUpdate();
+    return true;
+  }
+
+  stopRoyale() {
+    if (!this.royale?.isActive) return false;
+    this.royale.stop();
+    this.afterRoyaleUpdate();
+    return true;
+  }
+
+  royaleSnapshot(): RoyaleSnapshot | null {
+    return this.royale && this.royale.status !== 'idle' ? this.royale.snapshot(Date.now(), true) : null;
+  }
+
+  private broadcastRoyale() {
+    if (!this.royale) return;
+    this.lastRoyaleAt = Date.now();
+    this.broadcast({ type: 'royale', state: this.royale.snapshot() });
+  }
+
+  private afterRoyaleUpdate() {
+    const g = this.royale;
+    if (!g) return;
+    const prev = this.royaleStatus;
+    const next = g.status;
+    if (prev === next) return;
+    this.royaleStatus = next;
+    if (prev === 'lobby' && next === 'drop') this.say(royaleStartAnnouncement(g.size));
+    if (next === 'finished' || next === 'stopped') {
+      if (next === 'finished') {
+        this.say(royaleResultAnnouncement(g.nameOf(g.winner), g.winner === null ? 0 : g.killsOf(g.winner), g.size), 'success');
+        if (g.winner !== null) this.clipVictory(`Battle Royale · ${g.nameOf(g.winner)}`);
+      } else if (prev === 'lobby' && g.humans === 0) {
+        this.say('🪂 Ninguém embarcou dessa vez. Fica para a próxima!', 'warning');
+      } else {
+        this.say('🪂 Battle Royale encerrado pelo streamer.', 'warning');
+      }
+      this.spawner.fightEnded();
+      this.hooks.fightEnded?.();
+    }
+    this.broadcastRoyale();
+    this.broadcastStatus();
   }
 
   // ─── Duelo ─────────────────────────────────────────────────
@@ -211,6 +299,7 @@ export class Room {
   startRace(patch?: Partial<RaceConfig>) {
     if (this.game?.isRunning) return { ok: false as const, error: 'Tem um boss na arena. Encerre a luta antes de abrir a corrida.' };
     if (this.duel?.isActive) return { ok: false as const, error: 'Tem um duelo rolando. Espere terminar para abrir a corrida.' };
+    if (this.royale?.isActive) return { ok: false as const, error: 'Tem um Battle Royale rolando. Espere terminar para abrir a corrida.' };
     if (patch) this.updateSettings({ race: patch });
     this.race?.stop();
     this.race = new RaceGame(this.settings.race);
@@ -345,6 +434,24 @@ export class Room {
       }
       return;
     }
+    const brCmd = parseRoyaleChatCommand(event);
+    if (brCmd) {
+      if (brCmd.type === 'help') {
+        if (Date.now() - this.lastHelpAt > HELP_COOLDOWN_MS) {
+          this.lastHelpAt = Date.now();
+          this.say(royaleHelpText(this.royale?.status ?? 'idle'));
+        }
+      } else if (brCmd.type === 'start') {
+        if (this.entitled() && !this.activeGame()) this.startRoyale();
+      } else {
+        this.stopRoyale();
+      }
+      return;
+    }
+    if (this.royale?.isActive) {
+      this.royale.handle(event);
+      return;
+    }
     if (this.race?.isActive) {
       this.race.handle(event);
       return;
@@ -363,7 +470,7 @@ export class Room {
           this.say(bossHelpText(!!this.game?.isRunning));
         }
       } else if (cmd.type === 'start') {
-        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive) this.startQuick(cmd.skin);
+        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive && !this.royale?.isActive) this.startQuick(cmd.skin);
       } else if (cmd.type === 'stop') {
         this.stopBoss();
       }
@@ -375,6 +482,20 @@ export class Room {
 
   /** Bits, subs, presentes, pontos de canal e raids viram golpes especiais. */
   handleSupport(e: SupportEvent) {
+    if (this.royale?.isActive) {
+      const res = this.royale.special(e);
+      if (!res.applied) {
+        if (e.kind === 'points') this.hooks.redemption?.(e, false);
+        const thanks = supportThanks(e);
+        if (thanks && e.kind !== 'points') this.say(thanks);
+        return { applied: false, damage: 0 };
+      }
+      const icon = e.kind === 'points' ? '🩹' : e.kind === 'bits' ? '🦺' : e.kind === 'raid' ? '💣' : '📦';
+      this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
+      if (e.kind === 'points') this.hooks.redemption?.(e, true);
+      this.broadcastRoyale();
+      return { applied: true, damage: 0 };
+    }
     if (this.duel?.isActive) {
       const res = this.duel.special(e);
       if (!res.applied) {
@@ -453,6 +574,11 @@ export class Room {
   /** Chamado a cada 100 ms. */
   tick() {
     const now = Date.now();
+    if (this.royale?.isActive) {
+      this.royale.update(now);
+      if (this.royale.status !== this.royaleStatus) this.afterRoyaleUpdate();
+      else if (now - this.lastRoyaleAt >= RACE_BROADCAST_MS) this.broadcastRoyale();
+    }
     if (this.duel?.isActive) {
       this.duel.update(now);
       if (this.duel.dirty || this.duel.status !== this.duelStatus) this.afterDuelUpdate();
@@ -540,6 +666,8 @@ export class Room {
     if (race) this.send(ws, { type: 'race', state: race });
     const duel = this.duelSnapshot();
     if (duel) this.send(ws, { type: 'duel', state: duel });
+    const br = this.royaleSnapshot();
+    if (br) this.send(ws, { type: 'royale', state: br });
     ws.on('close', () => {
       this.sockets.delete(ws);
       if (!this.panels.has(ws)) this.broadcastStatus();

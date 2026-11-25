@@ -833,3 +833,164 @@ body.overlay-body {
     animation: none;
   }
 }
+
+/* ─── Battle Royale ───────────────────────────────────────── */
+.royale-zone {
+  height: 540px;
+}
+/* janela: o mapa vira um "monitor" com borda */
+.stage:not([data-display='fullscreen']) .royale-zone:not(.force-full) .arena-canvas {
+  border-radius: 16px;
+  outline: 3px solid rgba(0, 0, 0, 0.75);
+  box-shadow: 0 0 0 5px rgba(255, 31, 45, 0.55), 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+/* tela cheia forçada (recomendado), mesmo com o overlay sobreposto */
+.stage .zone.force-full {
+  left: 0 !important;
+  right: auto !important;
+  top: 0 !important;
+  bottom: auto !important;
+  height: 540px;
+  transform: scale(2) !important;
+  transform-origin: 0 0 !important;
+}
+.br-top {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+.br-chip,
+.br-storm {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  white-space: nowrap;
+}
+.br-chip b {
+  font: italic 900 15px/1 var(--font-display);
+}
+.br-chip span {
+  font: 800 13px/1 var(--font);
+  color: var(--yellow);
+}
+.br-storm {
+  font: 800 13px/1 var(--font);
+  color: #d9b8ff;
+}
+.br-storm.is-urgent {
+  color: #fff;
+  background: rgba(110, 40, 200, 0.85);
+}
+.br-feed {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  pointer-events: none;
+}
+.br-feed li {
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.7);
+  font: 700 11px/1.3 var(--font);
+  transition: opacity 0.6s ease;
+}
+.br-feed li.is-out {
+  opacity: 0;
+}
+.br-feed i {
+  font-style: normal;
+  font-weight: 800;
+  margin: 0 3px;
+}
+.br-feed span {
+  color: rgba(255, 255, 255, 0.75);
+}
+.br-lobby {
+  top: 50%;
+  padding: 12px 20px 14px;
+}
+.br-lobby b {
+  font-size: 26px;
+}
+.br-lobby span {
+  font-size: 13px;
+}
+.br-lobby kbd.sm {
+  padding: 0 6px;
+  font: italic 900 12px var(--font-display);
+}
+.br-vote {
+  position: absolute;
+  bottom: 44px;
+  scale: 0.85;
+  transform-origin: 50% 100%;
+  left: 50%;
+  translate: -50% 0;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(255, 200, 61, 0.6);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.br-vote b {
+  font: italic 900 15px var(--font-display);
+  color: var(--yellow);
+}
+.br-vote > span {
+  font: 700 11px var(--font);
+}
+.br-vote kbd {
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--grad-brand);
+  font: italic 900 11px var(--font-display);
+}
+.br-vote-opts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 800 12px var(--font);
+}
+.br-vote-opts b {
+  margin-left: 3px;
+  color: #fff;
+  font-size: 13px;
+}
+.br-vote-opts em {
+  font-style: normal;
+  color: var(--yellow);
+}
+.br-big {
+  top: 36%;
+}
+.br-big.fire {
+  font-size: 96px;
+}
+.br-cta {
+  bottom: 10px;
+  font-size: 13px;
+  padding: 4px 12px;
+}
+.br-cta kbd {
+  font-size: 12px;
+}
+.royale-zone .alerts {
+  bottom: auto;
+  top: 42px;
+}

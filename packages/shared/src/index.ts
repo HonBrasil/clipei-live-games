@@ -217,6 +217,7 @@ export interface RoomSettings {
   /** Última configuração da Corrida (o painel e o !corrida dos mods usam). */
   race: RaceConfig;
   duel: DuelConfig;
+  royale: RoyaleConfig;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -233,6 +234,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   bot: { speak: true },
   race: { track: 'neon', joinSec: 45, laps: 2, maxRunners: 60, fillBots: true },
   duel: { bestOf: 1, scene: 'saloon', joinSec: 60, cheer: true, cheerSec: 15 },
+  royale: { joinSec: 60, maxPlayers: 100, fillBots: true, fullscreen: true },
 };
 
 /** Mescla configurações parciais com validação dos limites. */
@@ -286,6 +288,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     bot: { speak: (p.bot?.speak ?? base.bot?.speak ?? true) !== false },
     race: normalizeRaceConfig({ ...(base.race ?? {}), ...((p.race ?? {}) as Partial<RaceConfig>) }),
     duel: normalizeDuelConfig({ ...(base.duel ?? {}), ...((p.duel ?? {}) as Partial<DuelConfig>) }),
+    royale: normalizeRoyaleConfig({ ...(base.royale ?? {}), ...((p.royale ?? {}) as Partial<RoyaleConfig>) }),
   };
 }
 
@@ -301,7 +304,7 @@ export interface RoomStatus {
   /** Fontes do OBS conectadas agora (o painel não conta). */
   overlays: number;
   /** Minigame rolando agora na tela (só um por vez). */
-  game: 'boss' | 'race' | 'duel' | null;
+  game: 'boss' | 'race' | 'duel' | 'royale' | null;
   serverNow: number;
 }
 
@@ -312,6 +315,7 @@ export type ServerMessage =
   | { type: 'boss'; state: BossSnapshot }
   | { type: 'race'; state: RaceSnapshot }
   | { type: 'duel'; state: DuelSnapshot }
+  | { type: 'royale'; state: RoyaleSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -375,7 +379,7 @@ export interface SimulatorStatus {
 
 // ─── Catálogo da plataforma ─────────────────────────────────
 
-export type GameId = 'boss' | 'race' | 'duel' | 'quiz' | 'teams' | 'wheel' | 'missions';
+export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'quiz' | 'teams' | 'wheel' | 'missions';
 
 export interface GameInfo {
   id: GameId;
@@ -411,6 +415,14 @@ export const GAMES: GameInfo[] = [
     description: 'Os dois primeiros que digitarem !duelo se encaram na rua do saloon. No FOGO!, quem sacar primeiro atira, mas pode errar. A torcida e os apoios ajudam.',
     status: 'active',
     commands: ['!duelo', '!bang', '!1', '!2'],
+  },
+  {
+    id: 'royale',
+    name: 'Battle Royale',
+    tagline: 'Último de pé vence',
+    description: 'O chat salta de paraquedas num mapa visto de cima, pega armas e luta até sobrar um. A tempestade fecha e quem morreu vota onde cai a caixa.',
+    status: 'active',
+    commands: ['!entrar', '!cair', '!curar', '!caixa'],
   },
   {
     id: 'quiz',
@@ -785,4 +797,130 @@ export interface DuelSnapshot {
   winner: number | null;
   serverNow: number;
   events: DuelEvent[];
+}
+
+// ─── Battle Royale ──────────────────────────────────────────
+
+export type RoyaleRegionId = 'cidade' | 'floresta' | 'porto' | 'fazenda';
+
+/** Regiões do mapa (960×540 lógicos). Mais caixas onde é mais perigoso. */
+export const ROYALE_REGIONS: Record<RoyaleRegionId, { name: string; x: number; y: number; w: number; h: number; crates: number }> = {
+  cidade: { name: 'Cidade', x: 120, y: 70, w: 290, h: 190, crates: 16 },
+  porto: { name: 'Porto', x: 590, y: 60, w: 270, h: 170, crates: 11 },
+  fazenda: { name: 'Fazenda', x: 80, y: 320, w: 300, h: 170, crates: 10 },
+  floresta: { name: 'Floresta', x: 570, y: 300, w: 300, h: 190, crates: 10 },
+};
+export const ROYALE_REGION_IDS = Object.keys(ROYALE_REGIONS) as RoyaleRegionId[];
+
+export const ROYALE_WEAPONS = [
+  { name: 'Pistola', color: '#c9ced4' },
+  { name: 'Escopeta', color: '#3ddc6b' },
+  { name: 'Fuzil', color: '#4aa8ff' },
+  { name: 'Sniper', color: '#b46bff' },
+  { name: 'Lendária', color: '#ffc83d' },
+] as const;
+
+export interface RoyaleConfig {
+  /** Embarque (!entrar / !cair), em segundos. */
+  joinSec: number;
+  maxPlayers: number;
+  /** Completa com CPU até 10 jogadores. */
+  fillBots: boolean;
+  /** Tela cheia (recomendado) mesmo com o overlay no modo sobreposto. Desligado = janela no tamanho e posição do overlay. */
+  fullscreen: boolean;
+}
+
+export function normalizeRoyaleConfig(c: Partial<RoyaleConfig> | undefined): RoyaleConfig {
+  const num = (v: unknown, def: number, min: number, max: number) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  return {
+    joinSec: num(c?.joinSec, 60, 15, 180),
+    maxPlayers: num(c?.maxPlayers, 100, 10, 100),
+    fillBots: c?.fillBots !== false,
+    fullscreen: c?.fullscreen !== false,
+  };
+}
+
+/** lobby = embarque · drop = paraquedas · play = luta · finished / stopped. */
+export type RoyaleStatus = 'idle' | 'lobby' | 'drop' | 'play' | 'finished' | 'stopped';
+
+export interface RoyaleRosterEntry {
+  name: string;
+  color: string;
+  bot?: boolean;
+  region: RoyaleRegionId;
+}
+
+/** [índice, x, y, vida 0-100, colete 0-100, arma (−1 sem arma, 0-4), flags ROYALE_FLAG, abates] */
+export type RoyalePlayerTuple = [number, number, number, number, number, number, number, number];
+export const ROYALE_FLAG = { alive: 1, healing: 2, storm: 4 } as const;
+
+export interface RoyaleZone {
+  cx: number;
+  cy: number;
+  r: number;
+  /** próximo círculo (para onde está fechando ou vai fechar) */
+  nx: number;
+  ny: number;
+  nr: number;
+  stage: number;
+  /** quando começa a fechar (ou null se já está fechando / final) */
+  closesAt: number | null;
+  /** fim do fechamento atual (null se parado) */
+  shrinkEndsAt: number | null;
+}
+
+export interface RoyaleCrate {
+  id: number;
+  x: number;
+  y: number;
+  /** caixa de suprimentos (lendária) */
+  supply?: boolean;
+  /** caixa de suprimentos ainda caindo até este instante */
+  landsAt?: number;
+}
+
+export type RoyaleEventKind = 'shot' | 'kill' | 'storm' | 'heal' | 'loot' | 'supply' | 'bomb' | 'item' | 'win';
+
+export interface RoyaleEvent {
+  id: number;
+  kind: RoyaleEventKind;
+  /** quem atirou / matou / curou */
+  a: number;
+  /** alvo / vítima (−1 = nenhum) */
+  b: number;
+  hit?: boolean;
+  weapon?: number;
+  x?: number;
+  y?: number;
+  label?: string;
+}
+
+export interface RoyaleSnapshot {
+  status: RoyaleStatus;
+  fullscreen: boolean;
+  lobbyEndsAt: number | null;
+  /** fim da queda de paraquedas */
+  dropEndsAt: number | null;
+  startedAt: number | null;
+  serverNow: number;
+  rosterVersion: number;
+  roster?: RoyaleRosterEntry[];
+  players: RoyalePlayerTuple[];
+  cratesVersion: number;
+  crates?: RoyaleCrate[];
+  zone: RoyaleZone;
+  /** votação da caixa: [cidade, floresta, porto, fazenda] e quando cai */
+  vote: { counts: Record<RoyaleRegionId, number>; endsAt: number | null };
+  alive: number;
+  /** pessoas (sem CPU) */
+  participants: number;
+  /** contagem por região no embarque */
+  regions: Record<RoyaleRegionId, number>;
+  events: RoyaleEvent[];
+  winner: number | null;
+  /** top abates: índices do roster */
+  topKills: number[];
 }

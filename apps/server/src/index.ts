@@ -13,6 +13,7 @@ import {
   type BossConfig,
   type RaceConfig,
   type DuelConfig,
+  type RoyaleConfig,
   type BossPresetKey,
   type MeResponse,
   type SimulatorStatus,
@@ -646,6 +647,7 @@ app.post<{ Body: Partial<Omit<BossConfig, 'skin'>> & { preset?: BossPresetKey | 
   if (!room.entitled()) return reply.code(402).send({ error: 'Seu teste acabou. Assine um plano para voltar a invocar bosses.' });
   if (room.race?.isActive) return reply.code(409).send({ error: 'Tem uma corrida rolando. Encerre a corrida antes de invocar o boss.' });
   if (room.duel?.isActive) return reply.code(409).send({ error: 'Tem um duelo rolando. Espere terminar para invocar o boss.' });
+  if (room.royale?.isActive) return reply.code(409).send({ error: 'Tem um Battle Royale rolando. Espere terminar para invocar o boss.' });
   const started = room.startBoss(cfg, hpMode);
   return { ok: true, config: started, hpMode };
 });
@@ -692,6 +694,18 @@ app.post<{ Body: Partial<DuelConfig> }>('/api/duel/start', async (req, reply) =>
 });
 
 app.post('/api/duel/stop', async (req) => ({ ok: currentRoom(req).stopDuel() }));
+
+app.post<{ Body: Partial<RoyaleConfig> }>('/api/royale/start', async (req, reply) => {
+  const room = currentRoom(req);
+  if (!room.entitled()) return reply.code(402).send({ error: 'Seu teste acabou. Assine um plano para voltar a jogar.' });
+  const res = room.startRoyale(req.body && Object.keys(req.body).length ? req.body : undefined);
+  if (!res.ok) return reply.code(409).send({ error: res.error });
+  return res;
+});
+
+app.post('/api/royale/go', async (req) => ({ ok: currentRoom(req).royaleGo() }));
+
+app.post('/api/royale/stop', async (req) => ({ ok: currentRoom(req).stopRoyale() }));
 
 app.post('/api/race/go', async (req) => ({ ok: currentRoom(req).raceGo() }));
 

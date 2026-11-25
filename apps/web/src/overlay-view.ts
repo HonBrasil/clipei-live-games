@@ -1,8 +1,9 @@
-import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
+import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
 import { Arena } from './arena/arena.ts';
 import { Sfx } from './arena/sfx.ts';
 import { RaceArena } from './race/race-arena.ts';
 import { DuelArena } from './duel/duel-arena.ts';
+import { RoyaleArena } from './royale/royale-arena.ts';
 
 /**
  * Overlay do OBS: tela 1920×1080 transparente com a arena (boss + heróis)
@@ -100,10 +101,36 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
         <div class="result-card" id="duel-result-card"></div>
       </div>
     </section>
+    <section class="zone royale-zone is-hidden" id="br-zone">
+      <canvas class="arena-canvas" id="br-canvas"></canvas>
+      <div class="br-top">
+        <div class="br-chip"><b>Battle Royale</b><span id="br-alive"></span></div>
+        <div class="br-storm" id="br-storm" hidden></div>
+      </div>
+      <ol class="br-feed" id="br-feed" aria-label="Abates"></ol>
+      <div class="race-lobby br-lobby" id="br-lobby" hidden>
+        <small>🪂 Embarque aberto</small>
+        <b>Digite <kbd>!entrar</kbd></b>
+        <span>ou escolha onde cair: <kbd class="sm">!cair</kbd> + cidade, floresta, porto ou fazenda</span>
+        <span>Decola em <em id="br-lobby-time">1:00</em> · <em id="br-lobby-count">0</em> jogadores</span>
+      </div>
+      <div class="br-vote" id="br-vote" hidden>
+        <b>📦 Caixa lendária</b>
+        <span>Quem morreu ou assiste escolhe onde cai: <kbd>!caixa &lt;lugar&gt;</kbd></span>
+        <div class="br-vote-opts" id="br-vote-opts"></div>
+      </div>
+      <div class="duel-big br-big" id="br-big" hidden></div>
+      <div class="cta br-cta" id="br-cta" hidden>Vivos: <kbd>!curar</kbd> <span class="dot">·</span> Fora do jogo: <kbd class="alt">!caixa &lt;lugar&gt;</kbd></div>
+      <div class="alerts" id="br-alerts" aria-live="polite"></div>
+      <div class="result" id="br-result">
+        <div class="confetti" id="br-confetti"></div>
+        <div class="result-card" id="br-result-card"></div>
+      </div>
+    </section>
     <div class="idle-screen" id="idle-screen" hidden>
       <img src="${logo}" alt="" />
       <b>Aguardando o próximo jogo</b>
-      <span>Fique de olho no chat: vem boss <kbd>!atk</kbd>, corrida <kbd>!correr</kbd> ou duelo <kbd>!duelo</kbd></span>
+      <span>Fique de olho no chat: vem boss <kbd>!atk</kbd>, corrida <kbd>!correr</kbd> duelo <kbd>!duelo</kbd> ou battle royale <kbd>!entrar</kbd></span>
     </div>
     ${
       opts.preview
@@ -164,6 +191,21 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     duelResult: $('duel-result'),
     duelResultCard: $('duel-result-card'),
     duelConfetti: $('duel-confetti'),
+    brZone: $('br-zone'),
+    brAlive: $('br-alive'),
+    brStorm: $('br-storm'),
+    brFeed: $('br-feed'),
+    brLobby: $('br-lobby'),
+    brLobbyTime: $('br-lobby-time'),
+    brLobbyCount: $('br-lobby-count'),
+    brVote: $('br-vote'),
+    brVoteOpts: $('br-vote-opts'),
+    brBig: $('br-big'),
+    brCta: $('br-cta'),
+    brAlerts: $('br-alerts'),
+    brResult: $('br-result'),
+    brResultCard: $('br-result-card'),
+    brConfetti: $('br-confetti'),
   };
 
   const sfx = new Sfx();
@@ -172,6 +214,9 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   const arena = new Arena(canvas, sfx);
   const raceArena = new RaceArena($('race-canvas') as HTMLCanvasElement, sfx);
   const duelArena = new DuelArena($('duel-canvas') as HTMLCanvasElement, sfx);
+  const brArena = new RoyaleArena($('br-canvas') as HTMLCanvasElement, sfx);
+  /** O Battle Royale pode ocupar a tela inteira mesmo com o overlay no modo sobreposto. */
+  let brFull = true;
 
   // ─── Layout (posição, tamanho, barra de vida) ───────────────
   let layout: LayoutSettings = DEFAULT_SETTINGS.layout;
@@ -202,6 +247,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     arena.setResolution(res);
     raceArena.setResolution(res);
     duelArena.setResolution(res);
+    brArena.setResolution(stageScale * (brFull || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
   }
 
   // ─── Escala 1920×1080 → tamanho real (fonte do OBS ou container) ──
@@ -245,6 +291,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     if (running) {
       els.raceZone.classList.add('is-hidden');
       els.duelZone.classList.add('is-hidden');
+      els.brZone.classList.add('is-hidden');
       clearTimeout(resultTimer);
       els.result.classList.remove('is-visible');
       els.cta.hidden = false;
@@ -354,6 +401,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       els.zone.classList.add('is-hidden');
       els.bossbar.classList.add('is-hidden');
       els.duelZone.classList.add('is-hidden');
+      els.brZone.classList.add('is-hidden');
     } else if (prev && (prev.status === 'running' || prev.status === 'lobby') && next.status === 'finished') {
       setTimeout(() => showRaceResult(next), 1200);
     } else if (next.status === 'stopped' || next.status === 'idle') {
@@ -457,6 +505,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       els.zone.classList.add('is-hidden');
       els.bossbar.classList.add('is-hidden');
       els.raceZone.classList.add('is-hidden');
+      els.brZone.classList.add('is-hidden');
     } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
       setTimeout(() => showDuelResult(next), 1600);
     } else if (next.status === 'stopped' || next.status === 'idle') {
@@ -562,6 +611,137 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     els.duelBig.className = `duel-big ${cls}`;
   }
 
+  // ─── Battle Royale ──────────────────────────────────────────
+  let br: RoyaleSnapshot | null = null;
+  let brOffset = 0;
+  let brResultTimer: number | undefined;
+  let brBigUntil = 0;
+  let brBigText = '';
+
+  function renderRoyale(next: RoyaleSnapshot) {
+    const prev = br;
+    br = next;
+    brOffset = next.serverNow - Date.now();
+    if (brFull !== next.fullscreen) {
+      brFull = next.fullscreen;
+      updateResolution();
+    }
+    els.brZone.classList.toggle('force-full', next.fullscreen);
+    brArena.setState(next);
+    const active = next.status === 'lobby' || next.status === 'drop' || next.status === 'play';
+    const roster = brArena.rosterEntries;
+
+    if (active) {
+      clearTimeout(brResultTimer);
+      els.brResult.classList.remove('is-visible');
+      els.brZone.classList.remove('is-hidden');
+      for (const z of [els.zone, els.bossbar, els.raceZone, els.duelZone]) z.classList.add('is-hidden');
+    } else if (prev && prev.status !== 'finished' && next.status === 'finished') {
+      brBigText = next.winner === null ? 'NINGUÉM SOBREVIVEU' : 'ÚLTIMO DE PÉ!';
+      brBigUntil = Date.now() + 2600;
+      setTimeout(() => showRoyaleResult(next), 2600);
+    } else if (next.status === 'stopped' || next.status === 'idle') {
+      els.brZone.classList.add('is-hidden');
+    }
+    if (els.waiting) els.waiting.hidden = active || next.status === 'finished' || state?.status === 'running';
+    if (prev?.status === 'lobby' && next.status === 'drop') {
+      brBigText = 'SALTAR!';
+      brBigUntil = Date.now() + 1600;
+    }
+    if (prev?.status === 'drop' && next.status === 'play') {
+      brBigText = 'VALENDO!';
+      brBigUntil = Date.now() + 1400;
+    }
+
+    els.brLobby.hidden = next.status !== 'lobby';
+    els.brLobbyCount.textContent = nf.format(next.participants);
+    els.brCta.hidden = next.status !== 'play';
+    els.brAlive.textContent = next.status === 'lobby' ? 'embarque' : `${nf.format(next.alive)} vivos`;
+
+    // lista de abates
+    for (const e of next.events) {
+      if (e.kind !== 'kill' && e.kind !== 'storm') continue;
+      const victim = roster[e.b];
+      const killer = e.a >= 0 ? roster[e.a] : null;
+      const li = document.createElement('li');
+      const how = killer ? `<i style="color:${ROYALE_WEAPONS[e.weapon ?? 0]?.color ?? '#fff'}">${esc(ROYALE_WEAPONS[e.weapon ?? 0]?.name ?? '')}</i>` : `<i>${e.label === 'bombardeio' ? '💣' : e.label === 'tempo' ? '⏱️' : '🌪️'}</i>`;
+      li.innerHTML = `${killer ? `<b style="color:${esc(killer.color)}">${esc(killer.name)}</b>` : ''} ${how} <span>${esc(victim?.name ?? '')}</span>`;
+      els.brFeed.prepend(li);
+      while (els.brFeed.children.length > 5) els.brFeed.lastElementChild?.remove();
+      setTimeout(() => li.classList.add('is-out'), 6000);
+      setTimeout(() => li.remove(), 6600);
+    }
+    // apoios
+    for (const e of next.events) {
+      if (e.kind !== 'item' && e.kind !== 'supply') continue;
+      const icon = e.kind === 'supply' ? '📦' : e.label === 'colete' ? '🦺' : '🩹';
+      const text = e.kind === 'supply' ? `caixa lendária caindo${e.label ? ` · ${esc(e.label)}` : ''}` : e.label === 'colete' ? 'colete nível 3' : 'curativo extra';
+      const who = e.kind === 'supply' ? 'Atenção' : (roster[e.a]?.name ?? '');
+      const el = document.createElement('div');
+      el.className = `alert alert--${e.kind === 'supply' ? 'sub' : e.label === 'colete' ? 'bits' : 'points'}`;
+      el.innerHTML = `<span class="a-ico">${icon}</span><b>${esc(who)}</b><span>${text}</span>`;
+      els.brAlerts.prepend(el);
+      while (els.brAlerts.children.length > 3) els.brAlerts.lastElementChild?.remove();
+      setTimeout(() => el.classList.add('is-out'), 4500);
+      setTimeout(() => el.remove(), 5000);
+    }
+    tickRoyale();
+  }
+
+  function showRoyaleResult(s: RoyaleSnapshot) {
+    const roster = brArena.rosterEntries;
+    const w = s.winner === null ? null : roster[s.winner];
+    const wk = s.winner === null ? 0 : (s.players.find((p) => p[0] === s.winner)?.[7] ?? 0);
+    const top = s.topKills
+      .slice(0, 3)
+      .map((idx) => {
+        const k = s.players.find((p) => p[0] === idx)?.[7] ?? 0;
+        return `<span class="r-top"><i>💀</i> ${esc(roster[idx]?.name ?? '')} <em>${k}</em></span>`;
+      })
+      .join('');
+    els.brResultCard.innerHTML = `
+      <div class="r-title">${w ? `${esc(w.name)} venceu!` : 'Ninguém sobreviveu'}</div>
+      <div class="r-sub">${w ? `Último de pé entre <b>${nf.format(roster.length)}</b> jogadores · ${wk} ${wk === 1 ? 'abate' : 'abates'}` : 'A tempestade levou todo mundo'}</div>
+      ${top ? `<div class="r-podium">${top}</div>` : ''}`;
+    els.brResult.classList.add('is-visible');
+    if (w) confetti(els.brConfetti);
+    clearTimeout(brResultTimer);
+    brResultTimer = window.setTimeout(() => {
+      els.brResult.classList.remove('is-visible');
+      els.brZone.classList.add('is-hidden');
+    }, 9000);
+  }
+
+  function tickRoyale() {
+    if (!br) return;
+    const now = Date.now() + brOffset;
+    const fmt = (ms: number) => {
+      const t = Math.max(0, Math.ceil(ms / 1000));
+      return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    };
+    if (br.status === 'lobby' && br.lobbyEndsAt) els.brLobbyTime.textContent = fmt(br.lobbyEndsAt - now);
+    const z = br.zone;
+    const showStorm = br.status === 'play';
+    els.brStorm.hidden = !showStorm;
+    if (showStorm) {
+      els.brStorm.textContent = z.shrinkEndsAt ? '🌪️ Tempestade fechando!' : z.closesAt ? `🌪️ Fecha em ${fmt(z.closesAt - now)}` : '🌪️ Círculo final';
+      els.brStorm.classList.toggle('is-urgent', !!z.shrinkEndsAt);
+    }
+    const voting = br.status === 'play' && br.vote.endsAt !== null;
+    els.brVote.hidden = !voting;
+    if (voting) {
+      els.brVoteOpts.innerHTML = ROYALE_REGION_IDS.map((id) => `<span><kbd>!caixa ${id}</kbd><b>${br!.vote.counts[id]}</b></span>`).join('') + `<em>${fmt(br.vote.endsAt! - now)}</em>`;
+    }
+    const showBig = Date.now() < brBigUntil;
+    els.brBig.hidden = !showBig;
+    if (showBig && els.brBig.textContent !== brBigText) {
+      els.brBig.textContent = brBigText;
+      els.brBig.className = `duel-big br-big ${brBigText === 'ÚLTIMO DE PÉ!' ? 'round' : 'fire'}`;
+    }
+  }
+  void ROYALE_FLAG;
+  void ROYALE_REGIONS;
+
   // ─── Relógio + aviso de boss chegando ───────────────────────
   setInterval(() => {
     if (state?.status === 'running' && state.endsAt) {
@@ -582,8 +762,9 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     }
     tickRace();
     tickDuel();
+    tickRoyale();
     // tela cheia sem jogo: tela de espera com a marca (o OBS não fica vazio)
-    const nothing = els.zone.classList.contains('is-hidden') && els.raceZone.classList.contains('is-hidden') && els.duelZone.classList.contains('is-hidden');
+    const nothing = els.zone.classList.contains('is-hidden') && els.raceZone.classList.contains('is-hidden') && els.duelZone.classList.contains('is-hidden') && els.brZone.classList.contains('is-hidden');
     els.idle.hidden = !(layout.display === 'fullscreen' && nothing);
     if (els.waiting && layout.display === 'fullscreen') els.waiting.hidden = true;
   }, 250);
@@ -592,6 +773,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     render,
     renderRace,
     renderDuel,
+    renderRoyale,
     setOnline(online: boolean) {
       els.conn.hidden = online || !state;
     },

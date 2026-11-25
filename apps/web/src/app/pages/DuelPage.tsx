@@ -136,7 +136,7 @@ function DuelTab() {
               <Options tight name="cheersec" value={cfg.cheerSec} onChange={(v) => set({ cheerSec: v })} options={[10, 15, 20, 30].map((v) => ({ value: v, label: `${v}s` }))} />
             </div>
           )}
-          {busy && <p className="chat-error">{busy === 'boss' ? 'Tem um boss na arena.' : 'Tem uma corrida rolando.'} Um jogo por vez: espere terminar para abrir o duelo.</p>}
+          {busy && <p className="chat-error">{busy === 'boss' ? 'Tem um boss na arena.' : busy === 'royale' ? 'Tem um Battle Royale rolando.' : 'Tem uma corrida rolando.'} Um jogo por vez: espere terminar para abrir o duelo.</p>}
           <div className="actions">
             <button className="btn primary lg" disabled={active || !!busy} onClick={open}>
               🤠 Abrir duelo
