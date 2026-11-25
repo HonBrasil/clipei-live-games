@@ -26,7 +26,7 @@ export function Games() {
         </div>
       </section>
       <div className="games-grid">
-        {GAMES.map((g) => {
+        {GAMES.filter((g) => g.status === 'active').map((g) => {
           const active = g.status === 'active';
           const inner = (
             <>
