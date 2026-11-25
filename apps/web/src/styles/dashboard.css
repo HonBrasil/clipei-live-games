@@ -1168,3 +1168,78 @@ select.input {
 .pen-live strong {
   font: italic 900 34px var(--font-display);
 }
+.fish-odds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 4px;
+}
+.fish-odds span {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border-left: 3px solid var(--rc);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 13px;
+  color: var(--text-2);
+}
+.fish-odds b {
+  color: var(--rc);
+}
+.fish-rank .pos {
+  min-width: 26px;
+  color: var(--text-3);
+  font-weight: 800;
+}
+.fish-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.fish-cell {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  padding: 12px 8px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid color-mix(in srgb, var(--rc) 45%, transparent);
+  text-align: center;
+}
+.fish-cell small {
+  color: var(--rc);
+  font-size: 11px;
+  font-weight: 700;
+}
+.fish-cell em {
+  color: var(--text-3);
+  font-size: 12px;
+  font-style: normal;
+}
+.fish-icon {
+  display: grid;
+  place-items: center;
+  height: 30px;
+  font-size: 22px;
+}
+.fish-icon i {
+  position: relative;
+  width: 34px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--fc);
+}
+.fish-icon i::after {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: 1px;
+  border: 6px solid transparent;
+  border-right: 10px solid var(--fc);
+}
+.fish-cell.is-locked {
+  opacity: 0.45;
+}
+.fish-cell.is-locked .fish-icon i,
+.fish-cell.is-locked .fish-icon i::after {
+  filter: brightness(0.2);
+}

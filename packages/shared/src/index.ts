@@ -134,8 +134,8 @@ export interface SupportSettings {
 
 // ─── Apoios por minigame (tudo editável pelo streamer) ───────
 
-export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite' | 'penalty';
-export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite', 'penalty'];
+export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'fishing';
+export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite', 'penalty', 'fishing'];
 /** Presentes (gift) seguem a regra de sub. */
 export type SupportRuleKind = 'bits' | 'sub' | 'points' | 'raid';
 export const SUPPORT_RULE_KINDS: SupportRuleKind[] = ['bits', 'sub', 'points', 'raid'];
@@ -218,6 +218,24 @@ export const GAME_SUPPORT: Record<SupportGameId, Partial<Record<SupportRuleKind,
         { key: 'bombs', label: '', suffix: 'bombas', min: 2, max: 20, step: 1, def: 8 },
         { key: 'damage', label: 'de', suffix: 'de dano cada', min: 10, max: 100, step: 5, def: 35 },
       ],
+    },
+  },
+  fishing: {
+    bits: {
+      effect: 'Isca rara',
+      detail: 'Os próximos lançamentos de quem apoiou têm mais chance de peixe raro, épico e lendário.',
+      params: [{ key: 'casts', label: 'Vale para', suffix: 'lançamentos', min: 1, max: 10, step: 1, def: 3 }],
+    },
+    sub: {
+      effect: 'Vara de ouro',
+      detail: 'Sorte em dobro para quem apoiou por um tempo.',
+      params: [{ key: 'minutes', label: 'Por', suffix: 'minutos', min: 5, max: 120, step: 5, def: 30 }],
+    },
+    points: { effect: 'Lançamento na hora', detail: 'Pula a espera e lança a linha na mesma hora, com um pouco mais de sorte.', params: [] },
+    raid: {
+      effect: 'Cardume',
+      detail: 'Todo mundo pesca com sorte e pontos em dobro, e a espera cai pela metade.',
+      params: [{ key: 'seconds', label: 'Por', suffix: 'segundos', min: 30, max: 600, step: 30, def: 120 }],
     },
   },
   penalty: {
@@ -423,6 +441,7 @@ export interface RoomSettings {
   royale: RoyaleConfig;
   kite: KiteConfig;
   penalty: PenaltyConfig;
+  fishing: FishingConfig;
   /** O que bits, subs, pontos e raids fazem em cada minigame (o boss usa `support`). */
   gameSupport: Record<SupportGameId, GameSupportConfig>;
 }
@@ -449,7 +468,9 @@ export const DEFAULT_SETTINGS: RoomSettings = {
     royale: defaultGameSupport('royale'),
     kite: defaultGameSupport('kite'),
     penalty: defaultGameSupport('penalty'),
+    fishing: defaultGameSupport('fishing'),
   },
+  fishing: { enabled: false, cooldownSec: 60, corner: 'bl', announce: 'epico', hint: true },
   penalty: {
     joinSec: 45,
     voteSec: 12,
@@ -516,6 +537,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     royale: normalizeRoyaleConfig({ ...(base.royale ?? {}), ...((p.royale ?? {}) as Partial<RoyaleConfig>) }),
     kite: normalizeKiteConfig({ ...(base.kite ?? {}), ...((p.kite ?? {}) as Partial<KiteConfig>) }),
     penalty: normalizePenaltyConfig(base.penalty, p.penalty as Partial<PenaltyConfig> | undefined),
+    fishing: normalizeFishingConfig({ ...(base.fishing ?? {}), ...((p.fishing ?? {}) as Partial<FishingConfig>) }),
     gameSupport: Object.fromEntries(
       SUPPORT_GAME_IDS.map((g) => [g, normalizeGameSupport(g, base.gameSupport?.[g], (p.gameSupport as Record<string, unknown> | undefined)?.[g])]),
     ) as Record<SupportGameId, GameSupportConfig>,
@@ -548,6 +570,7 @@ export type ServerMessage =
   | { type: 'royale'; state: RoyaleSnapshot }
   | { type: 'kite'; state: KiteSnapshot }
   | { type: 'penalty'; state: PenaltySnapshot }
+  | { type: 'fishing'; state: FishingSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -625,7 +648,7 @@ export interface SimulatorStatus {
 
 // ─── Catálogo da plataforma ─────────────────────────────────
 
-export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'quiz' | 'teams' | 'wheel' | 'missions';
+export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'fishing' | 'quiz' | 'teams' | 'wheel' | 'missions';
 
 export interface GameInfo {
   id: GameId;
@@ -685,6 +708,14 @@ export const GAMES: GameInfo[] = [
     description: 'O chat se divide em dois times. Quem bate vota o canto, quem defende vota o pulo do goleiro. Cinco cobranças cada e morte súbita.',
     status: 'active',
     commands: ['!a', '!b', '!esq', '!meio', '!dir'],
+  },
+  {
+    id: 'fishing',
+    name: 'Pescaria da Live',
+    tagline: 'Roda a live inteira',
+    description: 'Um lago discreto no canto da tela: o chat pesca quando quiser, monta a coleção de peixes e disputa o ranking da semana. Saiu lendário, o chat inteiro fica sabendo.',
+    status: 'active',
+    commands: ['!pescar', '!peixes', '!ranking'],
   },
   {
     id: 'quiz',
@@ -1452,4 +1483,126 @@ export interface PenaltySnapshot {
   /** quem mais acertou o voto no time vencedor */
   mvp: PenaltyPerson | null;
   events: PenaltyEvent[];
+}
+
+// ─── Pescaria da Live ────────────────────────────────────────
+
+export type FishRarity = 'lixo' | 'comum' | 'incomum' | 'raro' | 'epico' | 'lendario';
+
+export const FISH_RARITIES: Record<FishRarity, { label: string; color: string; weight: number; points: number }> = {
+  lixo: { label: 'Lixo', color: '#8a8f98', weight: 8, points: 0 },
+  comum: { label: 'Comum', color: '#d9e2ec', weight: 55, points: 10 },
+  incomum: { label: 'Incomum', color: '#3ddc6b', weight: 22, points: 25 },
+  raro: { label: 'Raro', color: '#4aa8ff', weight: 10, points: 60 },
+  epico: { label: 'Épico', color: '#b46bff', weight: 4, points: 150 },
+  lendario: { label: 'Lendário', color: '#ffc83d', weight: 1, points: 500 },
+};
+
+export const FISH_RARITY_ORDER: FishRarity[] = ['lixo', 'comum', 'incomum', 'raro', 'epico', 'lendario'];
+
+/** Peixes de água doce do Brasil (e alguns achados no fundo do lago). Peso em kg. */
+export const FISH_SPECIES = [
+  { id: 'bota', name: 'Bota velha', rarity: 'lixo', min: 0.4, max: 1.2, color: '#5b4a3a' },
+  { id: 'lata', name: 'Lata enferrujada', rarity: 'lixo', min: 0.1, max: 0.3, color: '#8a8f98' },
+  { id: 'pneu', name: 'Pneu de bicicleta', rarity: 'lixo', min: 0.8, max: 2, color: '#2a2a2e' },
+  { id: 'lambari', name: 'Lambari', rarity: 'comum', min: 0.03, max: 0.15, color: '#c9d6e3' },
+  { id: 'tilapia', name: 'Tilápia', rarity: 'comum', min: 0.3, max: 1.5, color: '#9fb0a6' },
+  { id: 'traira', name: 'Traíra', rarity: 'comum', min: 0.4, max: 2.5, color: '#6f7a4f' },
+  { id: 'piau', name: 'Piau', rarity: 'comum', min: 0.2, max: 1.2, color: '#b7a37a' },
+  { id: 'pacu', name: 'Pacu', rarity: 'incomum', min: 1, max: 6, color: '#7f8c99' },
+  { id: 'tambaqui', name: 'Tambaqui', rarity: 'incomum', min: 2, max: 15, color: '#4d5b52' },
+  { id: 'piranha', name: 'Piranha', rarity: 'incomum', min: 0.3, max: 1.5, color: '#d0533f' },
+  { id: 'matrinxa', name: 'Matrinxã', rarity: 'incomum', min: 1, max: 4, color: '#a8b6c4' },
+  { id: 'tucunare', name: 'Tucunaré', rarity: 'raro', min: 1, max: 8, color: '#d8b23a' },
+  { id: 'dourado', name: 'Dourado', rarity: 'raro', min: 2, max: 18, color: '#f0a92a' },
+  { id: 'pintado', name: 'Pintado', rarity: 'raro', min: 3, max: 30, color: '#9aa4ad' },
+  { id: 'pirarucu', name: 'Pirarucu', rarity: 'epico', min: 20, max: 150, color: '#7a2f2f' },
+  { id: 'jau', name: 'Jaú', rarity: 'epico', min: 15, max: 90, color: '#3b3a2e' },
+  { id: 'arraia', name: 'Arraia de fogo', rarity: 'epico', min: 3, max: 20, color: '#c2562d' },
+  { id: 'dourado-rei', name: 'Dourado Rei', rarity: 'lendario', min: 20, max: 40, color: '#ffd23d' },
+  { id: 'tucunare-arco-iris', name: 'Tucunaré Arco-íris', rarity: 'lendario', min: 8, max: 15, color: '#ff5cf4' },
+  { id: 'pirarucu-ancestral', name: 'Pirarucu Ancestral', rarity: 'lendario', min: 180, max: 300, color: '#ff3b3b' },
+] as const satisfies readonly { id: string; name: string; rarity: FishRarity; min: number; max: number; color: string }[];
+export type FishId = (typeof FISH_SPECIES)[number]['id'];
+
+export type FishingCorner = 'bl' | 'br' | 'tl' | 'tr';
+
+export interface FishingConfig {
+  /** A pescaria fica ligada a live inteira (pausa sozinha quando outro jogo começa). */
+  enabled: boolean;
+  /** Espera entre um lançamento e outro, por pessoa, em segundos. */
+  cooldownSec: number;
+  /** Canto do overlay onde fica o lago. */
+  corner: FishingCorner;
+  /** O bot anuncia no chat a partir desta raridade (ou nunca). */
+  announce: 'raro' | 'epico' | 'lendario' | 'nunca';
+  /** Mostrar o lembrete "🎣 !pescar" quando ninguém está pescando. */
+  hint: boolean;
+}
+
+export function normalizeFishingConfig(c: Partial<FishingConfig> | undefined): FishingConfig {
+  const n = Math.round(Number(c?.cooldownSec));
+  return {
+    enabled: c?.enabled === true,
+    cooldownSec: Number.isFinite(n) ? Math.min(600, Math.max(10, n)) : 60,
+    corner: (['bl', 'br', 'tl', 'tr'] as const).includes(c?.corner as FishingCorner) ? (c!.corner as FishingCorner) : 'bl',
+    announce: (['raro', 'epico', 'lendario', 'nunca'] as const).includes(c?.announce as FishingConfig['announce']) ? c!.announce! : 'epico',
+    hint: c?.hint !== false,
+  };
+}
+
+export interface FishCatch {
+  id: number;
+  name: string;
+  color: string;
+  fish: FishId;
+  rarity: FishRarity;
+  kg: number;
+  points: number;
+  /** primeira vez que essa pessoa pega essa espécie */
+  firstTime: boolean;
+  at: number;
+}
+
+export interface FishingCaster {
+  id: number;
+  name: string;
+  color: string;
+  castAt: number;
+  /** tem sorte extra (isca rara, vara de ouro, cardume) */
+  lucky: boolean;
+}
+
+export interface FishingRankRow {
+  name: string;
+  color: string;
+  points: number;
+  catches: number;
+}
+
+export interface FishingSnapshot {
+  enabled: boolean;
+  /** outro minigame está rolando: pescaria pausada */
+  paused: boolean;
+  corner: FishingCorner;
+  hint: boolean;
+  serverNow: number;
+  casters: FishingCaster[];
+  /** últimas pescas (mais recente primeiro) */
+  catches: FishCatch[];
+  shoalUntil: number | null;
+  week: FishingRankRow[];
+}
+
+/** Resumo para o painel: ranking da semana, de sempre e números da coleção. */
+export interface FishingStats {
+  week: string;
+  weekTop: FishingRankRow[];
+  allTime: FishingRankRow[];
+  lastWeekTop: FishingRankRow[];
+  players: number;
+  totalCatches: number;
+  /** quantas vezes cada espécie já saiu no canal */
+  species: Record<string, number>;
+  biggest: { name: string; fish: FishId; kg: number } | null;
 }

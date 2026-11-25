@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type KiteSnapshot, type PenaltySnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
+import { DEFAULT_SETTINGS, DUEL_SCENES, RACE_TRACKS, ROYALE_FLAG, ROYALE_REGIONS, ROYALE_REGION_IDS, ROYALE_WEAPONS, type RoyaleSnapshot, type KiteSnapshot, type PenaltySnapshot, type FishingSnapshot, type DuelSnapshot, type BossSnapshot, type LayoutSettings, type LeaderboardEntry, type RaceSnapshot, type RoomSettings } from '@clipei/shared';
 import { Arena } from './arena/arena.ts';
 import { Sfx } from './arena/sfx.ts';
 import { RaceArena } from './race/race-arena.ts';
@@ -6,6 +6,7 @@ import { DuelArena } from './duel/duel-arena.ts';
 import { RoyaleArena } from './royale/royale-arena.ts';
 import { KiteArena } from './kite/kite-arena.ts';
 import { PenaltyArena } from './penalty/penalty-arena.ts';
+import { FishingWidget } from './fishing/fishing-widget.ts';
 
 /**
  * Overlay do OBS: tela 1920×1080 transparente com a arena (boss + heróis)
@@ -170,6 +171,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
         <div class="result-card" id="pen-result-card"></div>
       </div>
     </section>
+    <aside class="fish-widget" id="fish-widget" hidden></aside>
     <div class="idle-screen" id="idle-screen" hidden>
       <img src="${logo}" alt="" />
       <b>Aguardando o próximo jogo</b>
@@ -287,6 +289,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   const brArena = new RoyaleArena($('br-canvas') as HTMLCanvasElement, sfx);
   const kiteArena = new KiteArena($('kite-canvas') as HTMLCanvasElement, sfx);
   const penArena = new PenaltyArena($('pen-canvas') as HTMLCanvasElement, sfx);
+  const fishWidget = new FishingWidget($('fish-widget'), sfx);
   let penFull = true;
   /** O Pipa Combate também pode ocupar a tela inteira com o overlay sobreposto. */
   let kiteFull = true;
@@ -332,6 +335,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     kiteArena.setTransparent(!kiteFull && layout.display !== 'fullscreen');
     penArena.setResolution(stageScale * (penFull || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
     penArena.setTransparent(!penFull && layout.display !== 'fullscreen');
+    fishWidget.setResolution(stageScale * (window.devicePixelRatio || 1) * 1.25);
   }
 
   // ─── Escala 1920×1080 → tamanho real (fonte do OBS ou container) ──
@@ -1183,6 +1187,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     renderRoyale,
     renderKite,
     renderPenalty,
+    renderFishing: (s: FishingSnapshot) => fishWidget.setState(s),
     setOnline(online: boolean) {
       els.conn.hidden = online || !state;
     },

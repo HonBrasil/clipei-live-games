@@ -316,3 +316,14 @@ Estádio visto de trás do cobrador. **Minigames → Pênaltis** ou `!penaltis i
 
 Apoios (editáveis na aba Apoios): bits = chute colocado, sub = paredão (o goleiro alcança o canto ao lado), pontos = voto de capitão (vale mais), raid = pressão da torcida para o time que está perdendo.
 Exibição: tela cheia (estádio completo) ou janela com fundo transparente (só o gol e os jogadores).
+
+## Pescaria da Live
+
+Fica rodando a live inteira num canto do overlay, ao lado dos outros jogos (pausa sozinha quando outro minigame abre e volta quando ele acaba). **Minigames → Pescaria** ou `!pescaria ligar` (mods).
+
+- `!pescar` lança a linha; em 4 a 9 s sai um peixe sorteado por raridade (lixo, comum, incomum, raro, épico, lendário), com peso e pontos. Espera por pessoa configurável (30 s a 5 min).
+- `!peixes` mostra pontos da semana, posição, coleção e maior peixe; `!ranking` mostra o top 3.
+- Ranking semanal (semana ISO no horário de Brasília, zera segunda), pódio da semana passada, ranking geral e coleção do canal no painel.
+- O bot anuncia pescas a partir da raridade escolhida (lendário sempre com destaque).
+- Apoios editáveis: bits = isca rara, sub = vara de ouro, pontos = lançamento na hora, raid = cardume (`!cardume` pelos mods ou botão no painel): sorte e pontos em dobro e espera pela metade.
+- Persistência em `clipei_kv` com a chave `fish:<channelId>`.

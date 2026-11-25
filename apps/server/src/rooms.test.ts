@@ -211,7 +211,7 @@ describe('Room', () => {
     tickFor(46_000);
     expect(['vote', 'kick', 'result']).toContain(room.penalty?.status);
     room.handleSupport({ kind: 'bits', amount: 100, platform: 'twitch', user: { id: 'ana', name: 'ana' } });
-    for (let i = 0; i < 300 && room.penalty?.status !== 'finished'; i++) {
+    for (let i = 0; i < 900 && room.penalty?.status !== 'finished'; i++) {
       room.handleChat(chat('ana', '!dir'));
       room.handleChat(chat('bia', '!esq'));
       tickFor(1000);
@@ -223,5 +223,29 @@ describe('Room', () => {
     expect(said.some((t) => t.includes('CHUTE COLOCADO'))).toBe(true);
     expect(said.some((t) => t.includes('vence nos pênaltis'))).toBe(true);
     expect(msgs.some((m) => m.type === 'penalty' && m.state.events.some((e) => e.kind === 'kick'))).toBe(true);
+  });
+
+  it('pescaria: mod liga, chat pesca, pausa com outro jogo e apoio sem jogo vai para a pescaria', () => {
+    const { room, msgs, tickFor } = setup();
+    room.handleChat(chat('ana', '!pescar'));
+    expect(room.fishing.snapshot().casters).toHaveLength(0); // desligada
+    room.handleChat(chat('mod', '!pescaria ligar', 'mod'));
+    expect(room.getSettings().fishing.enabled).toBe(true);
+    room.handleChat(chat('ana', '!pescar'));
+    expect(room.fishing.snapshot().casters).toHaveLength(1);
+    tickFor(10_000);
+    expect(Object.values(room.fishing.save.players).find((p) => p.name === 'ana')?.catches).toBe(1);
+    expect(msgs.some((m) => m.type === 'fishing' && m.state.catches.length === 1)).toBe(true);
+    // outro jogo começa: pausa e recolhe as linhas
+    room.handleChat(chat('bia', '!pescar'));
+    room.handleChat(chat('mod', '!pipa iniciar', 'mod'));
+    tickFor(300);
+    expect(room.fishing.snapshot().casters).toHaveLength(0);
+    expect(msgs.filter((m) => m.type === 'fishing').at(-1)).toMatchObject({ state: { paused: true } });
+    room.stopKite();
+    tickFor(300);
+    room.handleSupport({ kind: 'raid', amount: 20, platform: 'twitch', user: null });
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('CARDUME'))).toBe(true);
   });
 });

@@ -23,6 +23,7 @@ connectRoom(
     if (msg.type === 'royale') view.renderRoyale(msg.state);
     if (msg.type === 'kite') view.renderKite(msg.state);
     if (msg.type === 'penalty') view.renderPenalty(msg.state);
+    if (msg.type === 'fishing') view.renderFishing(msg.state);
     if (msg.type === 'settings') view.setSettings(msg.settings);
     if (msg.type === 'incoming') view.incoming(msg.at, msg.serverNow);
     if (msg.type === 'sfx-test') view.testSound();

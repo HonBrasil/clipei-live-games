@@ -64,6 +64,7 @@ import {
   verifyKickSignature,
 } from './kick/api.ts';
 import { mapKickEvent } from './kick/events.ts';
+import { FishingGame } from '@clipei/games';
 import {
   YT_BOT_SCOPES,
   YT_STREAMER_SCOPES,
@@ -397,10 +398,21 @@ function roomFor(ch: StoredChannel): Room {
   };
   if (!room.clips.length && ch.clips?.length) room.clips = ch.clips;
   if (!room.history.length && ch.history?.length) room.history = ch.history;
+  // pescaria com progresso salvo no banco (uma vez por sala)
+  if (!room.fishingBound) {
+    room.fishing = new FishingGame(store.getFishing(ch.id), (f) => store.saveFishing(ch.id, f));
+    room.fishingBound = true;
+  }
+  let fishingWasOn = room.getSettings().fishing.enabled;
   room.onSettingsChange = (settings) => {
     store.updateChannelSettings(ch.id, settings);
     if (settings.autoSpawn.enabled) void refreshLive();
     void syncReward(ch.id);
+    // pescaria ligada: a recompensa de pontos fica aberta mesmo sem jogo
+    if (settings.fishing.enabled !== fishingWasOn) {
+      fishingWasOn = settings.fishing.enabled;
+      if (!room.activeGame()) pauseReward(!settings.fishing.enabled);
+    }
   };
   const pauseReward = (paused: boolean) => {
     if (!room.getSettings().support.points.enabled) return;
@@ -420,7 +432,7 @@ function roomFor(ch: StoredChannel): Room {
   };
   room.hooks = {
     fightStarted: () => pauseReward(false),
-    fightEnded: () => pauseReward(true),
+    fightEnded: () => pauseReward(!room.getSettings().fishing.enabled),
     redemption: (e, fulfilled) => {
       if (!e.redemptionId) return;
       const c = cur();
@@ -988,6 +1000,15 @@ app.post<{ Body: Partial<PenaltyConfig> }>('/api/penalty/start', async (req, rep
 });
 
 app.post('/api/penalty/go', async (req) => ({ ok: currentRoom(req).penaltyGo() }));
+
+app.post('/api/fishing/shoal', async (req, reply) => {
+  const room = currentRoom(req);
+  if (room.activeGame()) return reply.code(409).send({ error: 'Tem outro jogo rolando: a pescaria volta quando ele terminar.' });
+  if (!room.fishingShoal()) return reply.code(400).send({ error: 'Ligue a pescaria primeiro.' });
+  return { ok: true };
+});
+
+app.get('/api/fishing/stats', async (req) => currentRoom(req).fishingStats());
 
 app.post('/api/penalty/stop', async (req) => ({ ok: currentRoom(req).stopPenalty() }));
 

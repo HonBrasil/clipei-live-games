@@ -10,3 +10,4 @@ export * from './duel.ts';
 export * from './royale.ts';
 export * from './kite.ts';
 export * from './penalty.ts';
+export * from './fishing.ts';

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from '
 import { resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { newTrial, type ClipRecord, type FightRecord, type RoomSettings, type Subscription } from '@clipei/shared';
+import type { FishingSave } from '@clipei/games';
 import { config } from './config.ts';
 import { SupabaseKv } from './kv.ts';
 
@@ -78,6 +79,8 @@ interface StoreShape {
   channels: Record<string, StoredChannel>;
   bot: StoredBot | null;
   ytBot?: StoredYoutubeBot | null;
+  /** progresso da Pescaria por canal (chave própria no banco: não regrava o canal a cada peixe) */
+  fishing?: Record<string, FishingSave>;
 }
 
 const FILE = resolve(config.dataDir, 'store.json');
@@ -102,6 +105,7 @@ export async function initStore() {
   for (const r of rows) {
     if (r.key === 'bot') next.bot = r.value as StoredBot;
     else if (r.key === 'ytbot') next.ytBot = r.value as StoredYoutubeBot;
+    else if (r.key.startsWith('fish:')) (next.fishing ??= {})[r.key.slice(5)] = r.value as FishingSave;
     else if (r.key.startsWith('channel:')) next.channels[r.key.slice(8)] = r.value as StoredChannel;
     persisted.set(r.key, JSON.stringify(r.value));
   }
@@ -137,6 +141,7 @@ async function flush() {
   for (const [id, ch] of Object.entries(data.channels)) current.set(`channel:${id}`, JSON.stringify(ch));
   if (data.bot) current.set('bot', JSON.stringify(data.bot));
   if (data.ytBot) current.set('ytbot', JSON.stringify(data.ytBot));
+  for (const [id, f] of Object.entries(data.fishing ?? {})) if (data.channels[id]) current.set(`fish:${id}`, JSON.stringify(f));
   const changed = [...current].filter(([k, json]) => persisted.get(k) !== json).map(([key, json]) => ({ key, json }));
   const removed = [...persisted.keys()].filter((k) => !current.has(k));
   if (!changed.length && !removed.length) return;
@@ -295,6 +300,10 @@ export const store = {
     into.subscription = into.subscription ?? from.subscription;
     into.overlayKey = from.overlayKey;
     into.clips = [...(from.clips ?? []), ...(into.clips ?? [])].slice(0, 20);
+    if (data.fishing?.[fromId]) {
+      data.fishing[intoId] ??= data.fishing[fromId];
+      delete data.fishing[fromId];
+    }
     delete data.channels[fromId];
     save();
     return into;
@@ -332,6 +341,13 @@ export const store = {
   },
   removeChannel(id: string) {
     delete data.channels[id];
+    if (data.fishing) delete data.fishing[id];
+    save();
+  },
+  getFishing: (id: string) => data.fishing?.[id] ?? null,
+  /** O objeto da pescaria é o mesmo que o jogo altera: só marca para gravar. */
+  saveFishing(id: string, f: FishingSave) {
+    (data.fishing ??= {})[id] = f;
     save();
   },
   getBot: () => data.bot,

@@ -21,6 +21,7 @@ import { DuelPage } from './pages/DuelPage.tsx';
 import { RoyalePage } from './pages/RoyalePage.tsx';
 import { KitePage } from './pages/KitePage.tsx';
 import { PenaltyPage } from './pages/PenaltyPage.tsx';
+import { FishingPage } from './pages/FishingPage.tsx';
 import { PrivacyPage, TermsPage } from './pages/Legal.tsx';
 
 createRoot(document.getElementById('root')!).render(
@@ -53,6 +54,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="jogos/pipa" element={<KitePage />} />
           <Route path="jogos/penalty" element={<PenaltyPage />} />
           <Route path="jogos/penaltis" element={<PenaltyPage />} />
+          <Route path="jogos/fishing" element={<FishingPage />} />
+          <Route path="jogos/pescaria" element={<FishingPage />} />
           <Route path="overlay" element={<OverlayPage />} />
           <Route path="conexoes" element={<Connections />} />
           <Route path="testar" element={<TestPage />} />

@@ -1248,3 +1248,170 @@ body.overlay-body {
 .pen-zone .br-big.pen-big {
   top: 30%;
 }
+
+/* ─── Pescaria da Live (canto do overlay) ─────────────────── */
+.fish-widget {
+  position: absolute;
+  z-index: 5;
+  width: 400px;
+  pointer-events: none;
+  font-family: var(--font-body, Inter, sans-serif);
+}
+.fish-widget[hidden] {
+  display: none;
+}
+.fish-widget[data-corner='bl'] {
+  left: 24px;
+  bottom: 24px;
+}
+.fish-widget[data-corner='br'] {
+  right: 24px;
+  bottom: 24px;
+}
+.fish-widget[data-corner='tl'] {
+  left: 24px;
+  top: 24px;
+}
+.fish-widget[data-corner='tr'] {
+  right: 24px;
+  top: 24px;
+}
+.fish-widget[data-corner='br'],
+.fish-widget[data-corner='tr'] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.fish-widget kbd {
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #fff;
+  color: #0b0b0f;
+  font: italic 900 14px var(--font-display);
+}
+.fw-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(8, 20, 30, 0.78);
+  border: 1px solid rgba(120, 200, 255, 0.35);
+  font: 800 15px var(--font-body, Inter, sans-serif);
+  color: #fff;
+  animation: fw-bob 2.4s ease-in-out infinite;
+}
+.fw-pill.is-shoal {
+  background: rgba(20, 110, 140, 0.9);
+  border-color: #8fe3ff;
+}
+@keyframes fw-bob {
+  50% {
+    translate: 0 -4px;
+  }
+}
+.fw-card {
+  width: 400px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(8, 14, 22, 0.88);
+  border: 1px solid rgba(120, 200, 255, 0.25);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  animation: fw-in 0.35s ease-out;
+}
+@keyframes fw-in {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+}
+.fw-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 14px;
+  color: #fff;
+}
+.fw-head b {
+  font: italic 900 16px var(--font-display);
+}
+.fw-head kbd {
+  margin-left: auto;
+}
+.fw-shoal {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #1c8fb0;
+  font-size: 11px;
+  font-weight: 900;
+}
+.fw-lake {
+  display: block;
+  width: 400px;
+  height: 170px;
+}
+.fw-feed {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 10px 4px;
+  list-style: none;
+}
+.fw-catch {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--rc);
+  color: #fff;
+  font-size: 13px;
+  animation: fw-in 0.3s ease-out;
+}
+.fw-catch i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.fw-catch span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.8);
+}
+.fw-catch em {
+  color: #3ddc6b;
+  font-style: normal;
+  font-weight: 900;
+}
+.fw-catch strong {
+  color: var(--rc);
+  font-weight: 900;
+  white-space: nowrap;
+}
+.fw-catch.r-lendario {
+  background: linear-gradient(90deg, rgba(255, 200, 61, 0.28), rgba(255, 200, 61, 0.05));
+  box-shadow: 0 0 18px rgba(255, 200, 61, 0.35);
+}
+.fw-catch.r-epico {
+  background: linear-gradient(90deg, rgba(180, 107, 255, 0.22), rgba(180, 107, 255, 0.04));
+}
+.fw-rank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 6px 12px 10px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+}
+.fw-rank b {
+  color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fw-pill {
+    animation: none;
+  }
+}

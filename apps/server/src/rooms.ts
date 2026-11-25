@@ -17,6 +17,9 @@ import {
   parseKiteChatCommand,
   PenaltyGame,
   parsePenaltyChatCommand,
+  FishingGame,
+  parseFishingChatCommand,
+  fishingCatchAnnouncement,
   penaltyHelpText,
   penaltyOpenAnnouncement,
   penaltyStartAnnouncement,
@@ -114,6 +117,9 @@ export class Room {
   royale: RoyaleGame | null = null;
   kite: KiteGame | null = null;
   penalty: PenaltyGame | null = null;
+  /** Pescaria: roda junto, a live inteira (pausa quando outro jogo começa). O servidor troca pela versão com progresso salvo. */
+  fishing = new FishingGame(null);
+  fishingBound = false;
   lastConfig: BossConfig = { ...DEFAULT_CONFIG };
   hpMode: HpMode = 'auto';
   readonly sockets = new Set<WebSocket>();
@@ -145,6 +151,10 @@ export class Room {
   private lastRoyaleAt = 0;
   private kiteStatus: KiteStatus = 'idle';
   private penaltyStatus: PenaltyStatus = 'idle';
+  private lastFishingAt = 0;
+  private fishingPaused = false;
+  private lastRankingAt = 0;
+  private fishSummaryAt = new Map<string, number>();
   private lastPenaltyAt = 0;
   private lastKiteAt = 0;
 
@@ -188,7 +198,13 @@ export class Room {
         return x < 0.03 ? '!bang' : x < 0.5 ? (x < 0.3 ? '!1' : '!2') : 'chatter';
       }
       const r = this.race;
-      if (!r?.isActive) return undefined;
+      if (!r?.isActive) {
+        if (this.settings.fishing.enabled && !this.activeGame()) {
+          const x = Math.random();
+          return x < 0.3 ? '!pescar' : x < 0.32 ? '!peixes' : 'chatter';
+        }
+        return undefined;
+      }
       if (r.status === 'lobby') return Math.random() < 0.6 ? '!correr' : 'chatter';
       return r.turboOpen && Math.random() < 0.5 ? '!turbo' : 'chatter';
     };
@@ -208,6 +224,81 @@ export class Room {
   private busyText(busy: NonNullable<ReturnType<Room['activeGame']>>) {
     const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando' }[busy];
     return `Tem ${what}. Um jogo por vez: espere terminar.`;
+  }
+
+  // ─── Pescaria da Live ──────────────────────────────────────
+
+  /** Comandos da pescaria (mods e chat). true = a mensagem era da pescaria. */
+  private handleFishingChat(event: ChatEvent) {
+    const mod = parseFishingChatCommand(event);
+    if (mod) {
+      if (mod.type === 'shoal') {
+        if (this.settings.fishing.enabled && !this.activeGame()) this.fishingShoal();
+      } else this.updateSettings({ fishing: { enabled: mod.type === 'on' } });
+      return true;
+    }
+    if (!this.settings.fishing.enabled || this.activeGame() || !this.entitled()) return false;
+    this.fishing.config = this.settings.fishing;
+    const action = this.fishing.handle(event);
+    if (action.type === 'none') return false;
+    if (action.type === 'say') {
+      const key = `${event.platform}:${event.user.id}`;
+      const now = Date.now();
+      const isRanking = /^!(ranking|top)\b/i.test(event.text.trim());
+      if (isRanking ? now - this.lastRankingAt > 30_000 : now - (this.fishSummaryAt.get(key) ?? 0) > 60_000) {
+        if (isRanking) this.lastRankingAt = now;
+        else this.fishSummaryAt.set(key, now);
+        this.say(action.text);
+      }
+    }
+    if (action.type === 'cast') this.broadcastFishing();
+    return true;
+  }
+
+  /** Cardume (botão do painel, !cardume dos mods ou raid). */
+  fishingShoal(seconds = this.settings.gameSupport.fishing.raid.p.seconds ?? 120) {
+    if (!this.settings.fishing.enabled) return false;
+    this.fishing.shoal(Date.now(), seconds);
+    this.say(`🐟 CARDUME NO LAGO! Por ${Math.round(seconds / 60)} min: sorte e pontos em dobro e espera pela metade. Digite !pescar!`, 'success');
+    this.broadcastFishing();
+    return true;
+  }
+
+  fishingStats() {
+    return this.fishing.stats();
+  }
+
+  private tickFishing(now: number) {
+    const f = this.fishing;
+    f.config = this.settings.fishing;
+    f.support = this.settings.gameSupport.fishing;
+    const enabled = this.settings.fishing.enabled;
+    const paused = !!this.activeGame();
+    if (paused !== this.fishingPaused) {
+      this.fishingPaused = paused;
+      if (paused) f.reelIn();
+      f.dirty = true;
+    }
+    if (!enabled) {
+      if (f.dirty) {
+        f.reelIn();
+        this.broadcastFishing();
+      }
+      return;
+    }
+    if (!paused) {
+      for (const c of f.update(now)) {
+        const order = ['raro', 'epico', 'lendario'];
+        const min = this.settings.fishing.announce;
+        if (min !== 'nunca' && order.indexOf(c.rarity) >= order.indexOf(min)) this.say(fishingCatchAnnouncement(c), c.rarity === 'lendario' ? 'success' : 'info');
+      }
+    }
+    if (f.dirty && now - this.lastFishingAt >= 250) this.broadcastFishing();
+  }
+
+  private broadcastFishing() {
+    this.lastFishingAt = Date.now();
+    this.broadcast({ type: 'fishing', state: this.fishing.snapshot(Date.now(), this.fishingPaused) });
   }
 
   // ─── Disputa de Pênaltis ───────────────────────────────────
@@ -609,6 +700,7 @@ export class Room {
       }
       return;
     }
+    if (this.handleFishingChat(event)) return;
     const penCmd = parsePenaltyChatCommand(event);
     if (penCmd) {
       if (penCmd.type === 'help') {
@@ -768,6 +860,17 @@ export class Room {
     }
     const damage = supportDamage(e, this.settings.support);
     const running = !!this.game?.isRunning;
+    if (!running && this.settings.fishing.enabled && !this.activeGame()) {
+      this.fishing.support = this.settings.gameSupport.fishing;
+      const res = this.fishing.special(e);
+      if (res.applied) {
+        const icon = e.kind === 'points' ? '🎣' : e.kind === 'bits' ? '🪱' : e.kind === 'raid' ? '🐟' : '🏆';
+        this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
+        if (e.kind === 'points') this.hooks.redemption?.(e, true);
+        this.broadcastFishing();
+        return { applied: true, damage: 0 };
+      }
+    }
     if (damage === null || !running) {
       if (e.kind === 'points') this.hooks.redemption?.(e, false); // devolve os pontos
       const thanks = running ? null : supportThanks(e);
@@ -818,6 +921,7 @@ export class Room {
   /** Chamado a cada 100 ms. */
   tick() {
     const now = Date.now();
+    this.tickFishing(now);
     if (this.penalty?.isActive) {
       this.penalty.update(now);
       if (this.penalty.status !== this.penaltyStatus) this.afterPenaltyUpdate();
@@ -931,6 +1035,7 @@ export class Room {
     if (kite) this.send(ws, { type: 'kite', state: kite });
     const pen = this.penaltySnapshot();
     if (pen) this.send(ws, { type: 'penalty', state: pen });
+    if (this.settings.fishing.enabled) this.send(ws, { type: 'fishing', state: this.fishing.snapshot(Date.now(), this.fishingPaused) });
     ws.on('close', () => {
       this.sockets.delete(ws);
       if (!this.panels.has(ws)) this.broadcastStatus();
