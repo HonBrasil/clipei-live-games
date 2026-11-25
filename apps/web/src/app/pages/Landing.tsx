@@ -1,23 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BOSS_SKIN_IDS, FOUNDER_SLOTS, GAMES, TRIAL_DAYS, type MeResponse } from '@clipei/shared';
+import { FOUNDER_SLOTS, GAMES, TRIAL_DAYS, type MeResponse } from '@clipei/shared';
 import { api } from '../api.ts';
 import { Icon } from '../components/icons.tsx';
 import { BossThumb, Logo } from '../components/ui.tsx';
 import { FounderStrip, PlanCards } from '../components/plans.tsx';
 
+/** Só os minigames lançados aparecem no site. */
+const LIVE_GAMES = GAMES.filter((g) => g.status === 'active');
+
 const STEPS = [
   { title: 'Conecte sua Twitch', text: 'Um clique para entrar. O bot da Clipei passa a ler e responder o seu chat.' },
   { title: 'Cole uma URL no OBS', text: 'Uma fonte de navegador, fundo transparente. Serve para todos os minigames.' },
-  { title: 'O chat joga', text: 'Invoque um boss e o chat ataca com !atk. Bits, subs e pontos viram golpes especiais.' },
+  { title: 'O chat joga', text: 'Escolha o minigame e abra a partida. O chat entra com um comando, e bits, subs e pontos viram vantagens.' },
 ];
 
 const FEATURES = [
   { title: 'Arena por cima do jogo', text: 'Fundo transparente, tamanho e posição ajustáveis ao vivo, sem atrapalhar a gameplay.' },
-  { title: 'Apoio vira dano', text: 'Bits viram chuva de cristais, subs viram raios, raids trazem reforços e pontos de canal soltam golpes especiais.' },
-  { title: 'Boss automático', text: 'Um boss aparece sozinho a cada 15 min, 1 h ou 3 h, com aviso no chat 1 minuto antes.' },
-  { title: 'Clip da vitória', text: 'Quando o boss cai, a Clipei cria o clip na Twitch e manda o link no chat.' },
-  { title: 'Moderação pelo chat', text: '!boss iniciar, !boss brasa, !boss parar: você e seus mods controlam sem abrir o painel.' },
+  { title: 'Tela cheia ou por cima', text: 'Cada minigame pode virar a tela principal da live, com cenário completo, ou ficar numa janela por cima do jogo.' },
+  { title: 'Apoio vira vantagem', text: 'Bits, subs, raids e pontos de canal viram golpes, turbos, coletes e caixas de suprimentos, conforme o jogo.' },
+  { title: 'Nome de cada um na tela', text: 'Todo mundo do chat aparece com o próprio nome e a cor do chat em cima do personagem.' },
+  { title: 'Clip da vitória', text: 'No fim de cada partida, a Clipei cria o clip na Twitch e o bot anuncia o vencedor no chat.' },
+  { title: 'Moderação pelo chat', text: '!boss iniciar, !corrida iniciar, !royale iniciar: você e seus mods controlam sem abrir o painel.' },
   { title: 'Sem apostas', text: 'Nada de dinheiro em jogo nem roleta de prêmios. É diversão para a comunidade.' },
 ];
 
@@ -92,23 +96,24 @@ export function Landing() {
 
       <section className="l-band" id="minigames">
         <h2>Minigames</h2>
-        <p className="l-lead">O Boss coletivo já está no ar. Os próximos chegam no mesmo painel e na mesma URL do OBS.</p>
+        <p className="l-lead">
+          {LIVE_GAMES.length} jogos prontos para a sua live, todos no mesmo painel e na mesma URL do OBS.
+        </p>
         <div className="l-games">
-          {GAMES.map((g) => (
-            <article key={g.id} className={`l-game ${g.status}`}>
-              {g.id === 'boss' ? (
-                <div className="l-game-art bosses">
-                  {BOSS_SKIN_IDS.slice(0, 3).map((s) => (
-                    <BossThumb key={s} skin={s} width={84} height={70} />
-                  ))}
-                </div>
-              ) : (
-                <div className="l-game-art soon-art">{g.name.split(' ')[0]}</div>
-              )}
+          {LIVE_GAMES.map((g) => (
+            <article key={g.id} className="l-game">
+              <div className="l-game-shot">
+                <img src={`/games/${g.id}.webp`} alt={`${g.name} rodando numa live`} width={960} height={540} loading="lazy" decoding="async" />
+                <span className="l-game-badge">{g.tagline}</span>
+              </div>
               <div className="l-game-body">
-                <span className={`tag ${g.status}`}>{g.status === 'active' ? 'Disponível' : 'Em breve'}</span>
                 <h3>{g.name}</h3>
                 <p>{g.description}</p>
+                <div className="l-game-cmds" aria-label="Comandos do chat">
+                  {g.commands.filter((c) => !/^!\d$/.test(c)).slice(0, 3).map((c) => (
+                    <kbd key={c}>{c}</kbd>
+                  ))}
+                </div>
               </div>
             </article>
           ))}
