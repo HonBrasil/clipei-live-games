@@ -587,6 +587,8 @@ export interface RoomStatus {
   overlays: number;
   /** Minigame rolando agora na tela (só um por vez). */
   game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | null;
+  /** Chat simulado ligado (aba Testar). */
+  simulating: boolean;
   serverNow: number;
 }
 

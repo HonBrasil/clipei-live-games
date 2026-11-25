@@ -152,6 +152,11 @@ export function migrateAutoSpawn(s: RoomSettings, saved: unknown): RoomSettings 
   };
 }
 
+/** Chat simulado desliga este tempo depois do fim do jogo… */
+const SIM_AFTER_GAME_MS = 4000;
+/** …ou depois de tanto tempo ligado sem jogo nenhum. */
+const SIM_IDLE_MS = 120_000;
+
 export class Room {
   game: BossGame | null = null;
   race: RaceGame | null = null;
@@ -169,6 +174,9 @@ export class Room {
   hpMode: HpMode = 'auto';
   readonly sockets = new Set<WebSocket>();
   readonly simulator: ChatSimulator;
+  /** O simulador já acompanhou um jogo desde que foi ligado. */
+  private simSawGame = false;
+  private simIdleSince: number | null = null;
   readonly activity = new ChatActivity();
   sendChat: ChatSender | null = null;
   /** A live está no ar? (Twitch consulta a API; demo considera sempre no ar). */
@@ -254,11 +262,13 @@ export class Room {
       }
       const r = this.race;
       if (!r?.isActive) {
-        if (this.settings.fishing.enabled && !this.activeGame()) {
+        if (this.game?.isRunning) return undefined; // boss: !atk e !ult
+        // nenhum jogo na tela: só conversa (e pesca, se a pescaria estiver ligada)
+        if (this.settings.fishing.enabled) {
           const x = Math.random();
           return x < 0.3 ? '!pescar' : x < 0.32 ? '!peixes' : 'chatter';
         }
-        return undefined;
+        return 'chatter';
       }
       if (r.status === 'lobby') return Math.random() < 0.6 ? '!correr' : 'chatter';
       return r.turboOpen && Math.random() < 0.5 ? '!turbo' : 'chatter';
@@ -280,6 +290,33 @@ export class Room {
   private busyText(busy: NonNullable<ReturnType<Room['activeGame']>>) {
     const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando', defense: 'uma Defesa da Base rolando' }[busy];
     return `Tem ${what}. Um jogo por vez: espere terminar.`;
+  }
+
+  // ─── Chat simulado (aba Testar) ────────────────────────────
+
+  /**
+   * O chat simulado é para testar um minigame: desliga sozinho alguns segundos depois
+   * que o jogo termina, ou se ficar 2 min ligado sem nenhum jogo na tela.
+   */
+  private tickSimulator(now: number) {
+    if (!this.simulator.status.running) {
+      this.simSawGame = false;
+      this.simIdleSince = null;
+      return;
+    }
+    if (this.activeGame()) {
+      this.simSawGame = true;
+      this.simIdleSince = null;
+      return;
+    }
+    this.simIdleSince ??= now;
+    const idle = now - this.simIdleSince;
+    if ((this.simSawGame && idle >= SIM_AFTER_GAME_MS) || idle >= SIM_IDLE_MS) {
+      this.simulator.stop();
+      this.simSawGame = false;
+      this.simIdleSince = null;
+      this.broadcastStatus();
+    }
   }
 
   // ─── Modo Loop ─────────────────────────────────────────────
@@ -1201,6 +1238,7 @@ export class Room {
       this.lastSpawnCheck = now;
       this.checkAutoSpawn();
       this.tickLoop(now);
+      this.tickSimulator(now);
     }
     if (now - this.lastStatusAt >= STATUS_EVERY_MS && this.sockets.size) this.broadcastStatus();
   }
@@ -1265,6 +1303,7 @@ export class Room {
       live: this.isLive(),
       overlays: [...this.sockets].filter((ws) => !this.panels.has(ws) && ws.readyState === 1).length,
       game: this.activeGame(),
+      simulating: this.simulator.status.running,
       serverNow: Date.now(),
     };
   }

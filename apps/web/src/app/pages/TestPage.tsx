@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SimulatorStatus } from '@clipei/shared';
 import { api } from '../api.ts';
 import { Card, Switch } from '../components/ui.tsx';
@@ -14,8 +14,14 @@ const SUPPORT = [
 ];
 
 export function TestPage() {
-  const { me, boss, toast } = useApp();
+  const { me, boss, status, toast } = useApp();
   const [sim, setSim] = useState<SimulatorStatus>(me!.simulator);
+  // o servidor desliga o chat simulado sozinho quando o minigame termina
+  const simulating = status?.simulating;
+  useEffect(() => {
+    if (simulating === undefined) return;
+    setSim((s) => (s.running === simulating ? s : { ...s, running: simulating }));
+  }, [simulating]);
   const running = boss?.state?.status === 'running';
 
   async function update(patch: Partial<SimulatorStatus>) {
@@ -66,6 +72,7 @@ export function TestPage() {
           {slider('messagesPerSecond', 'Mensagens por segundo', 1, 500, 1)}
           {slider('subRatio', 'Assinantes (mais crítico)', 0, 100, 5, 100, '%')}
           <p className="muted">Com 500 mensagens por segundo você vê como a arena aguenta o chat de um streamer grande.</p>
+          <p className="muted foot-note">Desliga sozinho poucos segundos depois que o minigame termina, ou após 2 minutos ligado sem nenhum jogo na tela.</p>
         </Card>
         <Card title="Simular apoio" subtitle="Bits, subs, pontos e raid de mentira">
           <div className="sim-support">

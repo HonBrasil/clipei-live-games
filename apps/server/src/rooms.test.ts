@@ -321,4 +321,25 @@ describe('Room', () => {
     tickFor(60_000);
     expect(room.activeGame()).toBe('race');
   });
+
+  it('chat simulado desliga sozinho quando o minigame termina', () => {
+    const { room, tickFor } = setup();
+    room.simulator.configure({ running: true, viewers: 10, messagesPerSecond: 5 });
+    room.startRace();
+    tickFor(2000);
+    expect(room.simulator.status.running).toBe(true);
+    room.stopRace();
+    tickFor(2000);
+    expect(room.simulator.status.running).toBe(true);
+    tickFor(3000);
+    expect(room.simulator.status.running).toBe(false);
+    expect(room.status().simulating).toBe(false);
+    // ligado sem jogo: desliga depois de 2 min
+    room.simulator.configure({ running: true });
+    tickFor(100_000);
+    expect(room.simulator.status.running).toBe(true);
+    tickFor(25_000);
+    expect(room.simulator.status.running).toBe(false);
+    room.simulator.stop();
+  });
 });
