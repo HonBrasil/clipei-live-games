@@ -295,6 +295,8 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
     duelArena.setResolution(res);
     brArena.setResolution(stageScale * (brFull || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
     kiteArena.setResolution(stageScale * (kiteFull || layout.display === 'fullscreen' ? 2 : layout.size / 100) * (window.devicePixelRatio || 1));
+    // janela por cima do jogo: céu transparente (só lajes, bonecos e pipas)
+    kiteArena.setTransparent(!kiteFull && layout.display !== 'fullscreen');
   }
 
   // ─── Escala 1920×1080 → tamanho real (fonte do OBS ou container) ──

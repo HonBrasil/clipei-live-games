@@ -88,6 +88,8 @@ export class KiteArena {
   private cam = { x: W / 2, y: H / 2, z: 1 };
   private last = performance.now();
   private names: NameMode = 'all';
+  /** Janela por cima do jogo: sem céu, só as lajes, os bonecos e as pipas. */
+  private transparent = false;
   private wind = 0.3;
   private clouds = Array.from({ length: 7 }, (_, i) => ({ x: (i * 173) % W, y: 40 + ((i * 61) % 150), w: 60 + ((i * 37) % 70), s: 0.5 + (i % 3) * 0.25 }));
   private streaks: { x: number; y: number; len: number }[] = [];
@@ -104,6 +106,12 @@ export class KiteArena {
 
   setNames(mode: NameMode) {
     this.names = mode;
+  }
+
+  setTransparent(on: boolean) {
+    if (on === this.transparent) return;
+    this.transparent = on;
+    this.bg = null;
   }
 
   setResolution(res: number) {
@@ -292,7 +300,7 @@ export class KiteArena {
     ctx.setTransform(z, 0, 0, z, (W / 2 - this.cam.x * this.cam.z) * this.res, (H / 2 - this.cam.y * this.cam.z) * this.res);
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.background(), 0, 0, W, H);
-    this.drawClouds();
+    if (!this.transparent) this.drawClouds();
     const serverNow = Date.now() + this.clockOffset;
     const t = now / 1000;
 
@@ -829,8 +837,29 @@ export class KiteArena {
 
   // ─── Fundo (pré-desenhado) ─────────────────────────────────
 
+  /** Versão transparente: só a borda de cima das lajes (onde ficam os bonecos), sumindo para baixo. */
+  private drawRooftops(g: CanvasRenderingContext2D, rnd: () => number) {
+    const walls = ['#c4643f', '#d98b4e', '#b8553a', '#e2b07a', '#8fb3a5', '#d7c26a', '#c97c8a', '#9a6b4f', '#e7d3b0', '#7ea0c4'];
+    for (let h = 0; h * KITE_HOUSE_W < W; h++) {
+      const x = h * KITE_HOUSE_W;
+      const roof = kiteRoofY(x + 1);
+      const wall = walls[Math.floor(rnd() * walls.length)];
+      const fade = g.createLinearGradient(0, roof, 0, roof + 26);
+      fade.addColorStop(0, wall);
+      fade.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = fade;
+      g.fillRect(x, roof, KITE_HOUSE_W, 26);
+      g.fillStyle = '#8c8780';
+      g.fillRect(x - 1, roof - 3, KITE_HOUSE_W + 2, 4);
+      g.fillStyle = '#b0aaa2';
+      g.fillRect(x - 1, roof - 3, KITE_HOUSE_W + 2, 1);
+      g.fillStyle = 'rgba(0,0,0,0.25)';
+      g.fillRect(x + KITE_HOUSE_W - 1, roof, 1, 14);
+    }
+  }
+
   private background() {
-    const key = `${this.res}`;
+    const key = `${this.res}:${this.transparent}`;
     if (this.bg?.key === key) return this.bg.canvas;
     const c = document.createElement('canvas');
     c.width = Math.round(W * this.res);
@@ -838,6 +867,11 @@ export class KiteArena {
     const g = c.getContext('2d')!;
     g.setTransform(this.res, 0, 0, this.res, 0, 0);
     const rnd = seeded(777);
+    if (this.transparent) {
+      this.drawRooftops(g, rnd);
+      this.bg = { key, canvas: c };
+      return c;
+    }
 
     // céu de fim de tarde
     const sky = g.createLinearGradient(0, 0, 0, H);

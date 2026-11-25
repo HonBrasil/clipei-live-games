@@ -839,7 +839,7 @@ body.overlay-body {
   height: 540px;
 }
 /* janela: o mapa vira um "monitor" com borda */
-.stage:not([data-display='fullscreen']) .royale-zone:not(.force-full) .arena-canvas {
+.stage:not([data-display='fullscreen']) .royale-zone:not(.force-full):not(.kite-zone) .arena-canvas {
   border-radius: 16px;
   outline: 3px solid rgba(0, 0, 0, 0.75);
   box-shadow: 0 0 0 5px rgba(255, 31, 45, 0.55), 0 12px 40px rgba(0, 0, 0, 0.6);
