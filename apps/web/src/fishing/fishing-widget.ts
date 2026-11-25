@@ -41,6 +41,7 @@ export class FishingWidget {
 
   constructor(
     private root: HTMLElement,
+    private rankRoot: HTMLElement,
     private sfx: Sfx | null = null,
   ) {
     root.innerHTML = `
@@ -73,6 +74,9 @@ export class FishingWidget {
     this.root.dataset.corner = s.corner;
     const visible = s.enabled && !s.paused;
     this.root.hidden = !visible;
+    const clear = s.scene !== 'full';
+    this.root.classList.toggle('is-clear', clear);
+    this.rankRoot.classList.toggle('is-clear', clear);
     const busy = s.casters.length > 0 || s.catches.length > 0;
     this.card.hidden = !visible || !busy;
     this.pill.hidden = !visible || busy || !(s.hint || s.shoalUntil);
@@ -102,9 +106,25 @@ export class FishingWidget {
           <strong>${c.rarity === 'lixo' ? 'lixo 😅' : `${r.label} +${c.points}`}</strong></li>`;
       })
       .join('');
-    this.rank.innerHTML = s.week.length
-      ? `🏆 Semana: ${s.week.map((r, i) => `<span>${['🥇', '🥈', '🥉'][i]} ${esc(r.name)} <b>${r.points}</b></span>`).join('')}`
-      : '🏆 Ranking da semana: pesque o primeiro peixe!';
+    // ranking: junto do lago ou num ponto da tela escolhido pelo streamer
+    const medal = (i: number) => (i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}º`);
+    const inLake = s.rankPos === 'lake';
+    this.rank.hidden = !inLake;
+    if (inLake)
+      this.rank.innerHTML = s.week.length
+        ? `🏆 Semana: ${s.week.map((r, i) => `<span>${medal(i)} ${esc(r.name)} <b>${r.points}</b></span>`).join('')}`
+        : '🏆 Ranking da semana: pesque o primeiro peixe!';
+    this.rankRoot.hidden = !visible || inLake || s.rankPos === 'off';
+    this.rankRoot.dataset.pos = s.rankPos;
+    if (!this.rankRoot.hidden)
+      this.rankRoot.innerHTML = `<div class="fr-head">🏆 <b>Pescaria</b><span>ranking da semana</span></div>
+        ${
+          s.week.length
+            ? `<ol>${s.week
+                .map((r, i) => `<li><em>${medal(i)}</em><i style="background:${esc(r.color)}"></i><span>${esc(r.name)}</span><b>${r.points}</b></li>`)
+                .join('')}</ol>`
+            : '<p>Ninguém pescou ainda. <kbd>!pescar</kbd></p>'
+        }`;
     if (!this.card.hidden && !this.running) {
       this.running = true;
       requestAnimationFrame(this.frame);
@@ -135,6 +155,33 @@ export class FishingWidget {
     const t = now / 1000;
     ctx.setTransform(this.res, 0, 0, this.res, 0, 0);
     ctx.clearRect(0, 0, W, H);
+    const clear = s.scene !== 'full';
+    if (!clear) this.drawShore(ctx);
+    // água
+    const water = ctx.createLinearGradient(0, clear ? WATER - 18 : WATER, 0, H);
+    const deep = s.shoalUntil ? '28,111,138' : '29,78,110';
+    water.addColorStop(0, clear ? `rgba(${deep},0)` : `rgb(${deep})`);
+    water.addColorStop(clear ? 0.3 : 0, `rgba(${deep},${clear ? 0.82 : 1})`);
+    water.addColorStop(1, clear ? 'rgba(11,34,54,0.92)' : '#0b2236');
+    ctx.fillStyle = water;
+    ctx.fillRect(0, clear ? WATER - 18 : WATER, W, H);
+    this.drawWater(ctx, s, t);
+    if (clear) {
+      // laterais somem no jogo em vez de terminar num corte reto
+      const fade = ctx.createLinearGradient(0, 0, W, 0);
+      fade.addColorStop(0, 'rgba(0,0,0,0)');
+      fade.addColorStop(0.1, 'rgba(0,0,0,1)');
+      fade.addColorStop(0.9, 'rgba(0,0,0,1)');
+      fade.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.fillStyle = fade;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    this.drawLines(ctx, s, t, now);
+  }
+
+  private drawShore(ctx: CanvasRenderingContext2D) {
     // céu de fim de tarde e mata na margem
     const sky = ctx.createLinearGradient(0, 0, 0, WATER);
     sky.addColorStop(0, '#2a1f4a');
@@ -147,12 +194,9 @@ export class FishingWidget {
     for (let x = 0; x <= W; x += 16) ctx.lineTo(x, WATER - 12 - Math.abs(Math.sin(x * 0.07)) * 14);
     ctx.lineTo(W, WATER);
     ctx.fill();
-    // água
-    const water = ctx.createLinearGradient(0, WATER, 0, H);
-    water.addColorStop(0, s.shoalUntil ? '#1c6f8a' : '#1d4e6e');
-    water.addColorStop(1, '#0b2236');
-    ctx.fillStyle = water;
-    ctx.fillRect(0, WATER, W, H - WATER);
+  }
+
+  private drawWater(ctx: CanvasRenderingContext2D, s: FishingSnapshot, t: number) {
     // reflexos e ondinhas
     ctx.strokeStyle = 'rgba(255,190,140,0.25)';
     ctx.lineWidth = 1.5;
@@ -193,6 +237,9 @@ export class FishingWidget {
       }
     }
 
+  }
+
+  private drawLines(ctx: CanvasRenderingContext2D, s: FishingSnapshot, t: number, now: number) {
     // boias e linhas
     const tags: NameTag[] = [];
     const serverNow = Date.now() + this.clockOffset;
@@ -205,7 +252,13 @@ export class FishingWidget {
       const drop = Math.min(1, since / 0.4);
       const nib = since > 3 ? Math.max(0, Math.sin(t * 13 + slot)) * 3 : 0;
       const y = baseY - (1 - drop) * 40 + Math.sin(t * 3 + slot) * 1.5 + nib;
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      if (s.scene !== 'full') {
+        // sem céu, a linha surge do nada logo acima da água
+        const g = ctx.createLinearGradient(0, WATER - 40, 0, y);
+        g.addColorStop(0, 'rgba(255,255,255,0)');
+        g.addColorStop(1, 'rgba(255,255,255,0.6)');
+        ctx.strokeStyle = g;
+      } else ctx.strokeStyle = 'rgba(255,255,255,0.55)';
       ctx.lineWidth = 0.8;
       ctx.beginPath();
       ctx.moveTo(x + 40, 0);

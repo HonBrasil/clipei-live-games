@@ -1243,3 +1243,99 @@ select.input {
 .fish-cell.is-locked .fish-icon i::after {
   filter: brightness(0.2);
 }
+.screen-map-wrap {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.sm-seg {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+}
+.sm-seg button {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sm-seg button.on {
+  background: var(--red, #ff1f2d);
+  color: #fff;
+}
+.screen-map {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 6px;
+  aspect-ratio: 16 / 9;
+  padding: 8px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1b2233, #0d1018);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.sm-cell {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  border-radius: 9px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.sm-cell:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.07);
+}
+.sm-cell:focus-visible {
+  outline: 2px solid var(--red, #ff1f2d);
+  outline-offset: 2px;
+}
+.sm-cell b {
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.sm-cell.has-lake {
+  border: 1px solid #3aa7d6;
+  background: rgba(58, 167, 214, 0.18);
+}
+.sm-cell.has-rank {
+  border: 1px solid #ffc83d;
+  background: rgba(255, 200, 61, 0.16);
+}
+.sm-cell.is-off {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.sm-game {
+  border-style: solid;
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: default;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+}
+.sm-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}

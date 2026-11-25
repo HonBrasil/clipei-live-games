@@ -1415,3 +1415,158 @@ body.overlay-body {
     animation: none;
   }
 }
+
+/* Pescaria sem fundo: só a água, textos em pílulas para continuar legível em qualquer jogo */
+.fish-widget.is-clear .fw-card {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.fish-widget.is-clear .fw-head {
+  width: fit-content;
+  margin-bottom: -26px;
+  position: relative;
+  z-index: 1;
+  border-radius: 999px;
+  background: rgba(8, 14, 22, 0.72);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.fish-widget[data-corner='br'].is-clear .fw-head,
+.fish-widget[data-corner='tr'].is-clear .fw-head {
+  margin-left: auto;
+}
+.fish-widget.is-clear .fw-head kbd {
+  margin-left: 6px;
+}
+.fish-widget.is-clear .fw-feed {
+  padding: 4px 0 0;
+}
+.fish-widget.is-clear .fw-catch {
+  background: rgba(8, 14, 22, 0.8);
+}
+.fish-widget.is-clear .fw-catch.r-lendario {
+  background: linear-gradient(90deg, rgba(120, 90, 10, 0.92), rgba(8, 14, 22, 0.8));
+}
+.fish-widget.is-clear .fw-catch.r-epico {
+  background: linear-gradient(90deg, rgba(70, 40, 110, 0.9), rgba(8, 14, 22, 0.8));
+}
+.fish-widget.is-clear .fw-rank {
+  width: fit-content;
+  margin-top: 4px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgba(8, 14, 22, 0.72);
+}
+.fw-rank[hidden] {
+  display: none;
+}
+
+/* Ranking da pescaria solto na tela (posição escolhida no painel) */
+.fish-rank-widget {
+  position: absolute;
+  z-index: 5;
+  min-width: 230px;
+  max-width: 300px;
+  padding: 10px 12px 8px;
+  border-radius: 14px;
+  background: rgba(8, 14, 22, 0.88);
+  border: 1px solid rgba(120, 200, 255, 0.25);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-family: var(--font-body, Inter, sans-serif);
+  pointer-events: none;
+  animation: fw-in 0.35s ease-out;
+}
+.fish-rank-widget.is-clear {
+  background: rgba(8, 14, 22, 0.66);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+.fish-rank-widget[hidden] {
+  display: none;
+}
+.fish-rank-widget[data-pos^='t'] {
+  top: 24px;
+}
+.fish-rank-widget[data-pos^='b'] {
+  bottom: 24px;
+}
+.fish-rank-widget[data-pos^='m'] {
+  top: 50%;
+  translate: 0 -50%;
+}
+.fish-rank-widget[data-pos$='l'] {
+  left: 24px;
+}
+.fish-rank-widget[data-pos$='r'] {
+  right: 24px;
+}
+.fish-rank-widget[data-pos$='c'] {
+  left: 50%;
+  translate: -50% 0;
+}
+.fr-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.fr-head b {
+  font: italic 900 16px var(--font-display);
+}
+.fr-head span {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.fish-rank-widget ol {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fish-rank-widget li {
+  display: grid;
+  grid-template-columns: 26px 8px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+}
+.fish-rank-widget li em {
+  font-style: normal;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+.fish-rank-widget li i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.fish-rank-widget li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.fish-rank-widget li b {
+  color: #8fe3ff;
+  font-weight: 900;
+}
+.fish-rank-widget p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+}
+.fish-rank-widget kbd {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: #fff;
+  color: #0b0b0f;
+  font: italic 900 13px var(--font-display);
+}

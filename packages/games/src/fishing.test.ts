@@ -110,4 +110,13 @@ describe('Pescaria da Live', () => {
     expect(parseFishingChatCommand(chat('m', '!cardume', true))).toEqual({ type: 'shoal' });
     expect(parseFishingChatCommand(chat('v', '!cardume'))).toBeNull();
   });
+
+  it('ranking no mesmo canto do lago vira ranking junto do lago e respeita o top escolhido', () => {
+    const g = new FishingGame(null, () => {}, () => 0.5);
+    g.config = normalizeFishingConfig({ enabled: true, corner: 'br', rankPos: 'br', rankTop: 5, scene: 'full' });
+    const snap = g.snapshot();
+    expect(snap.rankPos).toBe('lake');
+    expect(snap.scene).toBe('full');
+    expect(normalizeFishingConfig({ rankPos: 'xx' as never, rankTop: 7 as never })).toMatchObject({ rankPos: 'lake', rankTop: 3, scene: 'transparent' });
+  });
 });

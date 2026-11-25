@@ -470,7 +470,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
     penalty: defaultGameSupport('penalty'),
     fishing: defaultGameSupport('fishing'),
   },
-  fishing: { enabled: false, cooldownSec: 60, corner: 'bl', announce: 'epico', hint: true },
+  fishing: { enabled: false, cooldownSec: 60, corner: 'bl', announce: 'epico', hint: true, scene: 'transparent', rankPos: 'lake', rankTop: 3 },
   penalty: {
     joinSec: 45,
     voteSec: 12,
@@ -1526,6 +1526,9 @@ export const FISH_SPECIES = [
 export type FishId = (typeof FISH_SPECIES)[number]['id'];
 
 export type FishingCorner = 'bl' | 'br' | 'tl' | 'tr';
+/** Onde fica o ranking: junto do lago, escondido ou num ponto da tela (grade 3×3 sem o centro). */
+export type FishingRankPos = 'lake' | 'off' | 'tl' | 'tc' | 'tr' | 'ml' | 'mr' | 'bl' | 'bc' | 'br';
+export const FISHING_RANK_POS: FishingRankPos[] = ['lake', 'off', 'tl', 'tc', 'tr', 'ml', 'mr', 'bl', 'bc', 'br'];
 
 export interface FishingConfig {
   /** A pescaria fica ligada a live inteira (pausa sozinha quando outro jogo começa). */
@@ -1538,6 +1541,12 @@ export interface FishingConfig {
   announce: 'raro' | 'epico' | 'lendario' | 'nunca';
   /** Mostrar o lembrete "🎣 !pescar" quando ninguém está pescando. */
   hint: boolean;
+  /** transparent = só a água, sem caixa nem céu (some dentro do jogo); full = cartão com céu e mata. */
+  scene: 'transparent' | 'full';
+  /** Onde o ranking da semana aparece. */
+  rankPos: FishingRankPos;
+  /** Quantas pessoas o ranking mostra. */
+  rankTop: 3 | 5 | 10;
 }
 
 export function normalizeFishingConfig(c: Partial<FishingConfig> | undefined): FishingConfig {
@@ -1548,6 +1557,9 @@ export function normalizeFishingConfig(c: Partial<FishingConfig> | undefined): F
     corner: (['bl', 'br', 'tl', 'tr'] as const).includes(c?.corner as FishingCorner) ? (c!.corner as FishingCorner) : 'bl',
     announce: (['raro', 'epico', 'lendario', 'nunca'] as const).includes(c?.announce as FishingConfig['announce']) ? c!.announce! : 'epico',
     hint: c?.hint !== false,
+    scene: c?.scene === 'full' ? 'full' : 'transparent',
+    rankPos: FISHING_RANK_POS.includes(c?.rankPos as FishingRankPos) ? (c!.rankPos as FishingRankPos) : 'lake',
+    rankTop: c?.rankTop === 5 || c?.rankTop === 10 ? c.rankTop : 3,
   };
 }
 
@@ -1586,6 +1598,8 @@ export interface FishingSnapshot {
   paused: boolean;
   corner: FishingCorner;
   hint: boolean;
+  scene: FishingConfig['scene'];
+  rankPos: FishingRankPos;
   serverNow: number;
   casters: FishingCaster[];
   /** últimas pescas (mais recente primeiro) */

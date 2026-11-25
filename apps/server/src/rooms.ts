@@ -986,6 +986,11 @@ export class Room {
   updateSettings(patch: unknown) {
     this.settings = mergeSettings(this.settings, patch);
     this.spawner.configure(this.settings.autoSpawn);
+    if (patch && typeof patch === 'object' && 'fishing' in patch) {
+      // posição, fundo e ranking mudam na hora no OBS
+      this.fishing.config = this.settings.fishing;
+      this.fishing.dirty = true;
+    }
     this.broadcast({ type: 'settings', settings: this.settings });
     this.broadcastStatus();
     this.onSettingsChange?.(this.settings);

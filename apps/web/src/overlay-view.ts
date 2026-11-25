@@ -172,6 +172,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
       </div>
     </section>
     <aside class="fish-widget" id="fish-widget" hidden></aside>
+    <aside class="fish-rank-widget" id="fish-rank" hidden></aside>
     <div class="idle-screen" id="idle-screen" hidden>
       <img src="${logo}" alt="" />
       <b>Aguardando o próximo jogo</b>
@@ -289,7 +290,7 @@ export function mountOverlay(stage: HTMLElement, opts: OverlayOptions = {}) {
   const brArena = new RoyaleArena($('br-canvas') as HTMLCanvasElement, sfx);
   const kiteArena = new KiteArena($('kite-canvas') as HTMLCanvasElement, sfx);
   const penArena = new PenaltyArena($('pen-canvas') as HTMLCanvasElement, sfx);
-  const fishWidget = new FishingWidget($('fish-widget'), sfx);
+  const fishWidget = new FishingWidget($('fish-widget'), $('fish-rank'), sfx);
   let penFull = true;
   /** O Pipa Combate também pode ocupar a tela inteira com o overlay sobreposto. */
   let kiteFull = true;

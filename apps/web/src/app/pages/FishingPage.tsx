@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FISH_RARITIES, FISH_RARITY_ORDER, FISH_SPECIES, type FishingConfig, type FishingRankRow, type FishingStats } from '@clipei/shared';
+import { FISH_RARITIES, FISH_RARITY_ORDER, FISH_SPECIES, type FishingConfig, type FishingCorner, type FishingRankPos, type FishingRankRow, type FishingStats } from '@clipei/shared';
 import { api, nf } from '../api.ts';
 import { Card, Check, Options, Switch } from '../components/ui.tsx';
 import { GameSupportCard } from '../components/GameSupport.tsx';
@@ -96,7 +96,7 @@ function MainTab({ reload }: { reload: () => void }) {
         <Card title="Pescaria no ar" right={<Switch label="Pescaria ligada" checked={cfg.enabled} onChange={(v) => set({ enabled: v })} />}>
           <p className="muted" style={{ marginTop: 0 }}>
             {cfg.enabled
-              ? 'Ligada: o lago aparece no canto do OBS quando alguém pesca. Se você abrir outro minigame, ela pausa sozinha e volta quando ele terminar.'
+              ? 'Ligada: o lago aparece no OBS quando alguém pesca. Se você abrir outro minigame, ela pausa sozinha e volta quando ele terminar.'
               : 'Desligada. Ligue para deixar o chat pescar a live inteira (seus mods também ligam com !pescaria ligar).'}
           </p>
           {cfg.enabled && busy && <p className="chat-error">{BUSY_TEXT[busy]} A pescaria está pausada até ele terminar.</p>}
@@ -121,21 +121,25 @@ function MainTab({ reload }: { reload: () => void }) {
           )}
           <p className="muted foot-note">Cardume: sorte e pontos em dobro e espera pela metade por alguns minutos. Também vem com raid, e os mods soltam com !cardume.</p>
         </Card>
-        <Card title="Onde aparece">
+        <Card title="Onde aparece" subtitle="Escolha o que mover e clique no lugar da tela">
+          <ScreenMap cfg={cfg} set={set} />
           <div className="field">
-            <span className="field-label">Canto do overlay</span>
+            <span className="field-label">Fundo do lago</span>
             <Options
               tight
-              name="fcorner"
-              value={cfg.corner}
-              onChange={(v) => set({ corner: v })}
+              name="fscene"
+              value={cfg.scene}
+              onChange={(v) => set({ scene: v })}
               options={[
-                { value: 'bl' as const, label: '↙ Inferior esquerdo' },
-                { value: 'br' as const, label: '↘ Inferior direito' },
-                { value: 'tl' as const, label: '↖ Superior esquerdo' },
-                { value: 'tr' as const, label: '↗ Superior direito' },
+                { value: 'transparent' as const, label: 'Transparente' },
+                { value: 'full' as const, label: 'Cenário completo' },
               ]}
             />
+            <small className="muted">Transparente mostra só a água por cima do jogo. Cenário completo é um cartão com céu e mata.</small>
+          </div>
+          <div className="field">
+            <span className="field-label">Pessoas no ranking</span>
+            <Options tight name="ftop" value={cfg.rankTop} onChange={(v) => set({ rankTop: v })} options={[3, 5, 10].map((v) => ({ value: v as 3 | 5 | 10, label: `Top ${v}` }))} />
           </div>
           <Check checked={cfg.hint} onChange={(v) => set({ hint: v })}>
             Mostrar o lembrete "🎣 !pescar" quando ninguém está pescando
@@ -179,6 +183,76 @@ function MainTab({ reload }: { reload: () => void }) {
           </div>
           <p className="muted foot-note">Chances de cada pesca sem sorte extra. Peixe mais pesado vale mais pontos.</p>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+const CELLS: (FishingRankPos | null)[] = ['tl', 'tc', 'tr', 'ml', null, 'mr', 'bl', 'bc', 'br'];
+const CORNERS: FishingCorner[] = ['tl', 'tr', 'bl', 'br'];
+const POS_LABEL: Record<string, string> = {
+  tl: 'no canto superior esquerdo',
+  tc: 'no topo, ao centro',
+  tr: 'no canto superior direito',
+  ml: 'na lateral esquerda',
+  mr: 'na lateral direita',
+  bl: 'no canto inferior esquerdo',
+  bc: 'embaixo, ao centro',
+  br: 'no canto inferior direito',
+};
+
+/** Mapa da tela do OBS: o streamer escolhe onde ficam o lago e o ranking clicando. */
+function ScreenMap({ cfg, set }: { cfg: FishingConfig; set: (p: Partial<FishingConfig>) => void }) {
+  const [moving, setMoving] = useState<'lake' | 'rank'>('rank');
+  const rankAt = cfg.rankPos === cfg.corner ? 'lake' : cfg.rankPos;
+  return (
+    <div className="screen-map-wrap">
+      <div className="sm-seg" role="radiogroup" aria-label="O que mover">
+        <button role="radio" aria-checked={moving === 'rank'} className={moving === 'rank' ? 'on' : ''} onClick={() => setMoving('rank')}>
+          🏆 Ranking
+        </button>
+        <button role="radio" aria-checked={moving === 'lake'} className={moving === 'lake' ? 'on' : ''} onClick={() => setMoving('lake')}>
+          🎣 Lago
+        </button>
+      </div>
+      <div className="screen-map" aria-label="Tela do OBS">
+        {CELLS.map((c, i) => {
+          if (!c)
+            return (
+              <span key={i} className="sm-cell sm-game">
+                seu jogo
+              </span>
+            );
+          const lake = cfg.corner === c;
+          const rank = rankAt === c || (lake && rankAt === 'lake' && cfg.rankPos !== 'off');
+          const can = moving === 'rank' || CORNERS.includes(c as FishingCorner);
+          return (
+            <button
+              key={c}
+              className={`sm-cell ${lake ? 'has-lake' : ''} ${rank && !lake ? 'has-rank' : ''} ${can ? '' : 'is-off'}`}
+              disabled={!can}
+              title={can ? `${moving === 'rank' ? 'Ranking' : 'Lago'} ${POS_LABEL[c]}` : 'O lago só fica nos cantos'}
+              onClick={() => (moving === 'rank' ? set({ rankPos: lake ? 'lake' : c }) : set({ corner: c as FishingCorner }))}
+            >
+              {lake && <b>🎣 Lago{rank ? ' + 🏆' : ''}</b>}
+              {rank && !lake && <b>🏆 Ranking</b>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="sm-foot">
+        <small className="muted">
+          {cfg.rankPos === 'off'
+            ? 'Ranking escondido no OBS (o chat ainda vê com !ranking).'
+            : rankAt === 'lake'
+              ? 'Ranking embaixo do lago, só aparece quando alguém pesca.'
+              : `Ranking fixo ${POS_LABEL[rankAt]}, sempre visível com a pescaria ligada.`}
+        </small>
+        {moving === 'rank' && (
+          <button className="btn sm" onClick={() => set({ rankPos: cfg.rankPos === 'off' ? 'lake' : 'off' })}>
+            {cfg.rankPos === 'off' ? 'Mostrar ranking' : 'Esconder ranking'}
+          </button>
+        )}
       </div>
     </div>
   );

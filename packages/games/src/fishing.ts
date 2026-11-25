@@ -345,11 +345,14 @@ export class FishingGame {
       paused,
       corner: this.config.corner,
       hint: this.config.hint,
+      scene: this.config.scene,
+      // ranking no mesmo canto do lago = junto do lago
+      rankPos: this.config.rankPos === this.config.corner ? 'lake' : this.config.rankPos,
       serverNow: now,
       casters: [...this.casts.values()].map<FishingCaster>((c) => ({ id: c.id, name: c.name, color: c.color, castAt: c.castAt, lucky: c.luck > 1.2 })),
       catches: this.recent.filter((r) => now - r.at < RECENT_MS),
       shoalUntil: now < this.shoalUntil ? this.shoalUntil : null,
-      week: this.rank('week', 3),
+      week: this.rank('week', this.config.rankTop ?? 3),
     };
   }
 

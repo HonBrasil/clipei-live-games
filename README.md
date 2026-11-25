@@ -326,4 +326,6 @@ Fica rodando a live inteira num canto do overlay, ao lado dos outros jogos (paus
 - Ranking semanal (semana ISO no horário de Brasília, zera segunda), pódio da semana passada, ranking geral e coleção do canal no painel.
 - O bot anuncia pescas a partir da raridade escolhida (lendário sempre com destaque).
 - Apoios editáveis: bits = isca rara, sub = vara de ouro, pontos = lançamento na hora, raid = cardume (`!cardume` pelos mods ou botão no painel): sorte e pontos em dobro e espera pela metade.
+- Fundo transparente por padrão (só a água por cima do jogo) ou cenário completo (cartão com céu e mata).
+- O ranking da semana pode ficar junto do lago, escondido ou fixo em 8 pontos da tela (Top 3, 5 ou 10). O painel tem um mapa da tela do OBS: escolha "Ranking" ou "Lago" e clique no lugar.
 - Persistência em `clipei_kv` com a chave `fish:<channelId>`.
