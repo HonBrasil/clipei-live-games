@@ -68,14 +68,7 @@ export function Connections() {
       <div className="grid" style={{ marginTop: 20 }}>
         <Card title="Outras plataformas">
           <div className="conn-list">
-            <div className="conn soon">
-              <div className="conn-logo kick">K</div>
-              <div className="conn-info">
-                <b>Kick</b>
-                <span>Integração pronta, liberada depois do lançamento</span>
-              </div>
-              <span className="tag soon">Em breve</span>
-            </div>
+            <KickRow />
             <div className="conn soon">
               <div className="conn-logo yt">▶</div>
               <div className="conn-info">
@@ -87,6 +80,88 @@ export function Connections() {
           </div>
         </Card>
       </div>
+    </>
+  );
+}
+
+/** Kick: conectar o canal (OAuth), status do chat pelo webhook e desconectar. */
+function KickRow() {
+  const { me, refresh, toast } = useApp();
+  const k = me?.kick;
+  const waiting = Boolean(k?.connected && !k.lastEventAt);
+  // conectado e ainda sem mensagem: confere a cada 5 s até o chat chegar
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(() => void refresh(), 5000);
+    return () => clearInterval(t);
+  }, [waiting, refresh]);
+  if (!me || !k) return null;
+
+  if (!k.configured) {
+    return (
+      <div className="conn soon">
+        <div className="conn-logo kick">K</div>
+        <div className="conn-info">
+          <b>Kick</b>
+          <span>Em preparação</span>
+        </div>
+        <span className="tag soon">Em breve</span>
+      </div>
+    );
+  }
+
+  if (!k.connected) {
+    return (
+      <div className="conn">
+        <div className="conn-logo kick">K</div>
+        <div className="conn-info">
+          <b>Kick</b>
+          <span>Entre na Kick com a sua conta de streamer e clique em Conectar</span>
+        </div>
+        <a className="btn sm kick" href="/api/auth/kick/login">
+          Conectar
+        </a>
+      </div>
+    );
+  }
+
+  const ago = k.lastEventAt ? Math.max(0, Math.round((Date.now() - k.lastEventAt) / 1000)) : null;
+  const agoText = ago === null ? '' : ago < 60 ? `há ${ago}s` : ago < 3600 ? `há ${Math.round(ago / 60)} min` : `há ${Math.round(ago / 3600)} h`;
+  return (
+    <>
+      <div className="conn">
+        <div className="conn-logo kick">K</div>
+        <div className="conn-info">
+          <b>Kick</b>
+          <span>
+            {k.name ?? k.slug}
+            {k.live ? ' · ao vivo' : ''}
+          </span>
+        </div>
+        <Status tone={k.problem ? '' : ago !== null ? 'ok' : 'wait'}>{k.problem ? 'Com problema' : ago !== null ? `Recebendo (${agoText})` : 'Mande uma mensagem no chat'}</Status>
+        {me.primary !== 'kick' && (
+          <button
+            className="btn sm"
+            onClick={async () => {
+              try {
+                await api('/api/auth/kick/disconnect', {});
+                toast('Kick desconectada.');
+                await refresh();
+              } catch (err) {
+                toast((err as Error).message, 'err');
+              }
+            }}
+          >
+            Desconectar
+          </button>
+        )}
+      </div>
+      {k.problem && <p className="chat-error">{k.problem}</p>}
+      {k.missingScopes.length > 0 && (
+        <p className="chat-error">
+          Faltam permissões da Kick. <a href="/api/auth/kick/login">Reconectar</a>
+        </p>
+      )}
     </>
   );
 }
