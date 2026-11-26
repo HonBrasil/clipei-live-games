@@ -661,8 +661,8 @@ export interface MeResponse {
   /** Assinatura do canal (null no modo demo). */
   billing: BillingView | null;
   founderSlotsLeft: number;
-  /** Pagamento pelo Mercado Pago ligado (com o Access Token no servidor). */
-  checkout: { enabled: boolean; test: boolean };
+  /** Pagamento online (InfinitePay) ligado; adminTest = mostra o botão de teste de R$ 1,00. */
+  checkout: { enabled: boolean; adminTest: boolean };
   channel: { id: string; login: string; displayName: string; avatar?: string } | null;
   overlayKey: string;
   twitch: {
@@ -852,22 +852,28 @@ export interface Subscription {
   founderNumber: number | null;
   /** Ativada pela equipe sem cobrança (não ocupa vaga de Fundador). */
   courtesy: boolean;
-  provider: 'manual' | 'mercadopago' | null;
+  provider: 'manual' | 'infinitepay' | null;
   /** Primeira vez que pagou. */
   since: number | null;
-  /** Pagamentos do Mercado Pago já processados (mais recentes primeiro, até 24). */
+  /** Pagamentos online já processados (mais recentes primeiro, até 24). */
   payments?: PaymentRecord[];
 }
 
-/** Um pagamento do Mercado Pago, como a Clipei registrou. */
+/** Um pagamento pela InfinitePay, como a Clipei registrou. */
 export interface PaymentRecord {
+  /** transaction_nsu da InfinitePay */
   id: string;
   cycle: BillingCycle;
+  /** valor cobrado, em reais */
   amount: number;
-  /** approved = liberou o período; refunded/charged_back = devolvido (período descontado). */
-  status: 'approved' | 'refunded' | 'charged_back';
+  /** approved = liberou o período; refunded = devolvido pelo admin (período descontado). */
+  status: 'approved' | 'refunded';
+  /** pix | credit_card */
   method: string | null;
+  installments: number;
+  receiptUrl: string | null;
   at: number;
+  /** pagamento de teste do admin (R$ 1,00) */
   test: boolean;
 }
 
@@ -884,7 +890,7 @@ export interface BillingView {
   daysLeft: number;
   /** Preço que essa conta paga no ciclo atual (null em teste/cortesia). */
   price: number | null;
-  /** Último pagamento pelo Mercado Pago. */
+  /** Último pagamento online (InfinitePay). */
   lastPayment: PaymentRecord | null;
 }
 

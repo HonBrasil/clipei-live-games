@@ -69,7 +69,7 @@ export function PrivacyPage() {
           <b>Uso da plataforma:</b> configurações dos jogos e do overlay, clips criados, histórico das partidas e dados da assinatura (plano, datas e status).
         </li>
         <li>
-          <b>Pagamentos:</b> são processados pelo Mercado Pago. A Clipei guarda só o número do pagamento, o valor, a forma de pagamento e a data; não recebe nem guarda dados de cartão.
+          <b>Pagamentos:</b> são processados pela InfinitePay (CloudWalk). A Clipei guarda só o número do pagamento, o valor, a forma de pagamento, a data e o link do comprovante; não recebe nem guarda dados de cartão.
         </li>
       </ul>
       <h3>Do público do chat</h3>
@@ -128,7 +128,7 @@ export function PrivacyPage() {
       <ul>
         <li>Supabase (banco de dados), Railway (servidor dos jogos) e Vercel (site e painel);</li>
         <li>Twitch, Kick e YouTube/Google, nas chamadas necessárias para ler o chat, receber apoios e publicar mensagens;</li>
-        <li>Mercado Pago, para pagamentos;</li>
+        <li>InfinitePay (CloudWalk), para pagamentos;</li>
         <li>autoridades, quando a lei exigir.</li>
       </ul>
       <p>Esses serviços podem guardar dados fora do Brasil, com as proteções previstas na LGPD.</p>
@@ -223,7 +223,7 @@ export function TermsPage() {
         </li>
         <li>Sem plano ativo, os jogos ficam pausados; configurações e histórico continuam salvos.</li>
         <li>
-          O pagamento é feito pelo Mercado Pago (Pix, cartão ou boleto). Cada pagamento libera 1 mês ou 12 meses, sem cobrança automática: para continuar, você renova
+          O pagamento é feito pela InfinitePay (Pix ou cartão de crédito em até 12x). Cada pagamento libera 1 mês ou 12 meses, sem cobrança automática: para continuar, você renova
           no painel. Renovar antes do fim soma ao período que você já tem.
         </li>
         <li>

@@ -63,51 +63,50 @@ describe('planos', () => {
   });
 });
 
-describe('Mercado Pago', () => {
-  const pay = (over: Record<string, unknown>) => async () =>
-    ({ id: 111, status: 'approved', status_detail: 'accredited', external_reference: null, transaction_amount: 0, currency_id: 'BRL', date_approved: '2026-11-25T12:00:00Z', live_mode: true, payment_type_id: 'bank_transfer', ...over }) as never;
+describe('InfinitePay', () => {
+  const paid = (over: Record<string, unknown> = {}) => async () => ({ success: true, paid: true, amount: 0, paid_amount: 0, installments: 1, capture_method: 'pix', ...over }) as never;
+  const ids = (orderNsu: string, t = 'tx-1') => ({ orderNsu, transactionNsu: t, slug: 'fatura1', receiptUrl: 'https://comprovante.exemplo/1' });
 
-  it('pagamento aprovado libera o período uma vez só, no valor certo e do canal certo', async () => {
-    mk('mp1');
-    const price = billing.checkoutPrice('mp1', 'monthly');
-    const ref = billing.paymentReference('mp1', 'monthly', price);
-    expect(billing.parseReference(ref)).toMatchObject({ channelId: 'mp1', cycle: 'monthly', price });
+  it('pagamento confirmado libera o período uma vez só, no valor certo e do canal certo', async () => {
+    mk('ip1');
+    const cents = Math.round(billing.checkoutPrice('ip1', 'monthly') * 100);
+    const ref = billing.paymentReference('ip1', 'monthly', cents);
+    expect(billing.parseReference(ref)).toMatchObject({ channelId: 'ip1', cycle: 'monthly', cents, test: false });
     // valor menor que o cobrado: não libera
-    expect(await billing.processPayment('111', undefined, pay({ external_reference: ref, transaction_amount: price - 1 }))).toMatchObject({ ok: false });
-    expect(billing.view('mp1')!.status).toBe('trial');
+    expect(await billing.processPayment(ids(ref), undefined, paid({ amount: cents - 100 }))).toMatchObject({ ok: false });
+    expect(billing.view('ip1')!.status).toBe('trial');
     // outro canal logado tentando confirmar: recusa
-    expect(await billing.processPayment('111', 'outro', pay({ external_reference: ref, transaction_amount: price }))).toMatchObject({ ok: false });
-    const out = await billing.processPayment('111', 'mp1', pay({ external_reference: ref, transaction_amount: price }));
-    expect(out).toMatchObject({ ok: true, result: 'activated', channelId: 'mp1' });
-    const v = billing.view('mp1')!;
+    expect(await billing.processPayment(ids(ref), 'outro', paid({ amount: cents }))).toMatchObject({ ok: false });
+    // a InfinitePay diz que não foi pago: fica pendente
+    expect(await billing.processPayment(ids(ref), 'ip1', paid({ amount: cents, paid: false }))).toMatchObject({ result: 'pending' });
+    const out = await billing.processPayment(ids(ref), 'ip1', paid({ amount: cents, paid_amount: cents + 50, installments: 3, capture_method: 'credit_card' }));
+    expect(out).toMatchObject({ ok: true, result: 'activated', channelId: 'ip1' });
+    const v = billing.view('ip1')!;
     expect(v.status).toBe('active');
-    expect(v.lastPayment).toMatchObject({ id: '111', amount: price, method: 'bank_transfer', status: 'approved' });
+    expect(v.lastPayment).toMatchObject({ id: 'tx-1', amount: cents / 100, method: 'credit_card', installments: 3, status: 'approved', test: false });
     const end = v.periodEnd!;
-    // webhook repetido não soma de novo
-    expect(await billing.processPayment('111', undefined, pay({ external_reference: ref, transaction_amount: price }))).toMatchObject({ result: 'already' });
-    expect(billing.view('mp1')!.periodEnd).toBe(end);
-    // estorno desconta o mês
-    expect(await billing.processPayment('111', undefined, pay({ external_reference: ref, transaction_amount: price, status: 'refunded' }))).toMatchObject({ result: 'refunded' });
-    expect(billing.view('mp1')!.periodEnd).toBe(addMonths(end, -1));
-    expect(billing.view('mp1')!.lastPayment?.status).toBe('refunded');
+    // webhook repetido não soma de novo (nem consulta a InfinitePay)
+    expect(await billing.processPayment(ids(ref), undefined, async () => { throw new Error('não deveria consultar'); })).toMatchObject({ result: 'already' });
+    expect(billing.view('ip1')!.periodEnd).toBe(end);
+    // devolução feita pelo admin desconta o mês
+    expect(billing.markRefunded('ip1', 'tx-1')).toBe(true);
+    expect(billing.view('ip1')!.periodEnd).toBe(addMonths(end, -1));
+    expect(billing.view('ip1')!.lastPayment?.status).toBe('refunded');
   });
 
-  it('pendente e pagamentos de fora da Clipei são ignorados', async () => {
-    mk('mp2');
-    const ref = billing.paymentReference('mp2', 'yearly', billing.checkoutPrice('mp2', 'yearly'));
-    expect(await billing.processPayment('222', undefined, pay({ id: 222, external_reference: ref, status: 'pending' }))).toMatchObject({ result: 'pending' });
-    expect(await billing.processPayment('333', undefined, pay({ id: 333, external_reference: 'pedido-123' }))).toMatchObject({ result: 'ignored' });
-    expect(billing.view('mp2')!.status).toBe('trial');
+  it('teste do admin (R$ 1,00) libera 1 mês e fica marcado; pedidos de fora são ignorados', async () => {
+    mk('ip2');
+    const ref = billing.paymentReference('ip2', 'yearly', billing.TEST_PRICE_CENTS, true);
+    expect(await billing.processPayment(ids(ref, 'tx-2'), 'ip2', paid({ amount: 100 }))).toMatchObject({ result: 'activated' });
+    expect(billing.view('ip2')!.lastPayment).toMatchObject({ test: true, cycle: 'monthly', amount: 1 });
+    expect(await billing.processPayment({ orderNsu: 'pedido-123', transactionNsu: 'x', slug: 'y' })).toMatchObject({ result: 'ignored' });
+    expect(await billing.processPayment({ orderNsu: ref, transactionNsu: 'a b', slug: 'y' })).toMatchObject({ ok: false });
   });
 
-  it('assinatura do webhook (x-signature)', async () => {
-    const { mpValidSignature } = await import('./mercadopago.ts');
-    const { createHmac } = await import('node:crypto');
-    const secret = 'segredo-teste';
-    const v1 = createHmac('sha256', secret).update('id:123456;request-id:abc-1;ts:1704908010;').digest('hex');
-    expect(mpValidSignature(`ts=1704908010,v1=${v1}`, 'abc-1', '123456', secret)).toBe(true);
-    expect(mpValidSignature(`ts=1704908010,v1=${v1}`, 'abc-2', '123456', secret)).toBe(false);
-    expect(mpValidSignature(undefined, 'abc-1', '123456', secret)).toBe(false);
-    expect(mpValidSignature(undefined, undefined, '1', '')).toBe(true);
+  it('acha a URL do link nos formatos de resposta conhecidos', async () => {
+    const { pickUrl } = await import('./infinitepay.ts');
+    expect(pickUrl({ url: 'https://checkout.infinitepay.io/x' })).toBe('https://checkout.infinitepay.io/x');
+    expect(pickUrl({ data: { link: 'https://checkout.infinitepay.io/y' } })).toBe('https://checkout.infinitepay.io/y');
+    expect(pickUrl({ ok: true })).toBeNull();
   });
 });

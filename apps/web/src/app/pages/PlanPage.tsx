@@ -8,11 +8,8 @@ import { useApp, useTick } from '../state.tsx';
 
 const fmtDate = (t: number) => new Date(t).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 const PAY_METHOD: Record<string, string> = {
-  bank_transfer: 'Pix',
+  pix: 'Pix',
   credit_card: 'cartão de crédito',
-  debit_card: 'cartão de débito',
-  ticket: 'boleto',
-  account_money: 'saldo Mercado Pago',
 };
 
 const fmtDateTime = (t: number) => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -22,27 +19,25 @@ export function PlanPage() {
   const [params, setParams] = useSearchParams();
   const [pending, setPending] = useState(false);
 
-  // volta do Mercado Pago: /app/plano?pagamento=aprovado&payment_id=…
+  // volta da InfinitePay: /app/plano?pagamento=retorno&order_nsu=…&transaction_nsu=…&slug=…&receipt_url=…
   useEffect(() => {
-    const st = params.get('pagamento');
-    if (!st) return;
-    const pid = params.get('payment_id') || params.get('collection_id');
+    if (!params.get('pagamento') && !params.get('order_nsu')) return;
+    const body = {
+      order_nsu: params.get('order_nsu') ?? '',
+      transaction_nsu: params.get('transaction_nsu') ?? '',
+      slug: params.get('slug') ?? '',
+      receipt_url: params.get('receipt_url') ?? '',
+    };
     setParams({}, { replace: true });
-    if (st === 'recusado') {
-      toast('O pagamento não foi aprovado. Dá para tentar de novo com outra forma de pagamento.', 'err');
-      return;
-    }
-    if (!pid || pid === 'null') {
-      if (st === 'pendente') setPending(true);
-      return;
-    }
-    api<{ result: string; billing: BillingView | null }>('/api/billing/confirm', { paymentId: pid })
+    if (!body.order_nsu || !body.transaction_nsu) return;
+    setPending(true);
+    api<{ result: string; billing: BillingView | null }>('/api/billing/confirm', body)
       .then((r) => {
         if (r.result === 'activated' || r.result === 'already') {
           toast('Pagamento aprovado! Sua assinatura está ativa 🎉', 'ok');
           setPending(false);
           void refresh();
-        } else if (r.result === 'pending') setPending(true);
+        }
       })
       .catch((err) => toast((err as Error).message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -55,11 +50,11 @@ export function PlanPage() {
   // Fundador paga com desconto; quem ainda não assinou também, enquanto houver vaga
   const discounted = b?.founderNumber != null || (me.founderSlotsLeft > 0 && !paying);
 
-  async function subscribe(cycle: BillingCycle) {
+  async function subscribe(cycle: BillingCycle, test = false) {
     if (!me?.channel) return;
     setBusy(cycle);
     try {
-      const { url } = await api<{ url: string }>('/api/billing/checkout', { cycle });
+      const { url } = await api<{ url: string }>('/api/billing/checkout', { cycle, test });
       location.href = url;
     } catch (err) {
       toast((err as Error).message);
@@ -118,8 +113,14 @@ export function PlanPage() {
                 {b.lastPayment && (
                   <span className="muted">
                     Último pagamento: {brl(b.lastPayment.amount)} em {fmtDate(b.lastPayment.at)}
-                    {b.lastPayment.method ? ` (${PAY_METHOD[b.lastPayment.method] ?? b.lastPayment.method})` : ''}
-                    {b.lastPayment.status !== 'approved' ? ' · devolvido' : ''}.
+                    {b.lastPayment.method ? ` (${PAY_METHOD[b.lastPayment.method] ?? b.lastPayment.method}${b.lastPayment.installments > 1 ? ` em ${b.lastPayment.installments}x` : ''})` : ''}
+                    {b.lastPayment.status !== 'approved' ? ' · devolvido' : ''}
+                    {b.lastPayment.test ? ' · teste' : ''}.{' '}
+                    {b.lastPayment.receiptUrl && (
+                      <a href={b.lastPayment.receiptUrl} target="_blank" rel="noreferrer">
+                        Ver comprovante
+                      </a>
+                    )}
                   </span>
                 )}
                 {!b.courtesy && b.daysLeft <= 7 && <span className="muted">Faltam {b.daysLeft} dias. Renove abaixo para não pausar os minigames.</span>}
@@ -142,12 +143,20 @@ export function PlanPage() {
         <div className="banner">
           <div className="grow">
             <b>Pagamento em processamento</b>
-            <span>Pix e boleto podem levar alguns minutos. Assim que o Mercado Pago confirmar, a assinatura ativa sozinha: pode fechar esta página.</span>
+            <span>Estamos conferindo o pagamento com a InfinitePay. Assim que ela confirmar, a assinatura ativa sozinha: pode fechar esta página.</span>
           </div>
         </div>
       )}
-      {me.checkout.test && (
-        <p className="muted foot-note">🧪 Mercado Pago em modo de teste: use as contas e cartões de teste do Mercado Pago.</p>
+      {me.checkout.adminTest && (
+        <div className="banner">
+          <div className="grow">
+            <b>🧪 Teste da integração (só admin)</b>
+            <span>A InfinitePay não tem ambiente de teste. Este botão cria um pagamento real de R$ 1,00 que libera 1 mês na sua conta e aparece marcado como teste.</span>
+          </div>
+          <button className="btn" disabled={busy !== null} onClick={() => void subscribe('monthly', true)}>
+            Pagar R$ 1,00 de teste
+          </button>
+        </div>
       )}
 
       {!paying && <FounderStrip left={me.founderSlotsLeft} />}
@@ -163,7 +172,7 @@ export function PlanPage() {
           ) : me.channel ? (
             <button className={`btn ${cycle === 'yearly' ? 'primary' : ''} block`} disabled={busy !== null} onClick={() => void subscribe(cycle)}>
               {busy === cycle
-                ? 'Abrindo o Mercado Pago…'
+                ? 'Abrindo o pagamento…'
                 : paying
                   ? `Renovar: +${planOffer(cycle).months === 1 ? '1 mês' : '12 meses'}`
                   : `Assinar ${planOffer(cycle).name.toLowerCase()}`}
@@ -176,7 +185,7 @@ export function PlanPage() {
         }
       />
       <p className="muted foot-note">
-        Pagamento por Pix, cartão ou boleto numa página segura do Mercado Pago (a Clipei não vê os dados do cartão). Cada pagamento libera 1 mês ou 1 ano, sem
+        Pagamento por Pix ou cartão (até 12x) numa página segura da InfinitePay (a Clipei não vê os dados do cartão). Cada pagamento libera 1 mês ou 1 ano, sem
         cobrança automática: para continuar depois, é só renovar aqui. Renovar antes do fim soma ao tempo que você já tem.
       </p>
     </>

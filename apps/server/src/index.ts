@@ -26,7 +26,7 @@ import {
 import { config, twitchConfigured } from './config.ts';
 import { flushStore, initStore, store, type StoredChannel } from './store.ts';
 import * as billing from './billing.ts';
-import { mpConfigured, mpTestMode, mpValidSignature } from './mercadopago.ts';
+import { ipConfigured } from './infinitepay.ts';
 import { RoomManager, type Room } from './rooms.ts';
 import {
   BOT_SCOPES,
@@ -875,70 +875,67 @@ app.get('/api/me', async (req): Promise<MeResponse> => {
     admin: isAdmin(ch),
     billing: ch ? billing.view(ch.id) : null,
     founderSlotsLeft: billing.founderSlotsLeft(),
-    checkout: { enabled: mpConfigured(), test: mpTestMode() },
+    checkout: { enabled: ipConfigured(), adminTest: ipConfigured() && !!ch && isAdmin(ch) },
   };
 });
 
 // ─── Planos ──────────────────────────────────────────────────
 
-app.post<{ Body: { cycle?: string } }>('/api/billing/checkout', async (req, reply) => {
+app.post<{ Body: { cycle?: string; test?: boolean } }>('/api/billing/checkout', async (req, reply) => {
   const ch = currentChannel(req);
-  if (!ch) return reply.code(401).send({ error: 'Entre com a Twitch para assinar.' });
+  if (!ch) return reply.code(401).send({ error: 'Entre com a sua conta para assinar.' });
   const cycle = req.body?.cycle === 'yearly' ? 'yearly' : 'monthly';
+  // teste de R$ 1,00: só para o admin conferir a integração (a InfinitePay não tem ambiente de teste)
+  const test = req.body?.test === true && isAdmin(ch);
   try {
-    const checkout = await billing.createCheckout(ch.id, cycle);
-    if (!checkout) return reply.code(503).send({ error: 'O pagamento pelo Mercado Pago chega em breve. Enquanto isso, fale com a equipe da Clipei para liberar sua assinatura.' });
+    const checkout = await billing.createCheckout(ch.id, cycle, test);
+    if (!checkout) return reply.code(503).send({ error: 'O pagamento online chega em breve. Enquanto isso, fale com a equipe da Clipei para liberar sua assinatura.' });
     return checkout;
   } catch (err) {
-    app.log.error({ err }, `mercado pago: falha ao abrir o checkout: ${(err as Error).message}`);
+    app.log.error({ err }, `infinitepay: falha ao abrir o checkout: ${(err as Error).message}`);
     return reply.code(502).send({ error: 'Não deu para abrir o pagamento agora. Tente de novo em instantes.' });
   }
 });
 
-/** Volta do checkout: confere o pagamento na hora (sem esperar o webhook). */
-app.post<{ Body: { paymentId?: string } }>('/api/billing/confirm', async (req, reply) => {
+type IpReturn = { order_nsu?: string; transaction_nsu?: string; slug?: string; invoice_slug?: string; receipt_url?: string };
+const ipRef = (b: IpReturn) => ({ orderNsu: b.order_nsu, transactionNsu: b.transaction_nsu, slug: b.slug ?? b.invoice_slug, receiptUrl: b.receipt_url ?? null });
+
+/** Volta do checkout (/app/plano?order_nsu=…&transaction_nsu=…&slug=…): confere na hora, sem esperar o webhook. */
+app.post<{ Body: IpReturn }>('/api/billing/confirm', async (req, reply) => {
   const ch = currentChannel(req);
   if (!ch) return reply.code(401).send({ error: 'Entre para continuar.' });
-  if (!mpConfigured()) return reply.code(503).send({ error: 'Mercado Pago não configurado.' });
-  const id = String(req.body?.paymentId ?? '');
+  if (!ipConfigured()) return reply.code(503).send({ error: 'Pagamento online não configurado.' });
   try {
-    const out = await billing.processPayment(id, ch.id);
+    const out = await billing.processPayment(ipRef(req.body ?? {}), ch.id);
     if (!out.ok) return reply.code(400).send({ error: 'Não reconhecemos esse pagamento para o seu canal.' });
     if (out.result === 'activated') onPaid(ch.id);
-    return { result: out.result, status: out.status ?? null, billing: billing.view(ch.id) };
+    return { result: out.result, billing: billing.view(ch.id) };
   } catch (err) {
-    app.log.warn({ err }, `mercado pago: falha ao conferir pagamento ${id}: ${(err as Error).message}`);
-    return reply.code(502).send({ error: 'Ainda não deu para confirmar o pagamento. Ele aparece aqui sozinho assim que o Mercado Pago avisar.' });
+    app.log.warn({ err }, `infinitepay: falha ao conferir pagamento: ${(err as Error).message}`);
+    return reply.code(502).send({ error: 'Ainda não deu para confirmar o pagamento. Ele aparece aqui sozinho assim que a InfinitePay avisar.' });
   }
 });
 
 /**
- * Webhook do Mercado Pago (configure em Suas integrações → Webhooks, evento "Pagamentos").
- * Aceita o formato novo (?data.id=…&type=payment) e o antigo (?topic=payment&id=…).
+ * Webhook da InfinitePay (o endereço vai em cada link criado). Não tem assinatura:
+ * todo aviso é conferido em /payment_check antes de liberar. Fora de 2xx, a InfinitePay tenta de novo.
  */
-app.post<{ Querystring: Record<string, string>; Body: { type?: string; action?: string; data?: { id?: string | number } } }>(
-  '/api/webhooks/mercadopago',
-  async (req, reply) => {
-    const q = req.query ?? {};
-    const type = q.type ?? q.topic ?? req.body?.type ?? '';
-    const dataId = String(q['data.id'] ?? q.id ?? req.body?.data?.id ?? '');
-    if (!mpValidSignature(req.headers['x-signature'] as string | undefined, req.headers['x-request-id'] as string | undefined, String(q['data.id'] ?? dataId))) {
-      app.log.warn(`mercado pago: assinatura inválida no webhook (id ${dataId})`);
-      return reply.code(401).send({ ok: false });
-    }
-    if (type !== 'payment' || !dataId || !mpConfigured()) return { ok: true, ignored: true };
-    try {
-      const out = await billing.processPayment(dataId);
-      if (out.ok && out.result === 'activated' && out.channelId) onPaid(out.channelId);
-      app.log.info(`mercado pago: pagamento ${dataId} → ${out.ok ? out.result : `erro: ${out.error}`}`);
-      return { ok: true };
-    } catch (err) {
-      // 500 = o Mercado Pago tenta de novo mais tarde
-      app.log.error({ err }, `mercado pago: falha ao processar pagamento ${dataId}: ${(err as Error).message}`);
-      return reply.code(500).send({ ok: false });
-    }
-  },
-);
+app.post<{ Body: IpReturn }>('/api/webhooks/infinitepay', async (req, reply) => {
+  const body = req.body ?? {};
+  if (!ipConfigured() || !body.order_nsu) return { ok: true, ignored: true };
+  try {
+    const out = await billing.processPayment(ipRef(body));
+    if (out.ok && out.result === 'activated' && out.channelId) onPaid(out.channelId);
+    app.log.info(`infinitepay: pedido ${String(body.order_nsu).slice(0, 60)} → ${out.ok ? out.result : `erro: ${out.error}`}`);
+    if (!out.ok) return reply.code(400).send({ ok: false });
+    // ainda não confirmado na InfinitePay: pede para avisar de novo
+    if (out.result === 'pending') return reply.code(400).send({ ok: false, pending: true });
+    return { ok: true };
+  } catch (err) {
+    app.log.error({ err }, `infinitepay: falha ao processar o webhook: ${(err as Error).message}`);
+    return reply.code(500).send({ ok: false });
+  }
+});
 
 /** Pagamento aprovado: atualiza o painel do canal e libera os jogos na hora. */
 function onPaid(channelId: string) {
@@ -954,7 +951,12 @@ app.post<{ Body: { channelId?: string; action?: string } }>('/api/admin/subscrip
   else if (action === 'courtesy') billing.activate(id, 'monthly', { courtesy: true });
   else if (action === 'trial7') billing.extendTrial(id, 7);
   else if (action === 'expire') billing.expire(id);
-  else return reply.code(400).send({ error: 'Ação inválida' });
+  else if (action === 'refund') {
+    // a devolução em si é feita no app/conta da InfinitePay; aqui só desconta o período
+    const last = store.subscription(id)?.payments?.find((r) => r.status === 'approved');
+    if (!last || !billing.markRefunded(id, last.id)) return reply.code(400).send({ error: 'Nenhum pagamento online para marcar como devolvido' });
+  } else return reply.code(400).send({ error: 'Ação inválida' });
+  rooms.byChannelId(id)?.billingChanged();
   return { ok: true, billing: billing.view(id) };
 });
 

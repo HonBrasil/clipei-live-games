@@ -44,11 +44,11 @@ export const config = {
     clientSecret: env.KICK_CLIENT_SECRET ?? '',
     redirectUri: env.KICK_REDIRECT_URI ?? 'http://localhost:3000/api/auth/kick/callback',
   },
-  /** Mercado Pago (Checkout Pro). Sem o Access Token, o botão de assinar avisa "em breve". */
-  mercadopago: {
-    accessToken: (env.MP_ACCESS_TOKEN ?? '').trim(),
-    webhookSecret: (env.MP_WEBHOOK_SECRET ?? '').trim(),
-    notificationUrl: (env.MP_NOTIFICATION_URL ?? '').trim(),
+  /** InfinitePay (Checkout Integrado). Sem o handle, o botão de assinar avisa "em breve". */
+  infinitepay: {
+    handle: (env.INFINITEPAY_HANDLE ?? '').trim().replace(/^\$/, ''),
+    apiKey: (env.INFINITEPAY_API_KEY ?? '').trim(),
+    webhookUrl: (env.INFINITEPAY_WEBHOOK_URL ?? '').trim(),
   },
   https:
     env.HTTPS_KEY && env.HTTPS_CERT
