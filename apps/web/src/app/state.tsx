@@ -101,6 +101,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (msg.type === 'penalty') setPenalty({ ...msg.state, events: [] });
         if (msg.type === 'fishing') setFishing(msg.state);
         if (msg.type === 'loop') setLoop(msg.state);
+        if (msg.type === 'billing') void refresh();
         if (msg.type === 'defense') setDefense((d) => ({ ...msg.state, roster: msg.state.roster ?? d?.roster ?? null, fx: [] }));
         if (msg.type === 'race') setRace((r) => ({ ...msg.state, roster: msg.state.roster ?? (r && r.rosterVersion === msg.state.rosterVersion ? r.roster : r?.roster) }));
         if (msg.type === 'room') {

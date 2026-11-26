@@ -26,6 +26,7 @@ import {
 import { config, twitchConfigured } from './config.ts';
 import { flushStore, initStore, store, type StoredChannel } from './store.ts';
 import * as billing from './billing.ts';
+import { mpConfigured, mpTestMode, mpValidSignature } from './mercadopago.ts';
 import { RoomManager, type Room } from './rooms.ts';
 import {
   BOT_SCOPES,
@@ -874,6 +875,7 @@ app.get('/api/me', async (req): Promise<MeResponse> => {
     admin: isAdmin(ch),
     billing: ch ? billing.view(ch.id) : null,
     founderSlotsLeft: billing.founderSlotsLeft(),
+    checkout: { enabled: mpConfigured(), test: mpTestMode() },
   };
 });
 
@@ -883,10 +885,65 @@ app.post<{ Body: { cycle?: string } }>('/api/billing/checkout', async (req, repl
   const ch = currentChannel(req);
   if (!ch) return reply.code(401).send({ error: 'Entre com a Twitch para assinar.' });
   const cycle = req.body?.cycle === 'yearly' ? 'yearly' : 'monthly';
-  const checkout = await billing.createCheckout(ch.id, cycle);
-  if (!checkout) return reply.code(503).send({ error: 'O pagamento pelo Mercado Pago chega em breve. Enquanto isso, fale com a equipe da Clipei para liberar sua assinatura.' });
-  return checkout;
+  try {
+    const checkout = await billing.createCheckout(ch.id, cycle);
+    if (!checkout) return reply.code(503).send({ error: 'O pagamento pelo Mercado Pago chega em breve. Enquanto isso, fale com a equipe da Clipei para liberar sua assinatura.' });
+    return checkout;
+  } catch (err) {
+    app.log.error({ err }, `mercado pago: falha ao abrir o checkout: ${(err as Error).message}`);
+    return reply.code(502).send({ error: 'Não deu para abrir o pagamento agora. Tente de novo em instantes.' });
+  }
 });
+
+/** Volta do checkout: confere o pagamento na hora (sem esperar o webhook). */
+app.post<{ Body: { paymentId?: string } }>('/api/billing/confirm', async (req, reply) => {
+  const ch = currentChannel(req);
+  if (!ch) return reply.code(401).send({ error: 'Entre para continuar.' });
+  if (!mpConfigured()) return reply.code(503).send({ error: 'Mercado Pago não configurado.' });
+  const id = String(req.body?.paymentId ?? '');
+  try {
+    const out = await billing.processPayment(id, ch.id);
+    if (!out.ok) return reply.code(400).send({ error: 'Não reconhecemos esse pagamento para o seu canal.' });
+    if (out.result === 'activated') onPaid(ch.id);
+    return { result: out.result, status: out.status ?? null, billing: billing.view(ch.id) };
+  } catch (err) {
+    app.log.warn({ err }, `mercado pago: falha ao conferir pagamento ${id}: ${(err as Error).message}`);
+    return reply.code(502).send({ error: 'Ainda não deu para confirmar o pagamento. Ele aparece aqui sozinho assim que o Mercado Pago avisar.' });
+  }
+});
+
+/**
+ * Webhook do Mercado Pago (configure em Suas integrações → Webhooks, evento "Pagamentos").
+ * Aceita o formato novo (?data.id=…&type=payment) e o antigo (?topic=payment&id=…).
+ */
+app.post<{ Querystring: Record<string, string>; Body: { type?: string; action?: string; data?: { id?: string | number } } }>(
+  '/api/webhooks/mercadopago',
+  async (req, reply) => {
+    const q = req.query ?? {};
+    const type = q.type ?? q.topic ?? req.body?.type ?? '';
+    const dataId = String(q['data.id'] ?? q.id ?? req.body?.data?.id ?? '');
+    if (!mpValidSignature(req.headers['x-signature'] as string | undefined, req.headers['x-request-id'] as string | undefined, String(q['data.id'] ?? dataId))) {
+      app.log.warn(`mercado pago: assinatura inválida no webhook (id ${dataId})`);
+      return reply.code(401).send({ ok: false });
+    }
+    if (type !== 'payment' || !dataId || !mpConfigured()) return { ok: true, ignored: true };
+    try {
+      const out = await billing.processPayment(dataId);
+      if (out.ok && out.result === 'activated' && out.channelId) onPaid(out.channelId);
+      app.log.info(`mercado pago: pagamento ${dataId} → ${out.ok ? out.result : `erro: ${out.error}`}`);
+      return { ok: true };
+    } catch (err) {
+      // 500 = o Mercado Pago tenta de novo mais tarde
+      app.log.error({ err }, `mercado pago: falha ao processar pagamento ${dataId}: ${(err as Error).message}`);
+      return reply.code(500).send({ ok: false });
+    }
+  },
+);
+
+/** Pagamento aprovado: atualiza o painel do canal e libera os jogos na hora. */
+function onPaid(channelId: string) {
+  rooms.byChannelId(channelId)?.billingChanged();
+}
 
 app.post<{ Body: { channelId?: string; action?: string } }>('/api/admin/subscription', async (req, reply) => {
   if (!isAdmin(currentChannel(req))) return reply.code(403).send({ error: 'Só administradores da Clipei' });

@@ -219,7 +219,7 @@ export function Admin() {
           )}
         </Card>
       </div>
-      <p className="muted foot-note">Até o Mercado Pago entrar, registre aqui os pagamentos recebidos: o período soma ao que já existe e os 10 primeiros pagantes viram Fundadores automaticamente.</p>
+      <p className="muted foot-note">Pagamentos pelo Mercado Pago entram sozinhos (💳 na coluna do plano). Use as ações só para pagamentos feitos por fora: o período soma ao que já existe e os 10 primeiros pagantes viram Fundadores automaticamente.</p>
     </>
   );
 }
@@ -232,6 +232,13 @@ function PlanCell({ b }: { b: BillingView }) {
       <span className={`plan-chip ${b.status}`}>{label}</span>
       {b.founderNumber != null && <FounderBadge n={b.founderNumber} small />}
       <small>{b.status === 'expired' ? 'sem acesso' : `até ${new Date(until!).toLocaleDateString('pt-BR')}`}</small>
+      {b.lastPayment && (
+        <small title={`Pagamento ${b.lastPayment.id} no Mercado Pago`}>
+          💳 {b.lastPayment.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em {new Date(b.lastPayment.at).toLocaleDateString('pt-BR')}
+          {b.lastPayment.status !== 'approved' ? ' · devolvido' : ''}
+          {b.lastPayment.test ? ' · teste' : ''}
+        </small>
+      )}
     </div>
   );
 }

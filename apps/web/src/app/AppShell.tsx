@@ -133,6 +133,17 @@ export function AppShell() {
               </Link>
             </div>
           )}
+          {me.billing?.status === 'active' && !me.billing.courtesy && me.billing.daysLeft <= 3 && pathname !== '/app/plano' && (
+            <div className="banner warn">
+              <div className="grow">
+                <b>{me.billing.daysLeft <= 1 ? 'Sua assinatura vence amanhã' : `Sua assinatura vence em ${me.billing.daysLeft} dias`}</b>
+                <span>O pagamento não é automático: renove para os minigames não pausarem. Renovar antes soma ao tempo que você já tem.</span>
+              </div>
+              <Link className="btn primary" to="/app/plano">
+                Renovar
+              </Link>
+            </div>
+          )}
           {me.billing?.status === 'trial' && me.billing.daysLeft <= 2 && pathname !== '/app/plano' && (
             <div className="banner warn">
               <div className="grow">

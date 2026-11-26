@@ -193,7 +193,7 @@ Um plano só, com tudo liberado:
 - **Fundadores:** os 10 primeiros pagantes ganham o selo FUNDADOR #n para sempre e 20% de desconto em todas as renovações. Cortesias não ocupam vaga.
 - **Quando o teste ou a assinatura vence:** nenhum boss novo começa (painel, `!boss` no chat e boss automático). A luta em andamento termina normalmente, e configurações, overlay e histórico ficam salvos.
 - **Admin → Canais conectados → Ações:** registrar pagamento mensal ou anual (o período soma ao que já existe), dar cortesia, dar +7 dias de teste ou encerrar o acesso.
-- **Mercado Pago:** entra em `apps/server/src/billing.ts`. `createCheckout()` abre o pagamento e o webhook de pagamento aprovado chama `activate(canal, ciclo, { provider: 'mercadopago' })`.
+- **Mercado Pago (Checkout Pro):** `apps/server/src/mercadopago.ts` + `billing.ts`. Cada pagamento (Pix, cartão até 12x no anual, boleto) libera 1 ou 12 meses, sem cobrança automática; renovar antes soma ao período. Fluxo: `POST /api/billing/checkout` cria a preferência (preço com desconto de Fundador, referência `clipei|canal|ciclo|preço|aleatório`) → o streamer paga no Mercado Pago → volta em `/app/plano?pagamento=…&payment_id=…`, que chama `POST /api/billing/confirm` → e o webhook `POST /api/webhooks/mercadopago` (evento Pagamentos) confirma também. Os dois consultam o pagamento na API do Mercado Pago, conferem valor, moeda e canal, e não somam duas vezes. Estorno/contestação desconta o período. Variáveis: `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET` (valida o `x-signature`), `MP_NOTIFICATION_URL` (opcional). Sem o token, o botão mostra "Pagamento online em breve".
 
 ## Produção (Vercel + servidor do jogo + Supabase)
 

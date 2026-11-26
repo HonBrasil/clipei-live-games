@@ -604,6 +604,8 @@ export type ServerMessage =
   | { type: 'penalty'; state: PenaltySnapshot }
   | { type: 'fishing'; state: FishingSnapshot }
   | { type: 'loop'; state: LoopSnapshot }
+  /** A assinatura mudou (pagamento aprovado): o painel recarrega a conta. */
+  | { type: 'billing' }
   | { type: 'defense'; state: DefenseSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
@@ -659,6 +661,8 @@ export interface MeResponse {
   /** Assinatura do canal (null no modo demo). */
   billing: BillingView | null;
   founderSlotsLeft: number;
+  /** Pagamento pelo Mercado Pago ligado (com o Access Token no servidor). */
+  checkout: { enabled: boolean; test: boolean };
   channel: { id: string; login: string; displayName: string; avatar?: string } | null;
   overlayKey: string;
   twitch: {
@@ -851,6 +855,20 @@ export interface Subscription {
   provider: 'manual' | 'mercadopago' | null;
   /** Primeira vez que pagou. */
   since: number | null;
+  /** Pagamentos do Mercado Pago já processados (mais recentes primeiro, até 24). */
+  payments?: PaymentRecord[];
+}
+
+/** Um pagamento do Mercado Pago, como a Clipei registrou. */
+export interface PaymentRecord {
+  id: string;
+  cycle: BillingCycle;
+  amount: number;
+  /** approved = liberou o período; refunded/charged_back = devolvido (período descontado). */
+  status: 'approved' | 'refunded' | 'charged_back';
+  method: string | null;
+  at: number;
+  test: boolean;
 }
 
 export type SubscriptionStatus = 'trial' | 'active' | 'expired';
@@ -866,6 +884,8 @@ export interface BillingView {
   daysLeft: number;
   /** Preço que essa conta paga no ciclo atual (null em teste/cortesia). */
   price: number | null;
+  /** Último pagamento pelo Mercado Pago. */
+  lastPayment: PaymentRecord | null;
 }
 
 export function newTrial(now = Date.now()): Subscription {
@@ -890,6 +910,7 @@ export function billingView(sub: Subscription, now = Date.now()): BillingView {
     courtesy: sub.courtesy,
     daysLeft: status === 'expired' ? 0 : Math.max(0, Math.ceil((end - now) / DAY)),
     price: sub.cycle && !sub.courtesy ? offerPrice(sub.cycle, sub.founderNumber != null) : null,
+    lastPayment: sub.payments?.[0] ?? null,
   };
 }
 

@@ -1361,6 +1361,12 @@ export class Room {
     for (const ws of this.sockets) if (ws.readyState === 1) ws.send(raw);
   }
 
+  /** Pagamento aprovado/estornado: avisa o painel para recarregar a assinatura. */
+  billingChanged() {
+    for (const ws of this.sockets) if (this.panels.has(ws)) this.send(ws, { type: 'billing' });
+    this.broadcastStatus();
+  }
+
   private broadcastStatus() {
     this.lastStatusAt = Date.now();
     this.broadcast({ type: 'room', status: this.status() });
