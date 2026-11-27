@@ -16,6 +16,7 @@ import {
   type RoyaleConfig,
   type KiteConfig,
   type DefenseConfig,
+  type TermoConfig,
   type PenaltyConfig,
   type BossPresetKey,
   type MeResponse,
@@ -412,6 +413,7 @@ function roomFor(ch: StoredChannel): Room {
   // pescaria com progresso salvo no banco (uma vez por sala)
   if (!room.fishingBound) {
     room.fishing = new FishingGame(store.getFishing(ch.id), (f) => store.saveFishing(ch.id, f));
+    room.termoSave = { get: () => store.getTermo(ch.id), set: (t) => store.saveTermo(ch.id, t) };
     room.fishingBound = true;
   }
   let fishingWasOn = room.getSettings().fishing.enabled;
@@ -994,6 +996,7 @@ app.post<{ Body: Partial<Omit<BossConfig, 'skin'>> & { preset?: BossPresetKey | 
   if (room.kite?.isActive) return reply.code(409).send({ error: 'Tem um Pipa Combate no céu. Espere terminar para invocar o boss.' });
   if (room.penalty?.isActive) return reply.code(409).send({ error: 'Tem uma disputa de pênaltis rolando. Espere terminar para invocar o boss.' });
   if (room.defense?.isActive) return reply.code(409).send({ error: 'Tem uma Defesa da Base rolando. Espere terminar para invocar o boss.' });
+  if (room.termo?.isActive) return reply.code(409).send({ error: 'Tem um Termo do Chat rolando. Espere terminar para invocar o boss.' });
   const started = room.startBoss(cfg, hpMode);
   return { ok: true, config: started, hpMode };
 });
@@ -1060,6 +1063,20 @@ app.post<{ Body: Partial<KiteConfig> }>('/api/kite/start', async (req, reply) =>
   if (!res.ok) return reply.code(409).send({ error: res.error });
   return res;
 });
+
+app.post<{ Body: Partial<TermoConfig> }>('/api/termo/start', async (req, reply) => {
+  const room = currentRoom(req);
+  if (!room.entitled()) return reply.code(402).send({ error: 'Seu teste acabou. Assine um plano para voltar a jogar.' });
+  const res = room.startTermo(req.body && Object.keys(req.body).length ? req.body : undefined);
+  if (!res.ok) return reply.code(409).send({ error: res.error });
+  return res;
+});
+
+app.post('/api/termo/skip', async (req) => ({ ok: currentRoom(req).skipTermo() }));
+
+app.post('/api/termo/stop', async (req) => ({ ok: currentRoom(req).stopTermo() }));
+
+app.get('/api/termo/ranking', async (req) => currentRoom(req).termoWeek());
 
 app.post<{ Body: Partial<DefenseConfig> }>('/api/defense/start', async (req, reply) => {
   const room = currentRoom(req);

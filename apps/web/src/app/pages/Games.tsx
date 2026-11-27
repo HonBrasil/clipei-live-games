@@ -65,6 +65,14 @@ export function Games() {
                   </div>
                 ) : g.id === 'race' ? (
                   <TrackArt />
+                ) : g.id === 'termo' ? (
+                  <span className="g-termo" aria-hidden="true">
+                    <i className="g">T</i>
+                    <i className="y">E</i>
+                    <i className="g">R</i>
+                    <i className="b">M</i>
+                    <i className="g">O</i>
+                  </span>
                 ) : g.id === 'defense' ? (
                   <DefenseArt />
                 ) : g.id === 'fishing' ? (

@@ -15,6 +15,14 @@ import {
   RoyaleGame,
   KiteGame,
   DefenseGame,
+  TermoGame,
+  parseTermoChatCommand,
+  termoHelpText,
+  termoStartAnnouncement,
+  termoWinAnnouncement,
+  termoTimeoutAnnouncement,
+  termoResultAnnouncement,
+  type TermoSave,
   parseDefenseChatCommand,
   defenseHelpText,
   defenseOpenAnnouncement,
@@ -85,6 +93,9 @@ import {
   type RoyaleConfig,
   type KiteConfig,
   type DefenseConfig,
+  type TermoConfig,
+  type TermoSnapshot,
+  type TermoStatus,
   type DefenseSnapshot,
   type DefenseStatus,
   type PenaltyConfig,
@@ -164,6 +175,9 @@ export class Room {
   royale: RoyaleGame | null = null;
   kite: KiteGame | null = null;
   defense: DefenseGame | null = null;
+  termo: TermoGame | null = null;
+  /** ranking da semana do Termo (o index liga ao banco) */
+  termoSave: { get: () => TermoSave | null; set: (s: TermoSave) => void } | null = null;
   penalty: PenaltyGame | null = null;
   /** Pescaria: roda junto, a live inteira (pausa quando outro jogo começa). O servidor troca pela versão com progresso salvo. */
   fishing = new FishingGame(null);
@@ -204,6 +218,9 @@ export class Room {
   private lastRoyaleAt = 0;
   private kiteStatus: KiteStatus = 'idle';
   private defenseStatus: DefenseStatus = 'idle';
+  private termoStatus: TermoStatus = 'idle';
+  private termoRound = 0;
+  private lastTermoAt = 0;
   private lastDefenseAt = 0;
   private defenseDangerSaid = false;
   private penaltyStatus: PenaltyStatus = 'idle';
@@ -230,6 +247,12 @@ export class Room {
         const x = Math.random();
         if (pg.status === 'lobby') return x < 0.35 ? '!a' : x < 0.7 ? '!b' : 'chatter';
         return x < 0.2 ? '!esq' : x < 0.35 ? '!meio' : x < 0.55 ? '!dir' : 'chatter';
+      }
+      const tg = this.termo;
+      if (tg?.isActive) {
+        if (tg.status !== 'playing' || Math.random() < 0.6) return 'chatter';
+        const pool = ['casal', 'porta', 'terra', 'sonho', 'livro', 'praia', 'campo', 'tempo', 'carro', 'nuvem', 'festa', 'plano'];
+        return Math.random() < 0.04 ? `!t ${tg.answer}` : `!t ${pool[Math.floor(Math.random() * pool.length)]}`;
       }
       const dg = this.defense;
       if (dg?.isActive) {
@@ -276,7 +299,7 @@ export class Room {
   }
 
   /** Só um minigame por vez na tela. */
-  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | null {
+  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | null {
     if (this.game?.isRunning) return 'boss';
     if (this.race?.isActive) return 'race';
     if (this.duel?.isActive) return 'duel';
@@ -284,11 +307,12 @@ export class Room {
     if (this.kite?.isActive) return 'kite';
     if (this.penalty?.isActive) return 'penalty';
     if (this.defense?.isActive) return 'defense';
+    if (this.termo?.isActive) return 'termo';
     return null;
   }
 
   private busyText(busy: NonNullable<ReturnType<Room['activeGame']>>) {
-    const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando', defense: 'uma Defesa da Base rolando' }[busy];
+    const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando', defense: 'uma Defesa da Base rolando', termo: 'um Termo do Chat rolando' }[busy];
     return `Tem ${what}. Um jogo por vez: espere terminar.`;
   }
 
@@ -362,6 +386,8 @@ export class Room {
         return this.startPenalty().ok;
       case 'defense':
         return this.startDefense().ok;
+      case 'termo':
+        return this.startTermo().ok;
     }
   }
 
@@ -460,6 +486,77 @@ export class Room {
   private broadcastFishing() {
     this.lastFishingAt = Date.now();
     this.broadcast({ type: 'fishing', state: this.fishing.snapshot(Date.now(), this.fishingPaused) });
+  }
+
+  // ─── Termo do Chat ─────────────────────────────────────────
+
+  startTermo(patch?: Partial<TermoConfig>) {
+    const busy = this.activeGame();
+    if (busy) return { ok: false as const, error: this.busyText(busy) };
+    if (patch) this.updateSettings({ termo: patch });
+    this.termo = new TermoGame(this.settings.termo, this.termoSave?.get() ?? null, (s) => this.termoSave?.set(s));
+    this.termo.support = this.settings.gameSupport.termo;
+    this.termo.start();
+    this.termoStatus = 'playing';
+    this.termoRound = 1;
+    this.spawner.fightStarted();
+    this.hooks.fightStarted?.();
+    this.say(termoStartAnnouncement(this.termo.config));
+    this.broadcastTermo();
+    this.broadcastStatus();
+    return { ok: true as const, config: this.termo.config };
+  }
+
+  skipTermo() {
+    if (!this.termo?.skip()) return false;
+    this.afterTermoUpdate();
+    return true;
+  }
+
+  stopTermo() {
+    if (!this.termo?.isActive) return false;
+    this.termo.stop();
+    this.afterTermoUpdate();
+    return true;
+  }
+
+  termoSnapshot(): TermoSnapshot | null {
+    return this.termo && this.termo.status !== 'idle' ? this.termo.snapshot(Date.now(), true) : null;
+  }
+
+  termoWeek() {
+    const g = this.termo ?? new TermoGame(this.settings.termo, this.termoSave?.get() ?? null);
+    const save = g.saveData;
+    return { week: g.weekTop(10), lastWeek: save?.lastWeekTop ?? [], totalWords: save?.totalWords ?? 0 };
+  }
+
+  private broadcastTermo() {
+    if (!this.termo) return;
+    this.lastTermoAt = Date.now();
+    this.broadcast({ type: 'termo', state: this.termo.snapshot() });
+  }
+
+  private afterTermoUpdate() {
+    const g = this.termo;
+    if (!g) return;
+    const prev = this.termoStatus;
+    const next = g.status;
+    if (prev === next && this.termoRound === g.round) return;
+    this.termoStatus = next;
+    if (prev === 'playing' && next !== 'playing' && next !== 'stopped') {
+      if (g.winner) this.say(termoWinAnnouncement(g.winner.name, g.answer, g.winner.points, g.round, g.config.rounds), 'success');
+      else this.say(termoTimeoutAnnouncement(g.answer, g.round, g.config.rounds));
+    }
+    if (next === 'playing' && this.termoRound !== g.round) this.say(`🔤 Palavra ${g.round} de ${g.config.rounds}! Chute com !t e a palavra.`);
+    this.termoRound = g.round;
+    if (next === 'finished' || next === 'stopped') {
+      if (next === 'finished') this.say(termoResultAnnouncement(g.scores(3)), 'success');
+      else this.say('🔤 Termo do Chat encerrado pelo streamer.', 'warning');
+      this.spawner.fightEnded();
+      this.hooks.fightEnded?.();
+    }
+    this.broadcastTermo();
+    this.broadcastStatus();
   }
 
   // ─── Defesa da Base ────────────────────────────────────────
@@ -969,6 +1066,24 @@ export class Room {
       this.penalty.handle(event);
       return;
     }
+    const termoCmd = parseTermoChatCommand(event);
+    if (termoCmd) {
+      if (termoCmd.type === 'help') {
+        if (Date.now() - this.lastHelpAt > HELP_COOLDOWN_MS) {
+          this.lastHelpAt = Date.now();
+          this.say(termoHelpText());
+        }
+      } else if (termoCmd.type === 'start') {
+        if (this.entitled() && !this.activeGame()) this.startTermo();
+      } else if (termoCmd.type === 'skip') this.skipTermo();
+      else this.stopTermo();
+      return;
+    }
+    if (this.termo?.isActive) {
+      this.termo.handle(event);
+      if (this.termo.status !== this.termoStatus) this.afterTermoUpdate();
+      return;
+    }
     const defCmd = parseDefenseChatCommand(event);
     if (defCmd) {
       if (defCmd.type === 'help') {
@@ -1043,7 +1158,7 @@ export class Room {
           this.say(bossHelpText(!!this.game?.isRunning));
         }
       } else if (cmd.type === 'start') {
-        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive && !this.royale?.isActive && !this.kite?.isActive && !this.penalty?.isActive && !this.defense?.isActive) this.startQuick(cmd.skin);
+        if (this.entitled() && !this.race?.isActive && !this.duel?.isActive && !this.royale?.isActive && !this.kite?.isActive && !this.penalty?.isActive && !this.defense?.isActive && !this.termo?.isActive) this.startQuick(cmd.skin);
       } else if (cmd.type === 'stop') {
         this.stopBoss();
       }
@@ -1068,6 +1183,21 @@ export class Room {
       this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
       if (e.kind === 'points') this.hooks.redemption?.(e, true);
       this.broadcastPenalty();
+      return { applied: true, damage: 0 };
+    }
+    if (this.termo?.isActive) {
+      this.termo.support = this.settings.gameSupport.termo;
+      const res = this.termo.special(e);
+      if (!res.applied) {
+        if (e.kind === 'points') this.hooks.redemption?.(e, false);
+        const thanks = supportThanks(e);
+        if (thanks && e.kind !== 'points') this.say(thanks);
+        return { applied: false, damage: 0 };
+      }
+      const icon = e.kind === 'raid' ? '⏱️' : e.kind === 'sub' || e.kind === 'gift' ? '⚡' : '💡';
+      this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
+      if (e.kind === 'points') this.hooks.redemption?.(e, true);
+      this.broadcastTermo();
       return { applied: true, damage: 0 };
     }
     if (this.defense?.isActive) {
@@ -1212,6 +1342,12 @@ export class Room {
       if (this.penalty.status !== this.penaltyStatus) this.afterPenaltyUpdate();
       else if (this.penalty.dirty && now - this.lastPenaltyAt >= RACE_BROADCAST_MS) this.broadcastPenalty();
     }
+    if (this.termo?.isActive) {
+      this.termo.update(now);
+      if (this.termo.status !== this.termoStatus || this.termo.round !== this.termoRound) this.afterTermoUpdate();
+      else if (this.termo.dirty && now - this.lastTermoAt >= RACE_BROADCAST_MS) this.broadcastTermo();
+      else if (now - this.lastTermoAt >= 1000) this.broadcastTermo();
+    }
     if (this.defense?.isActive) {
       this.defense.update(now);
       if (this.defense.status !== this.defenseStatus || (this.defense.danger && !this.defenseDangerSaid)) this.afterDefenseUpdate();
@@ -1338,6 +1474,8 @@ export class Room {
     if (br) this.send(ws, { type: 'royale', state: br });
     const kite = this.kiteSnapshot();
     if (kite) this.send(ws, { type: 'kite', state: kite });
+    const tm = this.termoSnapshot();
+    if (tm) this.send(ws, { type: 'termo', state: tm });
     const def = this.defenseSnapshot();
     if (def) this.send(ws, { type: 'defense', state: def });
     const pen = this.penaltySnapshot();

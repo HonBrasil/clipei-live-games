@@ -14,6 +14,7 @@ const NEEDS: Record<LoopGameId, string> = {
   kite: 'Com "completar com bots" ligado, sempre tem pipa no céu.',
   penalty: 'Precisa de gente escolhendo time com !a e !b.',
   defense: 'Com "completar com bots" ligado, sempre tem torre na estrada.',
+  termo: 'Roda com qualquer chat: uma pessoa chutando já dá jogo.',
 };
 const PAGES: Record<LoopGameId, string> = {
   boss: '/app/jogos/boss',
@@ -23,6 +24,7 @@ const PAGES: Record<LoopGameId, string> = {
   kite: '/app/jogos/pipa',
   penalty: '/app/jogos/penaltis',
   defense: '/app/jogos/defesa',
+  termo: '/app/jogos/termo',
 };
 
 const clock = (ms: number) => {

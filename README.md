@@ -356,3 +356,14 @@ Tower defense cooperativo. **Minigames → Defesa da Base** ou `!defesa iniciar`
 - Apoios editáveis: bits = meteoro (dano por bit), sub = herói na base, pontos = torre um nível acima, raid = onda de aliados.
 - Balanceamento simulado (`HP_MULT` e `TEAM_EXP` em `packages/games/src/defense.ts`): no normal o chat vence cerca de 2 de cada 3 partidas.
 - Entra no Modo Loop (vem desmarcado por padrão).
+
+## Termo do Chat
+
+A palavra secreta de 5 letras, no estilo Termo/Wordle. **Minigames → Termo do Chat** ou `!termo iniciar` (mods; `!termo pular` mostra a resposta e vai para a próxima, `!termo parar` encerra).
+
+- O chat chuta com `!t palavra` (ou `!termo palavra`). Acentos não importam; só valem palavras do dicionário (11,7 mil palavras de 5 letras de `@andsfonseca/palavras-pt-br`, MIT, em `packages/games/src/termo-words.ts`). As respostas saem de uma lista curada de 345 palavras comuns.
+- Cada chute aparece na tela com o nome de quem chutou: verde = lugar certo, amarelo = outro lugar, cinza = não tem. Teclado colorido e as letras já descobertas no topo.
+- Pontos: acertar = 100 + bônus de rapidez (até 50); descobrir letra nova no lugar = +10, fora do lugar = +3. Espera por pessoa entre chutes (padrão 5 s).
+- Partida de 1, 3 ou 5 palavras; dicas automáticas na metade e nos 3/4 do tempo (nunca revela a palavra inteira). Ranking da semana salvo em `termo:<canal>`.
+- Apoios editáveis: bits e pontos = dica (revela uma letra), sub = chute sem espera por X min, raid = mais tempo e uma letra.
+- Entra no Automático (Temporizador e Modo Loop).

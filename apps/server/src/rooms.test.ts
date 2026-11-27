@@ -342,4 +342,25 @@ describe('Room', () => {
     expect(room.simulator.status.running).toBe(false);
     room.simulator.stop();
   });
+
+  it('termo do chat: mod abre, chat chuta, acerto anunciado e partida termina', () => {
+    const { room, msgs, tickFor } = setup();
+    room.handleChat(chat('mod', '!termo iniciar', 'mod'));
+    expect(room.activeGame()).toBe('termo');
+    room.updateSettings({ termo: { rounds: 1 } });
+    const answer = room.termo!.answer;
+    room.handleChat(chat('ana', '!t xqzwk'));
+    room.handleChat(chat('bia', `!t ${answer}`));
+    expect(room.termo!.status).toBe('between');
+    tickFor(8000);
+    // a partida aberta guardou a config antiga (3 palavras): vai para a segunda
+    expect(room.termo!.round).toBe(2);
+    room.stopTermo();
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('TERMO DO CHAT'))).toBe(true);
+    expect(said.some((t) => t.includes('bia acertou'))).toBe(true);
+    expect(said.some((t) => t.includes('Palavra 2 de 3'))).toBe(true);
+    expect(msgs.some((m) => m.type === 'termo' && m.state.guesses.length > 0)).toBe(true);
+    expect(room.activeGame()).toBeNull();
+  });
 });

@@ -26,6 +26,7 @@ connectRoom(
     if (msg.type === 'fishing') view.renderFishing(msg.state);
     if (msg.type === 'loop') view.renderLoop(msg.state);
     if (msg.type === 'defense') view.renderDefense(msg.state);
+    if (msg.type === 'termo') view.renderTermo(msg.state);
     if (msg.type === 'settings') view.setSettings(msg.settings);
     if (msg.type === 'incoming') view.incoming(msg.at, msg.serverNow);
     if (msg.type === 'sfx-test') view.testSound();

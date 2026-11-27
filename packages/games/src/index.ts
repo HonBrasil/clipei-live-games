@@ -13,3 +13,4 @@ export * from './penalty.ts';
 export * from './fishing.ts';
 export * from './loop.ts';
 export * from './defense.ts';
+export * from './termo.ts';

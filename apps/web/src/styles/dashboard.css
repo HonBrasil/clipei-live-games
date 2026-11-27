@@ -1688,3 +1688,74 @@ select.input {
 .loop-block b {
   color: #ffc83d;
 }
+/* ─── Termo do Chat ────────────────────────────────────── */
+.g-termo {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+.g-termo i,
+.tm-mini {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  color: #fff;
+  font: 900 20px var(--font-display, inherit);
+  font-style: normal;
+}
+.tm-mini {
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+  margin-right: 8px;
+}
+.g-termo .g,
+.tm-mini.g {
+  background: #22a559;
+}
+.g-termo .y,
+.tm-mini.y {
+  background: #d4a017;
+}
+.g-termo .b,
+.tm-mini.b {
+  background: #3a3a46;
+}
+.tm-how-list p {
+  display: flex;
+  align-items: center;
+  margin: 0 0 8px;
+}
+.tm-known-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.tm-known-panel span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  font-weight: 900;
+}
+.tm-known-panel span.g {
+  border: 0;
+  background: #22a559;
+}
+.tm-known-panel span.hint {
+  border: 0;
+  background: #c98a12;
+}
+.tm-known-panel em {
+  margin-left: 8px;
+  font-style: normal;
+  font-weight: 800;
+}

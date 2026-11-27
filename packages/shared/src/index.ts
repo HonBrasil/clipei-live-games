@@ -134,8 +134,8 @@ export interface SupportSettings {
 
 // ─── Apoios por minigame (tudo editável pelo streamer) ───────
 
-export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'fishing' | 'defense';
-export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite', 'penalty', 'fishing', 'defense'];
+export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'fishing' | 'defense' | 'termo';
+export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite', 'penalty', 'fishing', 'defense', 'termo'];
 /** Presentes (gift) seguem a regra de sub. */
 export type SupportRuleKind = 'bits' | 'sub' | 'points' | 'raid';
 export const SUPPORT_RULE_KINDS: SupportRuleKind[] = ['bits', 'sub', 'points', 'raid'];
@@ -293,6 +293,20 @@ export const GAME_SUPPORT: Record<SupportGameId, Partial<Record<SupportRuleKind,
         { key: 'kites', label: '', suffix: 'pipas na chuva', min: 0, max: 15, step: 1, def: 6 },
         { key: 'gustSec', label: 'Ventania de', suffix: 's', min: 2, max: 15, step: 1, def: 6 },
       ],
+    },
+  },
+  termo: {
+    bits: { effect: 'Dica', detail: 'Revela uma letra da palavra, no lugar certo.', params: [] },
+    sub: {
+      effect: 'Chute sem espera',
+      detail: 'Quem deu sub chuta sem esperar entre um chute e outro, por um tempo.',
+      params: [{ key: 'minutes', label: 'Por', suffix: 'min', min: 1, max: 60, step: 1, def: 10 }],
+    },
+    points: { effect: 'Dica', detail: 'Revela uma letra da palavra, no lugar certo.', params: [] },
+    raid: {
+      effect: 'Mais tempo e dica',
+      detail: 'A rodada ganha mais tempo e uma letra é revelada.',
+      params: [{ key: 'seconds', label: 'Mais', suffix: 's', min: 15, max: 300, step: 15, def: 60 }],
     },
   },
   defense: {
@@ -464,6 +478,7 @@ export interface RoomSettings {
   kite: KiteConfig;
   penalty: PenaltyConfig;
   defense: DefenseConfig;
+  termo: TermoConfig;
   fishing: FishingConfig;
   /** Modo Loop: os minigames se revezam sozinhos (streamer ausente, live aberta). */
   loop: LoopConfig;
@@ -495,8 +510,10 @@ export const DEFAULT_SETTINGS: RoomSettings = {
     penalty: defaultGameSupport('penalty'),
     fishing: defaultGameSupport('fishing'),
     defense: defaultGameSupport('defense'),
+    termo: defaultGameSupport('termo'),
   },
   defense: { joinSec: 60, waves: 8, voteSec: 15, maxPlayers: 60, fillBots: true, difficulty: 'normal', fullscreen: true },
+  termo: { rounds: 3, roundSec: 180, cooldownSec: 5, hints: true },
   fishing: { enabled: false, cooldownSec: 60, corner: 'bl', announce: 'epico', hint: true, scene: 'transparent', rankPos: 'lake', rankTop: 3 },
   loop: { enabled: false, mode: 'loop', intervalMin: 30, bossSkin: 'random', games: ['race', 'royale', 'kite', 'penalty', 'boss'], order: 'sequence', gapSec: 60, minChatters: 0, onlyLive: true, maxHours: 0, announce: true, teaser: true },
   penalty: {
@@ -566,6 +583,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     kite: normalizeKiteConfig({ ...(base.kite ?? {}), ...((p.kite ?? {}) as Partial<KiteConfig>) }),
     penalty: normalizePenaltyConfig(base.penalty, p.penalty as Partial<PenaltyConfig> | undefined),
     fishing: normalizeFishingConfig({ ...(base.fishing ?? {}), ...((p.fishing ?? {}) as Partial<FishingConfig>) }),
+    termo: normalizeTermoConfig({ ...(base.termo ?? {}), ...((p.termo ?? {}) as Partial<TermoConfig>) }),
     defense: normalizeDefenseConfig({ ...(base.defense ?? {}), ...((p.defense ?? {}) as Partial<DefenseConfig>) }),
     loop: normalizeLoopConfig({ ...(base.loop ?? {}), ...((p.loop ?? {}) as Partial<LoopConfig>) }),
     gameSupport: Object.fromEntries(
@@ -586,7 +604,7 @@ export interface RoomStatus {
   /** Fontes do OBS conectadas agora (o painel não conta). */
   overlays: number;
   /** Minigame rolando agora na tela (só um por vez). */
-  game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | null;
+  game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | null;
   /** Chat simulado ligado (aba Testar). */
   simulating: boolean;
   serverNow: number;
@@ -607,6 +625,7 @@ export type ServerMessage =
   /** A assinatura mudou (pagamento aprovado): o painel recarrega a conta. */
   | { type: 'billing' }
   | { type: 'defense'; state: DefenseSnapshot }
+  | { type: 'termo'; state: TermoSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -686,7 +705,7 @@ export interface SimulatorStatus {
 
 // ─── Catálogo da plataforma ─────────────────────────────────
 
-export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'fishing' | 'quiz' | 'teams' | 'wheel' | 'missions';
+export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | 'fishing' | 'quiz' | 'teams' | 'wheel' | 'missions';
 
 export interface GameInfo {
   id: GameId;
@@ -754,6 +773,14 @@ export const GAMES: GameInfo[] = [
     description: 'Monstros chegam em ondas e cada pessoa vira uma torre: arqueiro, mago ou canhão. Entre as ondas o chat vota a melhoria. Se a base cair, acabou.',
     status: 'active',
     commands: ['!arqueiro', '!mago', '!canhao', '!atk', '!muralha', '!gelo', '!fogo'],
+  },
+  {
+    id: 'termo',
+    name: 'Termo do Chat',
+    tagline: 'Adivinhe a palavra de 5 letras',
+    description: 'A palavra secreta no estilo Termo: o chat chuta com !t, as letras ficam verdes no lugar certo e amarelas fora do lugar. Quem acerta primeiro leva os pontos.',
+    status: 'active',
+    commands: ['!t palavra', '!termo'],
   },
   {
     id: 'fishing',
@@ -1693,8 +1720,8 @@ export interface FishingStats {
 // ─── Modo Loop ───────────────────────────────────────────────
 
 /** Minigames que podem entrar no rodízio (a pescaria roda junto, entre um e outro). */
-export type LoopGameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense';
-export const LOOP_GAMES: LoopGameId[] = ['boss', 'race', 'duel', 'royale', 'kite', 'penalty', 'defense'];
+export type LoopGameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo';
+export const LOOP_GAMES: LoopGameId[] = ['boss', 'race', 'duel', 'royale', 'kite', 'penalty', 'defense', 'termo'];
 export const LOOP_GAME_INFO: Record<LoopGameId, { name: string; emoji: string; join: string }> = {
   boss: { name: 'Boss coletivo', emoji: '👾', join: '!atk' },
   race: { name: 'Corrida', emoji: '🏁', join: '!correr' },
@@ -1703,6 +1730,7 @@ export const LOOP_GAME_INFO: Record<LoopGameId, { name: string; emoji: string; j
   kite: { name: 'Pipa Combate', emoji: '🪁', join: '!pipa' },
   penalty: { name: 'Pênaltis', emoji: '⚽', join: '!a ou !b' },
   defense: { name: 'Defesa da Base', emoji: '🏰', join: '!arqueiro, !mago ou !canhao' },
+  termo: { name: 'Termo do Chat', emoji: '🔤', join: '!t e a palavra' },
 };
 
 export interface LoopConfig {
@@ -2031,5 +2059,85 @@ export interface DefenseSnapshot {
   mvp: DefenseMvp[];
   fx: DefenseFx[];
   fullscreen: boolean;
+  serverNow: number;
+}
+
+// ─── Termo do Chat ───────────────────────────────────────────
+
+export interface TermoConfig {
+  /** Palavras por partida. */
+  rounds: number;
+  /** Tempo para achar cada palavra. */
+  roundSec: number;
+  /** Espera de cada pessoa entre um chute e outro. */
+  cooldownSec: number;
+  /** Revela letras sozinho na metade e nos 3/4 do tempo. */
+  hints: boolean;
+}
+
+export function normalizeTermoConfig(c: Partial<TermoConfig> | undefined): TermoConfig {
+  const num = (v: unknown, def: number, min: number, max: number) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  return {
+    rounds: num(c?.rounds, 3, 1, 10),
+    roundSec: num(c?.roundSec, 180, 45, 900),
+    cooldownSec: num(c?.cooldownSec, 5, 0, 60),
+    hints: c?.hints !== false,
+  };
+}
+
+/** Cor de cada letra: g = lugar certo, y = tem na palavra em outro lugar, b = não tem. */
+export type TermoMark = 'g' | 'y' | 'b';
+
+export interface TermoGuess {
+  id: number;
+  word: string;
+  /** 5 marcas, ex.: "gybbg" */
+  marks: string;
+  name: string;
+  color: string;
+}
+
+export interface TermoScoreRow {
+  name: string;
+  color: string;
+  points: number;
+  wins: number;
+}
+
+export type TermoStatus = 'idle' | 'playing' | 'between' | 'finished' | 'stopped';
+
+export type TermoFx =
+  | { id: number; kind: 'invalid'; word: string; name: string }
+  | { id: number; kind: 'hint'; pos: number; letter: string; by: string | null }
+  | { id: number; kind: 'win'; name: string; color: string; word: string; points: number }
+  | { id: number; kind: 'time'; seconds: number; by: string }
+  | { id: number; kind: 'timeout'; word: string };
+
+export interface TermoSnapshot {
+  status: TermoStatus;
+  round: number;
+  rounds: number;
+  /** fim da rodada */
+  endsAt: number | null;
+  /** próxima palavra (entre rodadas) */
+  nextAt: number | null;
+  /** últimos chutes (mais recentes por último) */
+  guesses: TermoGuess[];
+  /** melhor estado de cada letra já chutada */
+  letters: Record<string, TermoMark>;
+  /** letras confirmadas por posição (verde em algum chute ou dica) */
+  known: (string | null)[];
+  /** posições reveladas por dica */
+  hinted: boolean[];
+  /** a palavra (só depois que a rodada acaba) */
+  solution: string | null;
+  winner: { name: string; color: string; points: number } | null;
+  scores: TermoScoreRow[];
+  totalGuesses: number;
+  players: number;
+  fx: TermoFx[];
   serverNow: number;
 }
