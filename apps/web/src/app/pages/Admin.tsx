@@ -8,7 +8,7 @@ import { useApp } from '../state.tsx';
 
 /** Painel de administração da Clipei (só logins em ADMIN_LOGINS). Começa pelo bot e pelos canais. */
 export function Admin() {
-  const { me, toast } = useApp();
+  const { me, toast, refresh } = useApp();
   const [data, setData] = useState<AdminOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,6 +117,35 @@ export function Admin() {
           <p className="muted" style={{ marginTop: 12 }}>
             Na tela da Twitch, entre com a <b>conta do bot</b>, não a sua. Depois de trocar, o bot volta a entrar nos chats de todos os canais sozinho.
           </p>
+          {data?.platforms.kick && (
+            <>
+              <div className="conn" style={{ marginTop: 16 }}>
+                <div className="conn-logo kick">K</div>
+                <div className="conn-info">
+                  <b>{me?.kick.botConnected ? me.kick.botName : 'Bot da Kick'}</b>
+                  <span>{me?.kick.botConnected ? 'Fala nos chats da Kick de todos os canais' : 'Sem ele, o jogo fala pela conta de cada streamer'}</span>
+                </div>
+                <a className="btn sm" href="/api/auth/kick/login?as=bot">
+                  {me?.kick.botConnected ? 'Trocar' : 'Conectar'}
+                </a>
+                {me?.kick.botConnected && (
+                  <button
+                    className="btn sm"
+                    onClick={async () => {
+                      await api('/api/admin/kick-bot/disconnect', {});
+                      await refresh();
+                      toast('Bot da Kick desconectado.');
+                    }}
+                  >
+                    Remover
+                  </button>
+                )}
+              </div>
+              <p className="muted" style={{ marginTop: 8 }}>
+                Na Kick, saia da sua conta e entre com a <b>conta do bot</b> (ex.: ClipeiBot) antes de autorizar. O bot da Kick é uma conta comum: peça aos streamers para não banir e, se o chat for só para seguidores, seguir o canal.
+              </p>
+            </>
+          )}
         </Card>
         <Card title="Plataformas" subtitle="Chaves configuradas no servidor">
           <div className="conn-list">

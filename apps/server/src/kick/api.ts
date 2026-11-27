@@ -21,6 +21,9 @@ const API = 'https://api.kick.com/public/v1';
  *  channel:rewards:read/write    → criar a recompensa "Golpe Especial" e aceitar/recusar resgates
  *  kicks:read                    → informações de Kicks
  */
+/** Conta de bot da Clipei na Kick: só precisa falar no chat. */
+export const KICK_BOT_SCOPES = ['user:read', 'chat:write'];
+
 export const KICK_SCOPES = [
   'user:read',
   'channel:read',
@@ -52,12 +55,12 @@ export function pkcePair() {
   return { verifier, challenge };
 }
 
-export function kickAuthorizeUrl(state: string, challenge: string) {
+export function kickAuthorizeUrl(state: string, challenge: string, scopes: string[] = KICK_SCOPES) {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: config.kick.clientId,
     redirect_uri: config.kick.redirectUri,
-    scope: KICK_SCOPES.join(' '),
+    scope: scopes.join(' '),
     code_challenge: challenge,
     code_challenge_method: 'S256',
     state,
@@ -152,14 +155,18 @@ export async function kickIsLive(token: string) {
 }
 
 /**
- * Mensagem no chat do canal do token. type "bot" usa a conta de bot do app
- * da Clipei (a conta que criou o app no painel de desenvolvedor da Kick).
+ * Mensagem no chat.
+ *  - type "bot": vai pelo bot do app no canal do token. A Kick só libera isso para apps
+ *    aprovados; nos outros responde 404 "Not found".
+ *  - type "user": fala como a conta do token no canal broadcasterUserId
+ *    (a conta de bot da Clipei, ou a própria conta do streamer como último recurso).
  */
-export async function kickSendChat(token: string, content: string) {
-  return kickApi<{ data: { message_id: string; is_sent: boolean } }>('/chat', token, {
-    method: 'POST',
-    body: JSON.stringify({ type: 'bot', content: content.slice(0, 500) }),
-  });
+export async function kickSendChat(token: string, content: string, as: { type: 'bot' } | { type: 'user'; broadcasterUserId: string } = { type: 'bot' }) {
+  const body =
+    as.type === 'bot'
+      ? { type: 'bot', content: content.slice(0, 500) }
+      : { type: 'user', broadcaster_user_id: Number(as.broadcasterUserId), content: content.slice(0, 500) };
+  return kickApi<{ data: { message_id: string; is_sent: boolean } }>('/chat', token, { method: 'POST', body: JSON.stringify(body) });
 }
 
 /** Garante as inscrições de eventos do canal (só cria as que faltam). */

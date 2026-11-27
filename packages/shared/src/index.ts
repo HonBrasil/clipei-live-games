@@ -685,6 +685,11 @@ export interface MeResponse {
     /** Problema nas inscrições de eventos ou na recompensa. */
     problem: string | null;
     missingScopes: string[];
+    /** Por qual conta o bot falou na última mensagem (null = ainda não falou desde que o servidor ligou). */
+    chatAs: 'clipeibot' | 'bot' | 'streamer' | null;
+    /** Conta de bot da Clipei na Kick conectada pelo admin. */
+    botConnected: boolean;
+    botName: string | null;
   };
   youtube: {
     configured: boolean;

@@ -53,6 +53,7 @@ import {
 } from './twitch/channel.ts';
 import {
   KICK_SCOPES,
+  KICK_BOT_SCOPES,
   kickAuthorizeUrl,
   kickConfigured,
   kickEnsureFresh,
@@ -137,6 +138,58 @@ async function kickToken(channelId: string) {
   const ch = store.getChannel(channelId);
   if (!ch?.kick) throw new Error('Kick não conectada');
   return (await kickEnsureFresh(ch.kick.tokens, (t) => store.updateKickTokens(channelId, t))).accessToken;
+}
+
+/** Token da conta de bot da Clipei na Kick (se o admin conectou uma). */
+async function kickBotToken() {
+  const bot = store.getKickBot();
+  if (!bot) throw new Error('Bot da Kick não conectado');
+  return (await kickEnsureFresh(bot.tokens, (t) => store.updateKickBotTokens(t))).accessToken;
+}
+
+/**
+ * Como o bot fala na Kick:
+ *  - 'clipeibot': conta de bot conectada pelo admin (type "user" no canal do streamer)
+ *  - 'bot': bot oficial do app (type "bot"; a Kick só libera para apps aprovados)
+ *  - 'streamer': a própria conta do streamer (último recurso, para o jogo não ficar mudo)
+ */
+type KickChatAs = 'clipeibot' | 'bot' | 'streamer';
+const kickChatAs = new Map<string, KickChatAs>();
+/** type "bot" recusado pela Kick: não tenta de novo por um tempo. */
+let kickBotTypeBlockedUntil = 0;
+const isKickRefusal = (err: unknown) => [401, 403, 404].includes((err as { status?: number }).status ?? 0);
+
+async function kickSay(channelId: string, broadcasterUserId: string, text: string) {
+  const errors: string[] = [];
+  if (store.getKickBot()) {
+    try {
+      const r = await kickSendChat(await kickBotToken(), text, { type: 'user', broadcasterUserId });
+      kickChatAs.set(broadcasterUserId, 'clipeibot');
+      return r;
+    } catch (err) {
+      errors.push(`bot da Clipei: ${(err as Error).message}`);
+      if (!isKickRefusal(err)) throw new Error(errors.join(' · '));
+    }
+  }
+  if (Date.now() >= kickBotTypeBlockedUntil) {
+    try {
+      const r = await kickSendChat(await kickToken(channelId), text, { type: 'bot' });
+      kickChatAs.set(broadcasterUserId, 'bot');
+      return r;
+    } catch (err) {
+      errors.push(`bot do app: ${(err as Error).message}`);
+      if (!isKickRefusal(err)) throw new Error(errors.join(' · '));
+      kickBotTypeBlockedUntil = Date.now() + 30 * 60_000;
+    }
+  }
+  try {
+    const r = await kickSendChat(await kickToken(channelId), text, { type: 'user', broadcasterUserId });
+    kickChatAs.set(broadcasterUserId, 'streamer');
+    return r;
+  } catch (err) {
+    errors.push(`conta do streamer: ${(err as Error).message}`);
+    throw new Error(errors.join(' · '));
+  }
 }
 
 /** Kick: canal ao vivo (atualizado por evento e por consulta periódica), último evento e problemas. */
@@ -381,7 +434,7 @@ function roomFor(ch: StoredChannel): Room {
       const kickId = cur().kick?.userId ?? '';
       let r: Awaited<ReturnType<typeof kickSendChat>>;
       try {
-        r = await kickSendChat(await kickToken(ch.id), text);
+        r = await kickSay(ch.id, kickId, text);
         if (kickProblem.get(kickId)?.startsWith('O bot não conseguiu')) kickProblem.delete(kickId);
       } catch (err) {
         // aparece no card da Kick em Conexões, com o motivo que a Kick deu
@@ -681,12 +734,14 @@ app.post('/api/youtube/check', async (req, reply) => {
 
 const KICK_OAUTH_COOKIE = 'clipei_kick_oauth';
 
-app.get('/api/auth/kick/login', async (_req, reply) => {
+app.get<{ Querystring: { as?: string } }>('/api/auth/kick/login', async (req, reply) => {
   if (!kickConfigured()) return reply.redirect(`${config.webUrl}/app?erro=kick-nao-configurada`);
+  const role = req.query.as === 'bot' ? 'bot' : 'streamer';
+  if (role === 'bot' && !isAdmin(currentChannel(req))) return reply.redirect(`${config.webUrl}/app?erro=sem-permissao-bot`);
   const state = randomBytes(16).toString('hex');
   const { verifier, challenge } = pkcePair();
-  reply.setCookie(KICK_OAUTH_COOKIE, JSON.stringify({ state, verifier }), { ...cookieOpts, maxAge: 600 });
-  return reply.redirect(kickAuthorizeUrl(state, challenge));
+  reply.setCookie(KICK_OAUTH_COOKIE, JSON.stringify({ state, verifier, role }), { ...cookieOpts, maxAge: 600 });
+  return reply.redirect(kickAuthorizeUrl(state, challenge, role === 'bot' ? KICK_BOT_SCOPES : KICK_SCOPES));
 });
 
 app.get<{ Querystring: { code?: string; state?: string; error?: string } }>('/api/auth/kick/callback', async (req, reply) => {
@@ -696,12 +751,21 @@ app.get<{ Querystring: { code?: string; state?: string; error?: string } }>('/ap
   if (req.query.error) return back('erro=autorizacao-cancelada');
   const unsigned = raw ? req.unsignCookie(raw) : null;
   if (!unsigned?.valid || !unsigned.value) return back('erro=sessao-expirada');
-  const saved = JSON.parse(unsigned.value) as { state: string; verifier: string };
+  const saved = JSON.parse(unsigned.value) as { state: string; verifier: string; role?: 'bot' | 'streamer' };
   if (!req.query.code || req.query.state !== saved.state) return back('erro=estado-invalido');
 
   try {
     const tokens = await kickExchangeCode(req.query.code, saved.verifier);
     const me = await kickMe(tokens.accessToken);
+
+    if (saved.role === 'bot') {
+      if (!isAdmin(currentChannel(req))) return back('erro=sem-permissao-bot');
+      store.setKickBot({ userId: me.id, name: me.name, tokens });
+      kickChatAs.clear();
+      for (const [id, msg] of kickProblem) if (msg.startsWith('O bot não conseguiu')) kickProblem.delete(id);
+      return back('conectado=bot-kick');
+    }
+
     kickLive.set(me.id, me.live);
     const link = { userId: me.id, name: me.name, slug: me.slug, avatar: me.avatar, tokens, rewardId: null as string | null };
 
@@ -729,6 +793,13 @@ app.get<{ Querystring: { code?: string; state?: string; error?: string } }>('/ap
     req.log.error(err);
     return back('erro=falha-kick');
   }
+});
+
+app.post('/api/admin/kick-bot/disconnect', async (req, reply) => {
+  if (!isAdmin(currentChannel(req))) return reply.code(403).send({ error: 'Só o admin.' });
+  store.setKickBot(null);
+  kickChatAs.clear();
+  return { ok: true };
 });
 
 app.post('/api/auth/kick/disconnect', async (req, reply) => {
@@ -857,6 +928,9 @@ app.get('/api/me', async (req): Promise<MeResponse> => {
       lastEventAt: ch?.kick ? (kickLastEvent.get(ch.kick.userId) ?? null) : null,
       problem: ch?.kick ? (kickProblem.get(ch.kick.userId) ?? null) : null,
       missingScopes: ch?.kick ? KICK_SCOPES.filter((sc) => !ch.kick!.tokens.scopes.includes(sc)) : [],
+      chatAs: ch?.kick ? (kickChatAs.get(ch.kick.userId) ?? null) : null,
+      botConnected: Boolean(store.getKickBot()),
+      botName: store.getKickBot()?.name ?? null,
     },
     youtube: (() => {
       const w = ch ? ytWatch.get(ch.id) : undefined;

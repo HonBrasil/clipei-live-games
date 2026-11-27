@@ -52,6 +52,7 @@ export const SUCCESS: Record<string, string> = {
   bot: 'Conta do bot conectada! 🤖',
   youtube: 'YouTube conectado! ▶️',
   'bot-youtube': 'Bot do YouTube conectado! 🤖',
+  'bot-kick': 'Bot da Kick conectado! 🤖',
   kick: 'Kick conectada! 🟢',
 };
 

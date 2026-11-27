@@ -75,10 +75,18 @@ export interface StoredBot {
   tokens: OAuthTokens;
 }
 
+/** Conta de bot da Clipei na Kick (fala nos chats com type "user"). */
+export interface StoredKickBot {
+  userId: string;
+  name: string;
+  tokens: OAuthTokens;
+}
+
 interface StoreShape {
   channels: Record<string, StoredChannel>;
   bot: StoredBot | null;
   ytBot?: StoredYoutubeBot | null;
+  kickBot?: StoredKickBot | null;
   /** progresso da Pescaria por canal (chave própria no banco: não regrava o canal a cada peixe) */
   fishing?: Record<string, FishingSave>;
   /** ranking da semana do Termo do Chat por canal */
@@ -107,6 +115,7 @@ export async function initStore() {
   for (const r of rows) {
     if (r.key === 'bot') next.bot = r.value as StoredBot;
     else if (r.key === 'ytbot') next.ytBot = r.value as StoredYoutubeBot;
+    else if (r.key === 'kickbot') next.kickBot = r.value as StoredKickBot;
     else if (r.key.startsWith('fish:')) (next.fishing ??= {})[r.key.slice(5)] = r.value as FishingSave;
     else if (r.key.startsWith('termo:')) (next.termo ??= {})[r.key.slice(6)] = r.value as TermoSave;
     else if (r.key.startsWith('channel:')) next.channels[r.key.slice(8)] = r.value as StoredChannel;
@@ -144,6 +153,7 @@ async function flush() {
   for (const [id, ch] of Object.entries(data.channels)) current.set(`channel:${id}`, JSON.stringify(ch));
   if (data.bot) current.set('bot', JSON.stringify(data.bot));
   if (data.ytBot) current.set('ytbot', JSON.stringify(data.ytBot));
+  if (data.kickBot) current.set('kickbot', JSON.stringify(data.kickBot));
   for (const [id, f] of Object.entries(data.fishing ?? {})) if (data.channels[id]) current.set(`fish:${id}`, JSON.stringify(f));
   for (const [id, t] of Object.entries(data.termo ?? {})) if (data.channels[id]) current.set(`termo:${id}`, JSON.stringify(t));
   const changed = [...current].filter(([k, json]) => persisted.get(k) !== json).map(([key, json]) => ({ key, json }));
@@ -271,6 +281,16 @@ export const store = {
     };
     save();
     return data.channels[id];
+  },
+  getKickBot: () => data.kickBot ?? null,
+  setKickBot(bot: StoredKickBot | null) {
+    data.kickBot = bot;
+    save();
+  },
+  updateKickBotTokens(tokens: OAuthTokens) {
+    if (!data.kickBot) return;
+    data.kickBot.tokens = tokens;
+    save();
   },
   getYoutubeBot: () => data.ytBot ?? null,
   setYoutubeBot(bot: StoredYoutubeBot | null) {

@@ -150,6 +150,12 @@ function KickRow() {
         )}
       </div>
       {k.problem && <p className="chat-error">{k.problem}</p>}
+      {!k.problem && k.chatAs === 'streamer' && (
+        <p className="muted foot-note">
+          💬 Na Kick, as mensagens dos jogos estão saindo pela <b>sua conta</b>: a Kick ainda não libera o bot oficial para apps novos. Assim que o bot da Clipei for ligado, elas passam a sair por ele automaticamente.
+        </p>
+      )}
+      {!k.problem && k.chatAs && k.chatAs !== 'streamer' && <p className="muted foot-note">💬 Na Kick, o bot fala como {k.chatAs === 'clipeibot' ? (k.botName ?? 'bot da Clipei') : 'bot oficial da Clipei'}.</p>}
       {k.missingScopes.length > 0 && (
         <p className="chat-error">
           Faltam permissões da Kick. <a href="/api/auth/kick/login">Reconectar</a>
