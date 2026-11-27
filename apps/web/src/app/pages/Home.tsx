@@ -3,23 +3,21 @@ import { BOSS_SKINS, LOOP_GAME_INFO, type BossConfig } from '@clipei/shared';
 import { api, fmtCountdown, fmtDuration, nf } from '../api.ts';
 import { BossThumb, Card, Status } from '../components/ui.tsx';
 import { useApp, useTick } from '../state.tsx';
+import { useOnboarding } from './Onboarding.tsx';
 
 export function Home() {
   const { me, boss, status, loop, logs, clockOffset, toast, setBoss } = useApp();
   useTick(1000);
-  if (!me) return null;
+  const onboarding = useOnboarding();
+  if (!me || !onboarding) return null;
   const ch = me.channel;
   const t = me.twitch;
   const running = boss?.state?.status === 'running';
   const s = boss?.state;
 
-  const steps = [
-    { done: Boolean(ch), label: 'Conectar seu canal da Twitch', to: '/app/conexoes' },
-    { done: t.chatListening, label: 'Bot da Clipei no seu chat', to: '/app/conexoes' },
-    { done: Boolean(status?.overlays), label: 'Adicionar o overlay no OBS', to: '/app/overlay' },
-    { done: me.history.length > 0, label: 'Fazer a primeira luta', to: '/app/jogos/boss' },
-  ];
-  const doneCount = steps.filter((x) => x.done).length;
+  const ob = onboarding;
+  const steps = ob.steps;
+  const doneCount = ob.doneCount;
 
   async function quickStart() {
     try {
@@ -66,7 +64,7 @@ export function Home() {
         </div>
       </section>
 
-      {doneCount < steps.length && (
+      {!ob.complete && !ob.dismissed && ch && (
         <section className="card onboarding">
           <div className="card-head">
             <div>
@@ -81,19 +79,17 @@ export function Home() {
           </div>
           <ol className="checklist">
             {steps.map((st) => (
-              <li key={st.label} className={st.done ? 'done' : ''}>
+              <li key={st.id} className={st.done ? 'done' : ''}>
                 <span className="tick" aria-hidden="true">
                   {st.done ? '✓' : ''}
                 </span>
-                <span className="grow">{st.label}</span>
-                {!st.done && (
-                  <Link className="btn sm" to={st.to}>
-                    Fazer agora
-                  </Link>
-                )}
+                <span className="grow">{st.title}</span>
               </li>
             ))}
           </ol>
+          <Link className="btn primary ob-cta" to="/app/comecar">
+            {doneCount === 0 ? 'Configurar em 3 minutos →' : 'Continuar a configuração →'}
+          </Link>
         </section>
       )}
 

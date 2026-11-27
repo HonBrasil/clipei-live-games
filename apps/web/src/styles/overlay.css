@@ -2358,3 +2358,67 @@ body.overlay-body {
 .stage.has-challenge .loop-next {
   top: 110px;
 }
+
+/* ─── Testar no OBS ───────────────────────────────────────── */
+.obs-test {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  font-family: var(--font-body, Inter, sans-serif);
+  animation: obs-test-in 0.35s ease-out;
+}
+.obs-test.is-out {
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.obs-test-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.6vw;
+  padding: 2.2vw 3.4vw;
+  border-radius: 1.6vw;
+  background: rgba(10, 10, 16, 0.92);
+  border: 0.2vw solid #22c55e;
+  box-shadow: 0 1.5vw 4vw rgba(0, 0, 0, 0.55), 0 0 3vw rgba(34, 197, 94, 0.35);
+  color: #fff;
+  text-align: center;
+}
+.obs-test-ico {
+  display: grid;
+  place-items: center;
+  width: 5vw;
+  height: 5vw;
+  border-radius: 50%;
+  background: #22c55e;
+  font-size: 3vw;
+  font-weight: 900;
+  animation: obs-test-pop 0.5s 0.15s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.obs-test-card b {
+  font: italic 900 3.2vw var(--font-display, sans-serif);
+}
+.obs-test-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1.4vw;
+  font-weight: 600;
+}
+.obs-test-card small {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.95vw;
+  font-weight: 700;
+}
+@keyframes obs-test-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@keyframes obs-test-pop {
+  from {
+    transform: scale(0);
+  }
+}

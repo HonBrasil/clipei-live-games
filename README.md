@@ -368,6 +368,12 @@ A palavra secreta de 5 letras, no estilo Termo/Wordle. **Minigames → Termo do 
 - Apoios editáveis: bits e pontos = dica (revela uma letra), sub = chute sem espera por X min, raid = mais tempo e uma letra.
 - Entra no Automático (Temporizador e Modo Loop).
 
+## Primeiros passos e Testar no OBS
+
+- **Configuração guiada** (`/app/comecar`): 4 passos (plataforma, OBS, teste com chat simulado, Automático), com progresso salvo em `settings.onboarding`. Conta nova cai nela depois do login; dá para pular passos ou esconder.
+- **Testar no OBS** (Overlay e passo 2): o servidor manda `obs-test` para as fontes conectadas, elas mostram um aviso verde por 8 s e respondem `obs-pong` com: está no OBS de verdade (`window.obsstudio`), tamanho da fonte e se a cena está no ar. O painel aponta o problema (aba do navegador, tamanho diferente de 1920×1080, cena fora do ar, fonte sem resposta) e pergunta se o aviso apareceu.
+- A prévia do painel conecta como `client=preview` e não conta mais como "OBS conectado".
+
 ## Desafios do Chat
 
 O chat escolhe o desafio que o streamer vai cumprir. **Minigames → Desafios do Chat** ou `!desafio votar` (mods).

@@ -23,8 +23,8 @@ export function connectRoom(
   key: string,
   onMessage: (msg: ServerMessage) => void,
   onStatus: (online: boolean) => void = () => {},
-  /** "panel" = painel do streamer (não conta como OBS conectado) */
-  client: 'overlay' | 'panel' = 'overlay',
+  /** "panel" = painel do streamer, "preview" = prévia do painel (nenhum conta como OBS conectado) */
+  client: 'overlay' | 'panel' | 'preview' = 'overlay',
 ) {
   let ws: WebSocket | null = null;
   let retry = 1000;
@@ -55,6 +55,9 @@ export function connectRoom(
   void open();
 
   return {
+    send(data: unknown) {
+      if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+    },
     close() {
       stopped = true;
       ws?.close();

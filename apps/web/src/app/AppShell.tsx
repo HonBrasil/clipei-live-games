@@ -5,6 +5,7 @@ import { Icon } from './components/icons.tsx';
 import { FounderBadge } from './components/plans.tsx';
 import { Logo, Toasts } from './components/ui.tsx';
 import { useApp } from './state.tsx';
+import { useOnboarding } from './pages/Onboarding.tsx';
 
 const NAV = [
   { to: '/app', label: 'Início', icon: 'home', end: true },
@@ -23,15 +24,21 @@ export function AppShell() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const ob = useOnboarding();
+  const guided = Boolean(me?.channel && ob && !ob.complete && !ob.dismissed);
 
   // mensagens de retorno do login (?conectado=... / ?erro=...)
+  const loaded = Boolean(me);
   useEffect(() => {
+    if (!loaded) return;
     const ok = params.get('conectado');
     const err = params.get('erro');
     if (ok && SUCCESS[ok]) toast(SUCCESS[ok], 'ok');
     if (err) toast(ERRORS[err] ?? 'Algo deu errado.', 'err');
     if (ok || err) setParams({}, { replace: true });
-  }, [params, setParams, toast]);
+    // conta nova acabou de entrar: vai direto para a configuração guiada
+    if (ok && ['streamer', 'kick', 'twitch', 'youtube'].includes(ok) && guided && !me?.history.length) navigate('/app/comecar', { replace: true });
+  }, [params, setParams, toast, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -66,6 +73,14 @@ export function AppShell() {
           <Logo className="side-logo" />
         </Link>
         <nav className="side-nav" aria-label="Menu principal">
+          {guided && ob && (
+            <NavLink to="/app/comecar" className="nav-item nav-setup">
+              <span className="nav-setup-num">
+                {ob.doneCount}/{ob.steps.length}
+              </span>
+              <span>Primeiros passos</span>
+            </NavLink>
+          )}
           {[...NAV, ...(me.admin ? ([{ to: '/app/admin', label: 'Admin', icon: 'bolt' }] as const) : [])].map((n) => (
             <NavLink key={n.to} to={n.to} end={'end' in n ? n.end : false} className="nav-item">
               <Icon name={n.icon} />

@@ -1,6 +1,7 @@
 import './styles/overlay.css';
 import { mountOverlay } from './overlay-view.ts';
 import { connectRoom } from './ws.ts';
+import { showObsTest, obsInfo } from './obs-test.ts';
 
 // ─── Parâmetros da URL ───────────────────────────────────────
 // ?key=xxxx      chave do canal
@@ -14,7 +15,8 @@ const view = mountOverlay(document.getElementById('stage')!, {
   muted: params.get('preview') === '1',
 });
 
-connectRoom(
+const preview = params.get('preview') === '1';
+const room = connectRoom(
   params.get('key') ?? 'demo',
   (msg) => {
     if (msg.type === 'boss') view.render(msg.state);
@@ -31,6 +33,12 @@ connectRoom(
     if (msg.type === 'settings') view.setSettings(msg.settings);
     if (msg.type === 'incoming') view.incoming(msg.at, msg.serverNow);
     if (msg.type === 'sfx-test') view.testSound();
+    if (msg.type === 'obs-test') {
+      showObsTest();
+      if (!preview) view.testSound();
+      room.send({ type: 'obs-pong', id: msg.id, ...obsInfo() });
+    }
   },
   (online) => view.setOnline(online),
+  preview ? 'preview' : 'overlay',
 );

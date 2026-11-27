@@ -2,6 +2,7 @@ import { ARENA_SIZE, type ArenaPosition } from '@clipei/shared';
 import { api } from '../api.ts';
 import { Card, Check, Options, OverlayPreview, Status } from '../components/ui.tsx';
 import { useApp } from '../state.tsx';
+import { ObsTest } from '../components/ObsTest.tsx';
 
 export function OverlayPage() {
   const { me, status, saveSettings, toast, refresh } = useApp();
@@ -34,6 +35,9 @@ export function OverlayPage() {
         <div className="col">
           <Card title="Prévia" subtitle="O minigame aparece aqui quando começar">
             <OverlayPreview overlayKey={me.overlayKey} />
+          </Card>
+          <Card title="Conferir o OBS" subtitle="Veja se a fonte está no lugar certo, com o tamanho certo">
+            <ObsTest />
           </Card>
           <Card title="Como adicionar no OBS">
             <div className="field">

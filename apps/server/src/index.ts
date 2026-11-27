@@ -1240,6 +1240,9 @@ app.post('/api/race/go', async (req) => ({ ok: currentRoom(req).raceGo() }));
 
 app.post('/api/race/stop', async (req) => ({ ok: currentRoom(req).stopRace() }));
 
+/** Botão "Testar no OBS": as fontes mostram um aviso e respondem com o tamanho e se estão no OBS. */
+app.post('/api/overlay/test', async (req) => currentRoom(req).testObs());
+
 app.post('/api/boss/stop', async (req) => {
   currentRoom(req).stopBoss();
   return { ok: true };
@@ -1321,7 +1324,8 @@ app.get<{ Querystring: { key?: string; client?: string } }>('/ws', { websocket: 
     socket.close(4004, 'overlay key inválida');
     return;
   }
-  room.attach(socket, req.query.client === 'panel' ? 'panel' : 'overlay');
+  // a prévia do painel (iframe) não conta como OBS conectado
+  room.attach(socket, req.query.client === 'panel' || req.query.client === 'preview' ? 'panel' : 'overlay');
 });
 
 // ─── Front estático (produção) ───────────────────────────────

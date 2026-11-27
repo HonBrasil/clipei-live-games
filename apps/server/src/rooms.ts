@@ -100,6 +100,8 @@ import {
   type DefenseConfig,
   type TermoConfig,
   type ChallengeSnapshot,
+  type ObsTestReply,
+  type ObsTestResult,
   type ChallengeStatus,
   type ChallengeHistoryItem,
   type TermoSnapshot,
@@ -1607,6 +1609,41 @@ export class Room {
     this.broadcast({ type: 'sfx-test' });
   }
 
+  private obsTests = new Map<string, { replies: ObsTestReply[]; expected: number; done: () => void }>();
+
+  /** Manda o aviso de teste para as fontes do OBS e espera as respostas (até 3 s). */
+  testObs(): Promise<ObsTestResult> {
+    const targets = [...this.sockets].filter((ws) => !this.panels.has(ws) && ws.readyState === 1);
+    const id = Math.random().toString(36).slice(2, 10);
+    const replies: ObsTestReply[] = [];
+    if (!targets.length) return Promise.resolve({ sources: 0, replies });
+    return new Promise((resolve) => {
+      const finish = () => {
+        clearTimeout(timer);
+        this.obsTests.delete(id);
+        resolve({ sources: targets.length, replies });
+      };
+      const timer = setTimeout(finish, 3000);
+      this.obsTests.set(id, { replies, expected: targets.length, done: finish });
+      for (const ws of targets) this.send(ws, { type: 'obs-test', id });
+    });
+  }
+
+  private onClientMessage(raw: unknown) {
+    let msg: { type?: string; id?: string; obs?: unknown; width?: unknown; height?: unknown; active?: unknown };
+    try {
+      msg = JSON.parse(String(raw));
+    } catch {
+      return;
+    }
+    if (msg.type !== 'obs-pong' || typeof msg.id !== 'string') return;
+    const t = this.obsTests.get(msg.id);
+    if (!t) return;
+    const n = (v: unknown) => Math.max(0, Math.min(10_000, Math.round(Number(v)) || 0));
+    t.replies.push({ obs: msg.obs === true, width: n(msg.width), height: n(msg.height), active: typeof msg.active === 'boolean' ? msg.active : null });
+    if (t.replies.length >= t.expected) t.done();
+  }
+
   // ─── Conexões ──────────────────────────────────────────────
 
   /** kind "panel" = painel do streamer (não conta como OBS conectado). */
@@ -1637,6 +1674,7 @@ export class Room {
     if (pen) this.send(ws, { type: 'penalty', state: pen });
     if (this.settings.fishing.enabled) this.send(ws, { type: 'fishing', state: this.fishing.snapshot(Date.now(), this.fishingPaused) });
     this.send(ws, { type: 'loop', state: this.loopSnapshot() });
+    if (kind === 'overlay') ws.on('message', (raw) => this.onClientMessage(raw));
     ws.on('close', () => {
       this.sockets.delete(ws);
       if (!this.panels.has(ws)) this.broadcastStatus();

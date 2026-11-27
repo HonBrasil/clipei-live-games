@@ -507,6 +507,38 @@ export interface RoomSettings {
   loop: LoopConfig;
   /** O que bits, subs, pontos e raids fazem em cada minigame (o boss usa `support`). */
   gameSupport: Record<SupportGameId, GameSupportConfig>;
+  /** Primeiros passos (configuração guiada). */
+  onboarding: OnboardingState;
+}
+
+export interface OnboardingState {
+  /** Quando o streamer confirmou que o teste apareceu no OBS. */
+  obsOkAt: number | null;
+  /** Quando rodou o primeiro teste com chat simulado. */
+  testOkAt: number | null;
+  /** Escondeu a configuração guiada. */
+  dismissed: boolean;
+}
+
+export function normalizeOnboarding(o: Partial<OnboardingState> | undefined): OnboardingState {
+  const t = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+  return { obsOkAt: t(o?.obsOkAt), testOkAt: t(o?.testOkAt), dismissed: o?.dismissed === true };
+}
+
+/** Resposta de cada fonte do OBS ao "Testar no OBS". */
+export interface ObsTestReply {
+  /** Está mesmo dentro do OBS (fonte de navegador), não numa aba do navegador. */
+  obs: boolean;
+  width: number;
+  height: number;
+  /** A cena com a fonte está no ar (null = o OBS ainda não informou). */
+  active: boolean | null;
+}
+
+export interface ObsTestResult {
+  /** Fontes conectadas quando o teste foi enviado. */
+  sources: number;
+  replies: ObsTestReply[];
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -540,6 +572,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   termo: { rounds: 3, roundSec: 180, cooldownSec: 5, hints: true },
   challenge: normalizeChallengeConfig(undefined),
   fishing: { enabled: false, cooldownSec: 60, corner: 'bl', announce: 'epico', hint: true, scene: 'transparent', rankPos: 'lake', rankTop: 3 },
+  onboarding: { obsOkAt: null, testOkAt: null, dismissed: false },
   loop: { enabled: false, mode: 'loop', intervalMin: 30, bossSkin: 'random', games: ['race', 'royale', 'kite', 'penalty', 'boss'], order: 'sequence', gapSec: 60, minChatters: 0, onlyLive: true, maxHours: 0, announce: true, teaser: true },
   penalty: {
     joinSec: 45,
@@ -612,6 +645,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     termo: normalizeTermoConfig({ ...(base.termo ?? {}), ...((p.termo ?? {}) as Partial<TermoConfig>) }),
     defense: normalizeDefenseConfig({ ...(base.defense ?? {}), ...((p.defense ?? {}) as Partial<DefenseConfig>) }),
     loop: normalizeLoopConfig({ ...(base.loop ?? {}), ...((p.loop ?? {}) as Partial<LoopConfig>) }),
+    onboarding: normalizeOnboarding({ ...(base.onboarding ?? {}), ...((p.onboarding ?? {}) as Partial<OnboardingState>) }),
     gameSupport: Object.fromEntries(
       SUPPORT_GAME_IDS.map((g) => [g, normalizeGameSupport(g, base.gameSupport?.[g], (p.gameSupport as Record<string, unknown> | undefined)?.[g])]),
     ) as Record<SupportGameId, GameSupportConfig>,
@@ -659,6 +693,8 @@ export type ServerMessage =
   /** Boss automático chegando: overlay mostra contagem regressiva. at = null cancela. */
   | { type: 'incoming'; at: number | null; serverNow: number }
   | { type: 'sfx-test' }
+  /** "Testar no OBS": a fonte mostra um aviso e responde com obs-pong. */
+  | { type: 'obs-test'; id: string }
   /** Clip da vitória criado (painel mostra o link). */
   | { type: 'clip'; clip: ClipRecord };
 
