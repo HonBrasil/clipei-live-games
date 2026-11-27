@@ -2162,3 +2162,199 @@ body.overlay-body {
     animation: none;
   }
 }
+
+/* ─── Desafios do Chat ────────────────────────────────────── */
+.ch-zone {
+  height: 590px;
+  font-family: var(--font-body, Inter, sans-serif);
+  color: #fff;
+}
+.ch-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 24px 16px;
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(24, 12, 20, 0.95), rgba(8, 8, 14, 0.95));
+  border: 1px solid rgba(255, 31, 45, 0.35);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+}
+.ch-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ch-head b {
+  font: italic 900 36px var(--font-display);
+}
+.ch-head em {
+  margin-left: auto;
+  min-width: 90px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: #ff1f2d;
+  font: 900 26px var(--font-display);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.ch-sub {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 19px;
+  font-weight: 600;
+}
+.ch-opts {
+  flex: 1;
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ch-opts li {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  transition: border-color 0.2s;
+}
+.ch-opts li.is-top {
+  border-color: #ffc83d;
+  box-shadow: 0 0 22px rgba(255, 200, 61, 0.25);
+}
+.ch-opts kbd {
+  min-width: 58px;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+  padding: 4px 12px;
+  border-radius: 10px;
+  background: #fff;
+  color: #0b0b0f;
+  font: italic 900 30px var(--font-display);
+}
+.ch-opts span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ch-opts span b {
+  overflow: hidden;
+  font-size: 27px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.ch-opts span small {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 17px;
+  font-weight: 700;
+}
+.ch-opts em {
+  position: relative;
+  z-index: 1;
+  min-width: 56px;
+  font: 900 38px var(--font-display);
+  font-style: normal;
+  text-align: right;
+}
+.ch-opts i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(255, 31, 45, 0.35), rgba(255, 31, 45, 0.12));
+  transition: width 0.35s ease;
+}
+.ch-foot {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 16px;
+  text-align: right;
+}
+/* faixa do desafio valendo, no topo, sem atrapalhar o jogo */
+.ch-banner {
+  position: absolute;
+  z-index: 7;
+  top: 22px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 1100px;
+  padding: 10px 12px 10px 16px;
+  border-radius: 18px;
+  background: rgba(10, 10, 16, 0.9);
+  border: 2px solid #ff1f2d;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5), 0 0 24px rgba(255, 31, 45, 0.25);
+  color: #fff;
+  font-family: var(--font-body, Inter, sans-serif);
+  pointer-events: none;
+  animation: fw-in 0.35s ease-out;
+}
+.ch-banner[hidden] {
+  display: none;
+}
+.ch-banner.is-ok {
+  border-color: #22a559;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5), 0 0 30px rgba(34, 165, 89, 0.45);
+}
+.ch-banner.is-bad {
+  border-color: #ff4d5e;
+}
+.ch-banner.is-warn {
+  border-color: #ffc83d;
+}
+.ch-ico {
+  font-size: 34px;
+}
+.ch-txt {
+  display: grid;
+  min-width: 0;
+}
+.ch-txt small {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ch-txt b {
+  overflow: hidden;
+  font: italic 900 28px var(--font-display);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ch-banner em {
+  flex: none;
+  padding: 6px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  font: 900 26px var(--font-display);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+.ch-banner em.is-low {
+  background: #ff1f2d;
+  animation: ln-pulse 0.8s ease-in-out infinite;
+}
+/* com desafio valendo, a contagem do próximo minigame desce */
+.stage.has-challenge .loop-next {
+  top: 110px;
+}

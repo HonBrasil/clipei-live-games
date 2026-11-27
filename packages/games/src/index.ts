@@ -14,3 +14,4 @@ export * from './fishing.ts';
 export * from './loop.ts';
 export * from './defense.ts';
 export * from './termo.ts';
+export * from './challenge.ts';

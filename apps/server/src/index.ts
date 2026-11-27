@@ -17,6 +17,7 @@ import {
   type KiteConfig,
   type DefenseConfig,
   type TermoConfig,
+  CHALLENGE_LIMITS,
   type PenaltyConfig,
   type BossPresetKey,
   type MeResponse,
@@ -997,6 +998,7 @@ app.post<{ Body: Partial<Omit<BossConfig, 'skin'>> & { preset?: BossPresetKey | 
   if (room.penalty?.isActive) return reply.code(409).send({ error: 'Tem uma disputa de pênaltis rolando. Espere terminar para invocar o boss.' });
   if (room.defense?.isActive) return reply.code(409).send({ error: 'Tem uma Defesa da Base rolando. Espere terminar para invocar o boss.' });
   if (room.termo?.isActive) return reply.code(409).send({ error: 'Tem um Termo do Chat rolando. Espere terminar para invocar o boss.' });
+  if (room.challenge.isVoting) return reply.code(409).send({ error: 'Tem uma votação de desafio rolando. Espere terminar para invocar o boss.' });
   const started = room.startBoss(cfg, hpMode);
   return { ok: true, config: started, hpMode };
 });
@@ -1062,6 +1064,44 @@ app.post<{ Body: Partial<KiteConfig> }>('/api/kite/start', async (req, reply) =>
   const res = room.startKite(req.body && Object.keys(req.body).length ? req.body : undefined);
   if (!res.ok) return reply.code(409).send({ error: res.error });
   return res;
+});
+
+app.post<{ Body: { pick?: string[] } }>('/api/challenge/vote', async (req, reply) => {
+  const room = currentRoom(req);
+  if (!room.entitled()) return reply.code(402).send({ error: 'Seu teste acabou. Assine um plano para voltar a jogar.' });
+  const pick = Array.isArray(req.body?.pick) ? req.body.pick.map(String).slice(0, 5) : null;
+  const res = room.startChallengeVote(pick);
+  if (!res.ok) return reply.code(409).send({ error: res.error });
+  return res;
+});
+
+app.post<{ Body: { id?: string } }>('/api/challenge/start', async (req, reply) => {
+  const room = currentRoom(req);
+  if (!room.entitled()) return reply.code(402).send({ error: 'Seu teste acabou. Assine um plano para voltar a jogar.' });
+  const res = room.startChallengeDirect(String(req.body?.id ?? ''));
+  if (!res.ok) return reply.code(409).send({ error: res.error });
+  return res;
+});
+
+app.post<{ Body: { result?: string } }>('/api/challenge/finish', async (req) => {
+  const r = req.body?.result;
+  const result = r === 'done' || r === 'failed' || r === 'skipped' ? r : 'skipped';
+  return { ok: currentRoom(req).finishChallenge(result) };
+});
+
+/** Aprova (vira desafio da lista) ou recusa uma sugestão do chat. */
+app.post<{ Body: { id?: string; action?: string; minutes?: number } }>('/api/challenge/suggestion', async (req, reply) => {
+  const room = currentRoom(req);
+  const c = room.getSettings().challenge;
+  const sug = c.pending.find((p) => p.id === req.body?.id);
+  if (!sug) return reply.code(404).send({ error: 'Sugestão não encontrada.' });
+  const pending = c.pending.filter((p) => p.id !== sug.id);
+  if (req.body?.action === 'approve') {
+    if (c.list.length >= CHALLENGE_LIMITS.items) return reply.code(400).send({ error: `A lista já tem ${CHALLENGE_LIMITS.items} desafios. Apague algum antes.` });
+    const minutes = Math.max(0, Math.min(120, Math.round(Number(req.body.minutes ?? 5)) || 0));
+    room.updateSettings({ challenge: { pending, list: [...c.list, { id: `u${Date.now().toString(36)}`, text: sug.text, minutes, enabled: true, by: sug.name }] } });
+  } else room.updateSettings({ challenge: { pending } });
+  return { ok: true, challenge: room.getSettings().challenge };
 });
 
 app.post<{ Body: Partial<TermoConfig> }>('/api/termo/start', async (req, reply) => {

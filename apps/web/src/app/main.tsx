@@ -25,6 +25,7 @@ import { FishingPage } from './pages/FishingPage.tsx';
 import { LoopPage } from './pages/LoopPage.tsx';
 import { DefensePage } from './pages/DefensePage.tsx';
 import { TermoPage } from './pages/TermoPage.tsx';
+import { ChallengePage } from './pages/ChallengePage.tsx';
 import { PrivacyPage, TermsPage } from './pages/Legal.tsx';
 
 createRoot(document.getElementById('root')!).render(
@@ -60,6 +61,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="jogos/penalty" element={<PenaltyPage />} />
           <Route path="jogos/penaltis" element={<PenaltyPage />} />
           <Route path="jogos/termo" element={<TermoPage />} />
+          <Route path="jogos/challenge" element={<ChallengePage />} />
+          <Route path="jogos/desafios" element={<ChallengePage />} />
           <Route path="jogos/defense" element={<DefensePage />} />
           <Route path="jogos/defesa" element={<DefensePage />} />
           <Route path="jogos/fishing" element={<FishingPage />} />

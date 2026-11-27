@@ -65,6 +65,18 @@ export function Games() {
                   </div>
                 ) : g.id === 'race' ? (
                   <TrackArt />
+                ) : g.id === 'challenge' ? (
+                  <span className="g-ch" aria-hidden="true">
+                    <i>
+                      <kbd>!1</kbd>Só de pistola<em>12</em>
+                    </i>
+                    <i className="top">
+                      <kbd>!2</kbd>Voz de narrador<em>31</em>
+                    </i>
+                    <i>
+                      <kbd>!3</kbd>Sem pular<em>7</em>
+                    </i>
+                  </span>
                 ) : g.id === 'termo' ? (
                   <span className="g-termo" aria-hidden="true">
                     <i className="g">T</i>

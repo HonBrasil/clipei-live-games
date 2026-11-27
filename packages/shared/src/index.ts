@@ -134,8 +134,8 @@ export interface SupportSettings {
 
 // ─── Apoios por minigame (tudo editável pelo streamer) ───────
 
-export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'fishing' | 'defense' | 'termo';
-export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite', 'penalty', 'fishing', 'defense', 'termo'];
+export type SupportGameId = 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'fishing' | 'defense' | 'termo' | 'challenge';
+export const SUPPORT_GAME_IDS: SupportGameId[] = ['race', 'duel', 'royale', 'kite', 'penalty', 'fishing', 'defense', 'termo', 'challenge'];
 /** Presentes (gift) seguem a regra de sub. */
 export type SupportRuleKind = 'bits' | 'sub' | 'points' | 'raid';
 export const SUPPORT_RULE_KINDS: SupportRuleKind[] = ['bits', 'sub', 'points', 'raid'];
@@ -293,6 +293,28 @@ export const GAME_SUPPORT: Record<SupportGameId, Partial<Record<SupportRuleKind,
         { key: 'kites', label: '', suffix: 'pipas na chuva', min: 0, max: 15, step: 1, def: 6 },
         { key: 'gustSec', label: 'Ventania de', suffix: 's', min: 2, max: 15, step: 1, def: 6 },
       ],
+    },
+  },
+  challenge: {
+    bits: {
+      effect: 'Voto turbinado',
+      detail: 'Durante a votação, o voto de quem mandou bits vale mais.',
+      params: [{ key: 'votes', label: 'Vale', suffix: 'votos', min: 2, max: 20, step: 1, def: 3 }],
+    },
+    sub: {
+      effect: 'Pode sugerir desafio',
+      detail: 'Quem deu sub pode sugerir um desafio com !sugerir. Você aprova no painel antes de entrar na lista.',
+      params: [],
+    },
+    points: {
+      effect: 'Voto turbinado',
+      detail: 'Durante a votação, o voto de quem resgatou vale mais.',
+      params: [{ key: 'votes', label: 'Vale', suffix: 'votos', min: 2, max: 20, step: 1, def: 2 }],
+    },
+    raid: {
+      effect: 'Mais tempo no desafio',
+      detail: 'O desafio que está valendo ganha mais minutos.',
+      params: [{ key: 'minutes', label: 'Mais', suffix: 'min', min: 1, max: 30, step: 1, def: 2 }],
     },
   },
   termo: {
@@ -479,6 +501,7 @@ export interface RoomSettings {
   penalty: PenaltyConfig;
   defense: DefenseConfig;
   termo: TermoConfig;
+  challenge: ChallengeConfig;
   fishing: FishingConfig;
   /** Modo Loop: os minigames se revezam sozinhos (streamer ausente, live aberta). */
   loop: LoopConfig;
@@ -511,9 +534,11 @@ export const DEFAULT_SETTINGS: RoomSettings = {
     fishing: defaultGameSupport('fishing'),
     defense: defaultGameSupport('defense'),
     termo: defaultGameSupport('termo'),
+    challenge: defaultGameSupport('challenge'),
   },
   defense: { joinSec: 60, waves: 8, voteSec: 15, maxPlayers: 60, fillBots: true, difficulty: 'normal', fullscreen: true },
   termo: { rounds: 3, roundSec: 180, cooldownSec: 5, hints: true },
+  challenge: normalizeChallengeConfig(undefined),
   fishing: { enabled: false, cooldownSec: 60, corner: 'bl', announce: 'epico', hint: true, scene: 'transparent', rankPos: 'lake', rankTop: 3 },
   loop: { enabled: false, mode: 'loop', intervalMin: 30, bossSkin: 'random', games: ['race', 'royale', 'kite', 'penalty', 'boss'], order: 'sequence', gapSec: 60, minChatters: 0, onlyLive: true, maxHours: 0, announce: true, teaser: true },
   penalty: {
@@ -583,6 +608,7 @@ export function mergeSettings(base: RoomSettings, patch: unknown): RoomSettings 
     kite: normalizeKiteConfig({ ...(base.kite ?? {}), ...((p.kite ?? {}) as Partial<KiteConfig>) }),
     penalty: normalizePenaltyConfig(base.penalty, p.penalty as Partial<PenaltyConfig> | undefined),
     fishing: normalizeFishingConfig({ ...(base.fishing ?? {}), ...((p.fishing ?? {}) as Partial<FishingConfig>) }),
+    challenge: normalizeChallengeConfig({ ...(base.challenge ?? {}), ...((p.challenge ?? {}) as Partial<ChallengeConfig>) }),
     termo: normalizeTermoConfig({ ...(base.termo ?? {}), ...((p.termo ?? {}) as Partial<TermoConfig>) }),
     defense: normalizeDefenseConfig({ ...(base.defense ?? {}), ...((p.defense ?? {}) as Partial<DefenseConfig>) }),
     loop: normalizeLoopConfig({ ...(base.loop ?? {}), ...((p.loop ?? {}) as Partial<LoopConfig>) }),
@@ -604,7 +630,7 @@ export interface RoomStatus {
   /** Fontes do OBS conectadas agora (o painel não conta). */
   overlays: number;
   /** Minigame rolando agora na tela (só um por vez). */
-  game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | null;
+  game: 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | 'challenge' | null;
   /** Chat simulado ligado (aba Testar). */
   simulating: boolean;
   serverNow: number;
@@ -626,6 +652,7 @@ export type ServerMessage =
   | { type: 'billing' }
   | { type: 'defense'; state: DefenseSnapshot }
   | { type: 'termo'; state: TermoSnapshot }
+  | { type: 'challenge'; state: ChallengeSnapshot }
   | { type: 'toast'; text: string; tone?: 'info' | 'success' | 'warning' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'room'; status: RoomStatus }
@@ -705,7 +732,7 @@ export interface SimulatorStatus {
 
 // ─── Catálogo da plataforma ─────────────────────────────────
 
-export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | 'fishing' | 'quiz' | 'teams' | 'wheel' | 'missions';
+export type GameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | 'challenge' | 'fishing' | 'quiz' | 'teams' | 'missions';
 
 export interface GameInfo {
   id: GameId;
@@ -807,12 +834,12 @@ export const GAMES: GameInfo[] = [
     commands: ['!time', '!atk'],
   },
   {
-    id: 'wheel',
+    id: 'challenge',
     name: 'Desafios do Chat',
     tagline: 'O chat escolhe o desafio do streamer',
-    description: 'O streamer cadastra desafios e o chat vota qual ele vai cumprir na live.',
-    status: 'soon',
-    commands: ['!desafio'],
+    description: 'Você cadastra os seus desafios, o chat vota qual você vai cumprir e ele fica na tela com o tempo correndo. Cumpriu ou não? O chat fica sabendo.',
+    status: 'active',
+    commands: ['!1 !2 !3', '!sugerir', '!desafio'],
   },
   {
     id: 'missions',
@@ -1720,8 +1747,8 @@ export interface FishingStats {
 // ─── Modo Loop ───────────────────────────────────────────────
 
 /** Minigames que podem entrar no rodízio (a pescaria roda junto, entre um e outro). */
-export type LoopGameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo';
-export const LOOP_GAMES: LoopGameId[] = ['boss', 'race', 'duel', 'royale', 'kite', 'penalty', 'defense', 'termo'];
+export type LoopGameId = 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | 'challenge';
+export const LOOP_GAMES: LoopGameId[] = ['boss', 'race', 'duel', 'royale', 'kite', 'penalty', 'defense', 'termo', 'challenge'];
 export const LOOP_GAME_INFO: Record<LoopGameId, { name: string; emoji: string; join: string }> = {
   boss: { name: 'Boss coletivo', emoji: '👾', join: '!atk' },
   race: { name: 'Corrida', emoji: '🏁', join: '!correr' },
@@ -1731,6 +1758,7 @@ export const LOOP_GAME_INFO: Record<LoopGameId, { name: string; emoji: string; j
   penalty: { name: 'Pênaltis', emoji: '⚽', join: '!a ou !b' },
   defense: { name: 'Defesa da Base', emoji: '🏰', join: '!arqueiro, !mago ou !canhao' },
   termo: { name: 'Termo do Chat', emoji: '🔤', join: '!t e a palavra' },
+  challenge: { name: 'Desafios do Chat', emoji: '🎯', join: '!1, !2 ou !3' },
 };
 
 export interface LoopConfig {
@@ -2139,5 +2167,115 @@ export interface TermoSnapshot {
   totalGuesses: number;
   players: number;
   fx: TermoFx[];
+  serverNow: number;
+}
+
+// ─── Desafios do Chat ────────────────────────────────────────
+
+export interface ChallengeItem {
+  id: string;
+  /** O que o streamer tem que fazer (até 120 caracteres). */
+  text: string;
+  /** Duração em minutos (0 = sem tempo: vale até você marcar cumprido). */
+  minutes: number;
+  enabled: boolean;
+  /** Veio de uma sugestão do chat (nome de quem sugeriu). */
+  by?: string;
+}
+
+export interface ChallengeSuggestion {
+  id: string;
+  text: string;
+  name: string;
+  at: number;
+}
+
+export interface ChallengeHistoryItem {
+  text: string;
+  result: 'done' | 'failed' | 'timeout' | 'skipped';
+  votes: number;
+  at: number;
+}
+
+export interface ChallengeConfig {
+  /** Os desafios do streamer. */
+  list: ChallengeItem[];
+  /** Quantas opções vão para a votação. */
+  options: number;
+  /** Tempo de votação. */
+  voteSec: number;
+  /** Quem pode sugerir desafio com !sugerir (sempre passa pela sua aprovação). */
+  suggestions: 'off' | 'subs' | 'all';
+  /** Sugestões esperando aprovação. */
+  pending: ChallengeSuggestion[];
+  /** Últimos desafios. */
+  history: ChallengeHistoryItem[];
+}
+
+export const CHALLENGE_LIMITS = { items: 60, text: 120, pending: 30, history: 15 } as const;
+
+/** Lista inicial (função: o DEFAULT_SETTINGS lá em cima usa antes desta linha). */
+export function defaultChallenges(): ChallengeItem[] {
+  return [
+  { id: 'd1', text: 'Jogar só de pistola', minutes: 10, enabled: true },
+  { id: 'd2', text: 'Falar com sotaque de outro estado', minutes: 5, enabled: true },
+  { id: 'd3', text: 'Sem pular por 5 minutos', minutes: 5, enabled: true },
+  { id: 'd4', text: 'Ler o chat em voz de narrador de futebol', minutes: 3, enabled: true },
+  { id: 'd5', text: 'Jogar com a sensibilidade no máximo', minutes: 5, enabled: true },
+  { id: 'd6', text: 'Fazer 10 polichinelos', minutes: 0, enabled: true },
+  { id: 'd7', text: 'Só pode andar agachado', minutes: 3, enabled: true },
+  { id: 'd8', text: 'Cantar o próximo refrão que tocar', minutes: 0, enabled: true },
+  { id: 'd9', text: 'Jogar sem som', minutes: 5, enabled: true },
+  { id: 'd10', text: 'Elogiar cada pessoa que falar no chat', minutes: 3, enabled: true },
+  ];
+}
+
+export function normalizeChallengeConfig(c: Partial<ChallengeConfig> | undefined): ChallengeConfig {
+  const num = (v: unknown, def: number, min: number, max: number) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  const clean = (t: unknown) => String(t ?? '').replace(/\s+/g, ' ').trim().slice(0, CHALLENGE_LIMITS.text);
+  const list = Array.isArray(c?.list)
+    ? c!.list
+        .map((it, i) => ({
+          id: String(it?.id ?? `c${i}`).slice(0, 24) || `c${i}`,
+          text: clean(it?.text),
+          minutes: num(it?.minutes, 5, 0, 120),
+          enabled: it?.enabled !== false,
+          ...(it?.by ? { by: String(it.by).slice(0, 30) } : {}),
+        }))
+        .filter((it) => it.text)
+        .slice(0, CHALLENGE_LIMITS.items)
+    : defaultChallenges();
+  return {
+    list,
+    options: num(c?.options, 3, 2, 5),
+    voteSec: num(c?.voteSec, 45, 15, 180),
+    suggestions: c?.suggestions === 'off' || c?.suggestions === 'all' ? c.suggestions : 'subs',
+    pending: Array.isArray(c?.pending)
+      ? c!.pending
+          .map((p) => ({ id: String(p.id).slice(0, 24), text: clean(p.text), name: String(p.name ?? '').slice(0, 30), at: Number(p.at) || 0 }))
+          .filter((p) => p.text)
+          .slice(0, CHALLENGE_LIMITS.pending)
+      : [],
+    history: Array.isArray(c?.history) ? c!.history.slice(0, CHALLENGE_LIMITS.history) : [],
+  };
+}
+
+export type ChallengeStatus = 'idle' | 'vote' | 'active' | 'done';
+
+export interface ChallengeSnapshot {
+  status: ChallengeStatus;
+  /** opções da votação */
+  options: { text: string; minutes: number; votes: number }[];
+  voteEndsAt: number | null;
+  voters: number;
+  /** desafio valendo */
+  current: { text: string; minutes: number; votes: number } | null;
+  startedAt: number | null;
+  /** fim do tempo (null = sem tempo) */
+  endsAt: number | null;
+  result: ChallengeHistoryItem['result'] | null;
   serverNow: number;
 }

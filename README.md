@@ -367,3 +367,15 @@ A palavra secreta de 5 letras, no estilo Termo/Wordle. **Minigames → Termo do 
 - Partida de 1, 3 ou 5 palavras; dicas automáticas na metade e nos 3/4 do tempo (nunca revela a palavra inteira). Ranking da semana salvo em `termo:<canal>`.
 - Apoios editáveis: bits e pontos = dica (revela uma letra), sub = chute sem espera por X min, raid = mais tempo e uma letra.
 - Entra no Automático (Temporizador e Modo Loop).
+
+## Desafios do Chat
+
+O chat escolhe o desafio que o streamer vai cumprir. **Minigames → Desafios do Chat** ou `!desafio votar` (mods).
+
+- **Personalizável**: o streamer monta a própria lista (até 60 desafios, 120 caracteres cada), com duração por desafio (1 a 60 min ou "até cumprir"), ativa/desativa, reordena e apaga. Tem ideias prontas para adicionar com um clique.
+- Votação com 2 a 5 opções (sorteadas sem repetir os últimos, ou escolhidas a dedo no painel) e 20 a 90 s. O chat vota com `!1`, `!2`…; dá para trocar o voto. Também dá para "Valer agora" um desafio sem votação.
+- Só a votação ocupa a tela como jogo. O desafio valendo fica numa faixa no topo com o tempo correndo, e os outros minigames podem rodar ao mesmo tempo.
+- Fim: `!desafio cumprido` (confete), `!desafio falhou`, `!desafio parar` ou tempo esgotado. Histórico dos últimos 15 no painel.
+- Sugestões: `!sugerir texto` (ninguém / só subs / todo o chat). Tudo vai para aprovação no painel antes de entrar na lista. `!desafio` mostra o desafio valendo.
+- Apoios editáveis: bits e pontos = voto turbinado, sub = libera sugerir, raid = mais minutos no desafio valendo.
+- Entra no Automático (Temporizador e Modo Loop): o resultado sai sozinho quando o tempo acaba.

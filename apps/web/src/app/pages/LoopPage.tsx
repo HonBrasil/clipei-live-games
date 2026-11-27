@@ -15,6 +15,7 @@ const NEEDS: Record<LoopGameId, string> = {
   penalty: 'Precisa de gente escolhendo time com !a e !b.',
   defense: 'Com "completar com bots" ligado, sempre tem torre na estrada.',
   termo: 'Roda com qualquer chat: uma pessoa chutando já dá jogo.',
+  challenge: 'Abre a votação sozinho. Quando o tempo do desafio acaba, o resultado sai automático.',
 };
 const PAGES: Record<LoopGameId, string> = {
   boss: '/app/jogos/boss',
@@ -25,6 +26,7 @@ const PAGES: Record<LoopGameId, string> = {
   penalty: '/app/jogos/penaltis',
   defense: '/app/jogos/defesa',
   termo: '/app/jogos/termo',
+  challenge: '/app/jogos/desafios',
 };
 
 const clock = (ms: number) => {

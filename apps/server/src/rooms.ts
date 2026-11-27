@@ -16,6 +16,11 @@ import {
   KiteGame,
   DefenseGame,
   TermoGame,
+  ChallengeGame,
+  parseChallengeChatCommand,
+  challengeVoteAnnouncement,
+  challengeStartAnnouncement,
+  challengeResultAnnouncement,
   parseTermoChatCommand,
   termoHelpText,
   termoStartAnnouncement,
@@ -94,6 +99,9 @@ import {
   type KiteConfig,
   type DefenseConfig,
   type TermoConfig,
+  type ChallengeSnapshot,
+  type ChallengeStatus,
+  type ChallengeHistoryItem,
   type TermoSnapshot,
   type TermoStatus,
   type DefenseSnapshot,
@@ -176,6 +184,11 @@ export class Room {
   kite: KiteGame | null = null;
   defense: DefenseGame | null = null;
   termo: TermoGame | null = null;
+  /** Desafios do Chat (sempre existe: o desafio valendo convive com os outros jogos) */
+  readonly challenge = new ChallengeGame();
+  private challengeStatus: ChallengeStatus = 'idle';
+  private lastChallengeAt = 0;
+  private lastChallengeSay = 0;
   /** ranking da semana do Termo (o index liga ao banco) */
   termoSave: { get: () => TermoSave | null; set: (s: TermoSave) => void } | null = null;
   penalty: PenaltyGame | null = null;
@@ -248,6 +261,10 @@ export class Room {
         if (pg.status === 'lobby') return x < 0.35 ? '!a' : x < 0.7 ? '!b' : 'chatter';
         return x < 0.2 ? '!esq' : x < 0.35 ? '!meio' : x < 0.55 ? '!dir' : 'chatter';
       }
+      if (this.challenge.isVoting) {
+        const n = this.challenge.options.length;
+        return Math.random() < 0.5 ? `!${1 + Math.floor(Math.random() * n)}` : 'chatter';
+      }
       const tg = this.termo;
       if (tg?.isActive) {
         if (tg.status !== 'playing' || Math.random() < 0.6) return 'chatter';
@@ -299,7 +316,7 @@ export class Room {
   }
 
   /** Só um minigame por vez na tela. */
-  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | null {
+  activeGame(): 'boss' | 'race' | 'duel' | 'royale' | 'kite' | 'penalty' | 'defense' | 'termo' | 'challenge' | null {
     if (this.game?.isRunning) return 'boss';
     if (this.race?.isActive) return 'race';
     if (this.duel?.isActive) return 'duel';
@@ -308,11 +325,12 @@ export class Room {
     if (this.penalty?.isActive) return 'penalty';
     if (this.defense?.isActive) return 'defense';
     if (this.termo?.isActive) return 'termo';
+    if (this.challenge.isVoting) return 'challenge';
     return null;
   }
 
   private busyText(busy: NonNullable<ReturnType<Room['activeGame']>>) {
-    const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando', defense: 'uma Defesa da Base rolando', termo: 'um Termo do Chat rolando' }[busy];
+    const what = { boss: 'um boss na arena', race: 'uma corrida rolando', duel: 'um duelo rolando', royale: 'um Battle Royale rolando', kite: 'um Pipa Combate no céu', penalty: 'uma disputa de pênaltis rolando', defense: 'uma Defesa da Base rolando', termo: 'um Termo do Chat rolando', challenge: 'uma votação de desafio rolando' }[busy];
     return `Tem ${what}. Um jogo por vez: espere terminar.`;
   }
 
@@ -388,6 +406,8 @@ export class Room {
         return this.startDefense().ok;
       case 'termo':
         return this.startTermo().ok;
+      case 'challenge':
+        return this.startChallengeVote().ok;
     }
   }
 
@@ -486,6 +506,77 @@ export class Room {
   private broadcastFishing() {
     this.lastFishingAt = Date.now();
     this.broadcast({ type: 'fishing', state: this.fishing.snapshot(Date.now(), this.fishingPaused) });
+  }
+
+  // ─── Desafios do Chat ──────────────────────────────────────
+
+  /** Abre a votação (pick = ids escolhidos pelo streamer; senão sorteia). */
+  startChallengeVote(pick?: string[] | null) {
+    const busy = this.activeGame();
+    if (busy) return { ok: false as const, error: this.busyText(busy) };
+    if (this.challenge.status === 'active') return { ok: false as const, error: 'Tem um desafio valendo. Marque cumprido ou falhou antes de abrir outra votação.' };
+    this.challenge.support = this.settings.gameSupport.challenge;
+    const err = this.challenge.openVote(this.settings.challenge, pick ?? null);
+    if (err) return { ok: false as const, error: err };
+    this.afterChallengeUpdate();
+    return { ok: true as const };
+  }
+
+  /** Começa um desafio direto, sem votação. */
+  startChallengeDirect(id: string) {
+    if (this.challenge.isVoting || this.challenge.status === 'active') return { ok: false as const, error: 'Já tem um desafio rolando.' };
+    const item = this.settings.challenge.list.find((c) => c.id === id);
+    if (!item) return { ok: false as const, error: 'Desafio não encontrado.' };
+    this.challenge.startDirect(item);
+    this.afterChallengeUpdate();
+    return { ok: true as const };
+  }
+
+  finishChallenge(result: ChallengeHistoryItem['result']) {
+    if (!this.challenge.finish(result)) return false;
+    this.afterChallengeUpdate();
+    return true;
+  }
+
+  challengeSnapshot(): ChallengeSnapshot | null {
+    return this.challenge.status === 'idle' ? null : this.challenge.snapshot();
+  }
+
+  /** !sugerir: guarda para o streamer aprovar no painel. */
+  private addSuggestion(text: string, name: string) {
+    const c = this.settings.challenge;
+    const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (c.list.some((i) => norm(i.text) === norm(text)) || c.pending.some((p) => norm(p.text) === norm(text))) return 'dup';
+    if (c.pending.length >= 30) return 'full';
+    this.updateSettings({ challenge: { pending: [...c.pending, { id: `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, text, name, at: Date.now() }] } });
+    return 'ok';
+  }
+
+  private broadcastChallenge() {
+    this.lastChallengeAt = Date.now();
+    this.broadcast({ type: 'challenge', state: this.challenge.snapshot() });
+  }
+
+  private afterChallengeUpdate() {
+    const g = this.challenge;
+    const prev = this.challengeStatus;
+    const next = g.status;
+    this.challengeStatus = next;
+    if (prev !== next) {
+      if (next === 'vote') {
+        this.say(challengeVoteAnnouncement(g.options.map((o) => ({ text: o.item.text, minutes: o.item.minutes })), this.settings.challenge.voteSec));
+        this.spawner.fightStarted();
+      }
+      if (next === 'active' && g.current) this.say(challengeStartAnnouncement(g.current.item.text, g.current.item.minutes, g.current.votes), 'success');
+      if (prev === 'vote' && next !== 'vote') this.spawner.fightEnded();
+      if (next === 'done' && g.finished) {
+        this.say(challengeResultAnnouncement(g.finished.text, g.finished.result), g.finished.result === 'done' ? 'success' : 'warning');
+        this.updateSettings({ challenge: { history: [g.finished, ...this.settings.challenge.history].slice(0, 15) } });
+        g.finished = null;
+      }
+      this.broadcastStatus();
+    }
+    this.broadcastChallenge();
   }
 
   // ─── Termo do Chat ─────────────────────────────────────────
@@ -1066,6 +1157,40 @@ export class Room {
       this.penalty.handle(event);
       return;
     }
+    const chCmd = parseChallengeChatCommand(event);
+    if (chCmd) {
+      if (chCmd.type === 'vote') {
+        if (this.entitled()) this.startChallengeVote();
+      } else if (chCmd.type === 'done') this.finishChallenge('done');
+      else if (chCmd.type === 'failed') this.finishChallenge('failed');
+      else this.finishChallenge('skipped');
+      return;
+    }
+    {
+      const act = this.challenge.handle(event, this.settings.challenge);
+      if (act.type === 'voted') return;
+      if (act.type === 'suggest') {
+        const r = this.addSuggestion(act.text, act.name);
+        if (Date.now() - this.lastChallengeSay > 8000) {
+          this.lastChallengeSay = Date.now();
+          this.say(r === 'ok' ? `🎯 Valeu, ${act.name}! Sugestão enviada para o streamer avaliar.` : r === 'dup' ? `🎯 ${act.name}, esse desafio já está na lista.` : '🎯 A caixa de sugestões está cheia. Tente mais tarde!');
+        }
+        return;
+      }
+      if (act.type === 'status') {
+        if (Date.now() - this.lastChallengeSay > 8000) {
+          this.lastChallengeSay = Date.now();
+          const c = this.challenge;
+          this.say(
+            c.status === 'active' && c.current
+              ? `🎯 Desafio valendo: "${c.current.item.text}"${c.endsAt ? ` (faltam ${Math.max(1, Math.ceil((c.endsAt - Date.now()) / 60_000))} min)` : ''}.`
+              : `🎯 Nenhum desafio valendo agora.${this.settings.challenge.suggestions !== 'off' ? ` Sugira um com !sugerir${this.settings.challenge.suggestions === 'subs' ? ' (subs)' : ''}.` : ''}`,
+          );
+        }
+        return;
+      }
+      if (this.challenge.isVoting) return;
+    }
     const termoCmd = parseTermoChatCommand(event);
     if (termoCmd) {
       if (termoCmd.type === 'help') {
@@ -1170,6 +1295,29 @@ export class Room {
 
   /** Bits, subs, presentes, pontos de canal e raids viram golpes especiais. */
   handleSupport(e: SupportEvent) {
+    // votação de desafio na tela; ou, sem outro jogo, desafio valendo (raid) e sub liberando sugestão
+    const ch = this.challenge;
+    const otherGame = this.activeGame() && !ch.isVoting;
+    if (
+      ch.isVoting ||
+      (!otherGame && !this.game?.isRunning && ((e.kind === 'raid' && ch.status === 'active') || ((e.kind === 'sub' || e.kind === 'gift') && this.settings.challenge.suggestions !== 'off')))
+    ) {
+      ch.support = this.settings.gameSupport.challenge;
+      const res = ch.special(e);
+      if (res.applied) {
+        const icon = e.kind === 'raid' ? '⏱️' : e.kind === 'sub' || e.kind === 'gift' ? '💡' : '🗳️';
+        this.say(`${icon} ${supportName(e)} (${supportLabel(e).replace('golpe especial', 'pontos do canal')}): ${res.effect}!`, 'success');
+        if (e.kind === 'points') this.hooks.redemption?.(e, true);
+        this.broadcastChallenge();
+        return { applied: true, damage: 0 };
+      }
+      if (ch.isVoting) {
+        if (e.kind === 'points') this.hooks.redemption?.(e, false);
+        const thanks = supportThanks(e);
+        if (thanks && e.kind !== 'points') this.say(thanks);
+        return { applied: false, damage: 0 };
+      }
+    }
     if (this.penalty?.isActive) {
       this.penalty.support = this.settings.gameSupport.penalty;
       const res = this.penalty.special(e);
@@ -1342,6 +1490,11 @@ export class Room {
       if (this.penalty.status !== this.penaltyStatus) this.afterPenaltyUpdate();
       else if (this.penalty.dirty && now - this.lastPenaltyAt >= RACE_BROADCAST_MS) this.broadcastPenalty();
     }
+    if (this.challenge.status !== 'idle') {
+      this.challenge.update(now);
+      if (this.challenge.status !== this.challengeStatus) this.afterChallengeUpdate();
+      else if (this.challenge.dirty && now - this.lastChallengeAt >= 250) this.broadcastChallenge();
+    }
     if (this.termo?.isActive) {
       this.termo.update(now);
       if (this.termo.status !== this.termoStatus || this.termo.round !== this.termoRound) this.afterTermoUpdate();
@@ -1474,6 +1627,8 @@ export class Room {
     if (br) this.send(ws, { type: 'royale', state: br });
     const kite = this.kiteSnapshot();
     if (kite) this.send(ws, { type: 'kite', state: kite });
+    const chs = this.challengeSnapshot();
+    if (chs) this.send(ws, { type: 'challenge', state: chs });
     const tm = this.termoSnapshot();
     if (tm) this.send(ws, { type: 'termo', state: tm });
     const def = this.defenseSnapshot();

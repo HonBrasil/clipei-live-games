@@ -363,4 +363,29 @@ describe('Room', () => {
     expect(msgs.some((m) => m.type === 'termo' && m.state.guesses.length > 0)).toBe(true);
     expect(room.activeGame()).toBeNull();
   });
+
+  it('desafios do chat: votação, desafio valendo, sugestão e histórico', () => {
+    const { room, msgs, tickFor } = setup();
+    room.updateSettings({ challenge: { voteSec: 20 } });
+    room.handleChat(chat('mod', '!desafio votar', 'mod'));
+    expect(room.activeGame()).toBe('challenge');
+    room.handleChat(chat('ana', '!2'));
+    room.handleChat(chat('bia', '!2'));
+    tickFor(21_000);
+    expect(room.challenge.status).toBe('active');
+    expect(room.activeGame()).toBeNull();
+    // outro jogo pode rodar com o desafio valendo
+    expect(room.startRace().ok).toBe(true);
+    room.stopRace();
+    room.handleChat(chat('mod', '!desafio cumprido', 'mod'));
+    expect(room.challenge.status).toBe('done');
+    expect(room.getSettings().challenge.history[0]).toMatchObject({ result: 'done', votes: 2 });
+    // sugestão de sub vai para aprovação
+    room.handleChat({ ...chat('cris', '!sugerir dançar no chat'), user: { ...chat('cris', '').user, isSub: true } });
+    expect(room.getSettings().challenge.pending[0]).toMatchObject({ text: 'dançar no chat', name: 'cris' });
+    const said = msgs.flatMap((m) => (m.type === 'toast' ? [m.text] : []));
+    expect(said.some((t) => t.includes('DESAFIO PARA O STREAMER'))).toBe(true);
+    expect(said.some((t) => t.includes('O chat escolheu'))).toBe(true);
+    expect(said.some((t) => t.includes('Desafio cumprido'))).toBe(true);
+  });
 });
